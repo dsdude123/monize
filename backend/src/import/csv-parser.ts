@@ -17,7 +17,15 @@ export interface CsvHeadersResult {
   headers: string[];
   sampleRows: string[][];
   rowCount: number;
+  /**
+   * Distinct non-empty values per column over every data row (not only the
+   * sample), so the mapping UI can list every action value the file holds.
+   * Capped at MAX_DISTINCT_COLUMN_VALUES per column.
+   */
+  columnValues: string[][];
 }
+
+export const MAX_DISTINCT_COLUMN_VALUES = 100;
 
 /**
  * Canonical investment actions the CSV importer can classify a row into.
@@ -1094,6 +1102,21 @@ export function validateCsvContent(content: string): {
   return { valid: true };
 }
 
+function distinctColumnValues(
+  columnCount: number,
+  dataRows: string[][],
+): string[][] {
+  const sets = Array.from({ length: columnCount }, () => new Set<string>());
+  for (const row of dataRows) {
+    for (const [i, values] of sets.entries()) {
+      if (values.size >= MAX_DISTINCT_COLUMN_VALUES) continue;
+      const value = (row[i] || "").trim();
+      if (value) values.add(value);
+    }
+  }
+  return sets.map((values) => Array.from(values));
+}
+
 /**
  * Parse CSV headers and return sample data for the column mapping UI.
  * Auto-detects delimiter if not provided.
@@ -1106,7 +1129,7 @@ export function parseCsvHeaders(
   const rows = parseCsvRows(content, resolvedDelimiter);
 
   if (rows.length === 0) {
-    return { headers: [], sampleRows: [], rowCount: 0 };
+    return { headers: [], sampleRows: [], rowCount: 0, columnValues: [] };
   }
 
   const headers = rows[0];
@@ -1117,6 +1140,7 @@ export function parseCsvHeaders(
     headers,
     sampleRows,
     rowCount: dataRows.length,
+    columnValues: distinctColumnValues(headers.length, dataRows),
   };
 }
 

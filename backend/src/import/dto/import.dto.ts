@@ -1085,6 +1085,12 @@ export class CsvHeadersResponseDto {
 
   @ApiProperty()
   rowCount: number;
+
+  @ApiProperty({
+    description:
+      "Distinct non-empty values per column across every data row (capped per column)",
+  })
+  columnValues: string[][];
 }
 
 export class ColumnMappingResponseDto {

@@ -145,6 +145,7 @@ export function useImportWizard() {
   const [fileType, setFileType] = useState<ImportFileType>('qif');
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [csvSampleRows, setCsvSampleRows] = useState<string[][]>([]);
+  const [csvColumnValues, setCsvColumnValues] = useState<string[][]>([]);
   const [csvColumnMapping, setCsvColumnMapping] = useState<CsvColumnMappingConfig>(DEFAULT_CSV_COLUMN_MAPPING);
   const [csvTransferRules, setCsvTransferRules] = useState<CsvTransferRule[]>([]);
   const [savedColumnMappings, setSavedColumnMappings] = useState<SavedColumnMapping[]>([]);
@@ -433,6 +434,7 @@ export function useImportWizard() {
         const headersResponse = await importApi.parseCsvHeaders(content);
         setCsvHeaders(headersResponse.headers);
         setCsvSampleRows(headersResponse.sampleRows);
+        setCsvColumnValues(headersResponse.columnValues);
 
         // Store all file contents
         const fileDataArray: ImportFileData[] = [];
@@ -628,6 +630,7 @@ export function useImportWizard() {
       const headersResponse = await importApi.parseCsvHeaders(importFiles[0].fileContent, delimiter);
       setCsvHeaders(headersResponse.headers);
       setCsvSampleRows(headersResponse.sampleRows);
+      setCsvColumnValues(headersResponse.columnValues);
       setCsvColumnMapping(prev => ({ ...prev, delimiter }));
     } catch (error) {
       toast.error(getErrorMessage(error, t('toasts.parseCsvDelimiterFailed')));
@@ -645,6 +648,7 @@ export function useImportWizard() {
       const headersResponse = await importApi.parseCsvHeaders(importFiles[0].fileContent, csvColumnMapping.delimiter);
       setCsvHeaders(headersResponse.headers);
       setCsvSampleRows(headersResponse.sampleRows);
+      setCsvColumnValues(headersResponse.columnValues);
     } catch (error) {
       toast.error(getErrorMessage(error, t('toasts.updateCsvPreviewFailed')));
     } finally {
@@ -1185,6 +1189,7 @@ export function useImportWizard() {
     setMultiAccountCurrency(defaultCurrency);
     setCsvHeaders([]);
     setCsvSampleRows([]);
+    setCsvColumnValues([]);
     setCsvColumnMapping(DEFAULT_CSV_COLUMN_MAPPING);
     setCsvTransferRules([]);
   };
@@ -1262,7 +1267,7 @@ export function useImportWizard() {
     multiAccountData, multiAccountCurrency, setMultiAccountCurrency, handleMultiAccountImport,
     // CSV-specific exports
     fileType,
-    csvHeaders, csvSampleRows,
+    csvHeaders, csvSampleRows, csvColumnValues,
     csvColumnMapping, handleCsvColumnMappingChange,
     handleCsvInvestmentModeChange,
     csvTransferRules, handleCsvTransferRulesChange,

@@ -1,6 +1,7 @@
 import {
   validateCsvContent,
   parseCsvHeaders,
+  MAX_DISTINCT_COLUMN_VALUES,
   parseCsv,
   detectTagSeparator,
   splitTagValue,
@@ -55,6 +56,26 @@ describe("CSV Parser", () => {
       expect(result.headers).toEqual(["Date", "Amount", "Payee"]);
       expect(result.sampleRows).toHaveLength(1);
       expect(result.rowCount).toBe(1);
+    });
+
+    it("lists every distinct column value, not only the sample rows", () => {
+      const lines = ["Date,Action,Amount"];
+      for (let i = 0; i < 8; i++) lines.push(`01/0${i + 1}/2026,Buy,-10`);
+      lines.push("01/10/2026,Dividend,5", "01/11/2026, Sell ,20");
+      lines.push("01/12/2026,,0");
+      const result = parseCsvHeaders(lines.join("\n"), ",");
+      expect(result.sampleRows).toHaveLength(5);
+      expect(result.columnValues[1]).toEqual(["Buy", "Dividend", "Sell"]);
+    });
+
+    it("caps the distinct values kept per column", () => {
+      const lines = ["Date,Memo"];
+      for (let i = 0; i < MAX_DISTINCT_COLUMN_VALUES + 20; i++) {
+        lines.push(`01/01/2026,memo ${i}`);
+      }
+      const result = parseCsvHeaders(lines.join("\n"), ",");
+      expect(result.columnValues[1]).toHaveLength(MAX_DISTINCT_COLUMN_VALUES);
+      expect(result.columnValues[0]).toEqual(["01/01/2026"]);
     });
 
     it("parses headers with semicolon delimiter", () => {
