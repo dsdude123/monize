@@ -997,6 +997,7 @@ describe('CsvColumnMappingStep', () => {
           <CsvColumnMappingStep
             headers={investmentHeaders}
             sampleRows={investmentRows}
+            columnValues={distinctColumnValues(investmentRows)}
             columnMapping={mapping}
             onColumnMappingChange={(next) => { seen.push(next); setMapping(next); }}
             onInvestmentModeChange={vi.fn()}
