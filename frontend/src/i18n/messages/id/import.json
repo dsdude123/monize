@@ -280,6 +280,18 @@
       "missingProceeds": "Penjualan tanpa harga atau hasil penjualan",
       "missingSplitRatio": "Pemecahan tanpa rasio"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Tindakan ini memerlukan sekuritas, tetapi sel sekuritas kosong.",
+      "missingQuantity": "Tindakan ini memerlukan jumlah saham, tetapi sel jumlah kosong atau nol, atau tidak ada kolom jumlah yang dipetakan.",
+      "missingAmount": "Sel nominal kosong atau nol, jadi tidak ada kas yang dicatat. Baris dengan tindakan yang tidak dikenali hanya diimpor sebagai kas jika memiliki nominal; jika itu pergerakan saham, tambahkan nilai tindakannya ke kata kunci tindakan tersebut pada langkah pemetaan kolom.",
+      "missingProceeds": "Penjualan memerlukan harga atau nominal hasil penjualan, dan kedua sel kosong atau nol.",
+      "missingSplitRatio": "Pemecahan saham memerlukan rasionya di kolom jumlah, dan sel itu kosong atau nol."
+    },
+    "rejectedRow": "Baris {row}",
+    "rejectedRowInFile": "{file}, baris {row}",
+    "rejectedRowCells": "tanggal {date}, tindakan {action}, sekuritas {security}, nominal {amount}",
+    "rejectedEmptyCell": "(kosong)",
+    "rejectedMoreRows": "dan {count, plural, other {# baris lainnya}}",
     "rejectedGoBack": "Kembali ke langkah pemetaan kolom untuk menyesuaikan kolom atau kata kunci tindakan.",
     "importButton": "Impor Transaksi"
   },

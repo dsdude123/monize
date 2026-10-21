@@ -8,24 +8,26 @@ import {
   SecurityMapping,
   ParsedQifResponse,
   CsvInvestmentSummary,
+  CsvRejectedRowGroup,
   CanonicalInvestmentAction,
   CANONICAL_INVESTMENT_ACTIONS,
 } from '@/lib/import';
 import { Account } from '@/types/account';
 import { ImportFileData, ImportStep } from '@/app/import/import-utils';
+import { RejectedRowsNotice } from './RejectedRowsNotice';
 
 /** Merge the per-file investment summaries of a (possibly bulk) CSV parse. */
 function combineInvestmentSummaries(files: ImportFileData[]): CsvInvestmentSummary | null {
-  const summaries = files
-    .map((f) => f.parsedData?.investmentSummary)
-    .filter((s): s is CsvInvestmentSummary => !!s);
-  if (summaries.length === 0) return null;
+  const withSummary = files.filter((f) => !!f.parsedData?.investmentSummary);
+  if (withSummary.length === 0) return null;
+  const multipleFiles = withSummary.length > 1;
 
   const actionCounts: Partial<Record<CanonicalInvestmentAction, number>> = {};
   const cashFallbackValues = new Set<string>();
-  const rejectedByReason = new Map<string, number>();
+  const rejectedByReason = new Map<string, CsvRejectedRowGroup>();
   let uncostedShareRows = 0;
-  for (const s of summaries) {
+  for (const file of withSummary) {
+    const s = file.parsedData.investmentSummary!;
     for (const [action, count] of Object.entries(s.actionCounts)) {
       const key = action as CanonicalInvestmentAction;
       actionCounts[key] = (actionCounts[key] || 0) + (count || 0);
@@ -33,14 +35,16 @@ function combineInvestmentSummaries(files: ImportFileData[]): CsvInvestmentSumma
     s.cashFallbackValues.forEach((v) => cashFallbackValues.add(v));
     uncostedShareRows += s.uncostedShareRows;
     for (const r of s.rejectedRows) {
-      rejectedByReason.set(r.reason, (rejectedByReason.get(r.reason) || 0) + r.count);
+      const group = rejectedByReason.get(r.reason) ?? { reason: r.reason, count: 0, rows: [] };
+      const rows = multipleFiles ? r.rows.map((row) => ({ ...row, fileName: file.fileName })) : r.rows;
+      rejectedByReason.set(r.reason, { reason: r.reason, count: group.count + r.count, rows: [...group.rows, ...rows] });
     }
   }
   return {
     actionCounts,
     cashFallbackValues: Array.from(cashFallbackValues).sort(),
     uncostedShareRows,
-    rejectedRows: Array.from(rejectedByReason.entries()).map(([reason, count]) => ({ reason, count })),
+    rejectedRows: Array.from(rejectedByReason.values()),
   };
 }
 
@@ -225,17 +229,7 @@ export function ReviewStep({
                 </p>
               )}
               {totalRejected > 0 && (
-                <div className="mt-2 text-sm text-red-600 dark:text-red-400 space-y-1">
-                  <p>{t('review.rejectedNotice', { count: totalRejected })}</p>
-                  <ul className="ml-4 list-disc">
-                    {investmentSummary.rejectedRows.map((r) => (
-                      <li key={r.reason}>
-                        {t(`review.rejectedReasons.${r.reason}` as Parameters<typeof t>[0])}: {r.count}
-                      </li>
-                    ))}
-                  </ul>
-                  <p>{t('review.rejectedGoBack')}</p>
-                </div>
+                <RejectedRowsNotice groups={investmentSummary.rejectedRows} total={totalRejected} />
               )}
             </div>
           )}

@@ -2,6 +2,7 @@ import {
   validateCsvContent,
   parseCsvHeaders,
   MAX_DISTINCT_COLUMN_VALUES,
+  MAX_REJECTED_ROW_DETAILS,
   parseCsv,
   detectTagSeparator,
   splitTagValue,
@@ -1941,7 +1942,7 @@ describe("CSV Parser investment mode", () => {
       const result = parseRows(["01/16/2026,Sell,AAPL,5,,,"]);
       expect(result.transactions).toHaveLength(0);
       expect(result.investmentSummary!.rejectedRows).toEqual([
-        { reason: "missingProceeds", count: 1 },
+        expect.objectContaining({ reason: "missingProceeds", count: 1 }),
       ]);
     });
 
@@ -1952,7 +1953,20 @@ describe("CSV Parser investment mode", () => {
       ]);
       expect(result.transactions).toHaveLength(0);
       expect(result.investmentSummary!.rejectedRows).toEqual([
-        { reason: "missingQuantity", count: 2 },
+        {
+          reason: "missingQuantity",
+          count: 2,
+          rows: [
+            expect.objectContaining({ rowNumber: 2, action: "Buy" }),
+            expect.objectContaining({
+              rowNumber: 3,
+              date: "01/16/2026",
+              action: "Sell",
+              security: "AAPL",
+              amount: "1000.00",
+            }),
+          ],
+        },
       ]);
     });
 
@@ -1960,7 +1974,7 @@ describe("CSV Parser investment mode", () => {
       const result = parseRows(["01/15/2026,Buy,,10,100.00,1000.00,0"]);
       expect(result.transactions).toHaveLength(0);
       expect(result.investmentSummary!.rejectedRows).toEqual([
-        { reason: "missingSecurity", count: 1 },
+        expect.objectContaining({ reason: "missingSecurity", count: 1 }),
       ]);
       expect(result.securities).toEqual([]);
     });
@@ -1983,7 +1997,7 @@ describe("CSV Parser investment mode", () => {
       const result = parseRows(["02/01/2026,Dividend,AAPL,,,,"]);
       expect(result.transactions).toHaveLength(0);
       expect(result.investmentSummary!.rejectedRows).toEqual([
-        { reason: "missingAmount", count: 1 },
+        expect.objectContaining({ reason: "missingAmount", count: 1 }),
       ]);
     });
 
@@ -1996,7 +2010,7 @@ describe("CSV Parser investment mode", () => {
       expect(result.transactions[0].action).toBe("stksplit");
       expect(result.transactions[0].quantity).toBe(2);
       expect(result.investmentSummary!.rejectedRows).toEqual([
-        { reason: "missingSplitRatio", count: 1 },
+        expect.objectContaining({ reason: "missingSplitRatio", count: 1 }),
       ]);
     });
 
@@ -2030,12 +2044,61 @@ describe("CSV Parser investment mode", () => {
       expect(result.investmentSummary!.actionCounts.cashOut).toBe(1);
     });
 
+    it("numbers a rejected row from 1 when the file has no header row", () => {
+      const result = parseCsv(
+        [
+          "04/01/2026,Buy,AAPL,10,100.00,1000.00,0",
+          "04/02/2026,Mystery,,,,,",
+        ].join("\n"),
+        invConfig({ hasHeader: false }),
+      );
+      expect(result.investmentSummary!.rejectedRows[0].rows).toEqual([
+        expect.objectContaining({ rowNumber: 2, action: "Mystery" }),
+      ]);
+    });
+
+    it("counts every rejected row but details at most MAX_REJECTED_ROW_DETAILS", () => {
+      const rows = Array.from(
+        { length: MAX_REJECTED_ROW_DETAILS + 5 },
+        () => "04/01/2026,Mystery,,,,,",
+      );
+      const [group] = parseRows(rows).investmentSummary!.rejectedRows;
+      expect(group.count).toBe(MAX_REJECTED_ROW_DETAILS + 5);
+      expect(group.rows).toHaveLength(MAX_REJECTED_ROW_DETAILS);
+      expect(group.rows[group.rows.length - 1].rowNumber).toBe(
+        MAX_REJECTED_ROW_DETAILS + 1,
+      );
+    });
+
+    it("shows debit and credit cells when the amount is split", () => {
+      const result = parseRows(["04/01/2026,Mystery,,,,0.00,0"], {
+        amount: undefined,
+        debit: 5,
+        credit: 6,
+      });
+      expect(result.investmentSummary!.rejectedRows[0].rows[0].amount).toBe(
+        "0.00 / 0",
+      );
+    });
+
     it("rejects an unknown-action row with no amount: nothing truthful to book", () => {
       const result = parseRows(["04/01/2026,Mystery,,,,,"]);
       expect(result.transactions).toHaveLength(0);
       expect(result.investmentSummary!.cashFallbackValues).toEqual([]);
       expect(result.investmentSummary!.rejectedRows).toEqual([
-        { reason: "missingAmount", count: 1 },
+        {
+          reason: "missingAmount",
+          count: 1,
+          rows: [
+            {
+              rowNumber: 2,
+              date: "04/01/2026",
+              action: "Mystery",
+              security: "",
+              amount: "",
+            },
+          ],
+        },
       ]);
     });
 

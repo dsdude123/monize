@@ -239,7 +239,13 @@ describe('ReviewStep', () => {
       actionCounts: { buy: 3, dividend: 1 },
       cashFallbackValues: ['Journal'],
       uncostedShareRows: 2,
-      rejectedRows: [{ reason: 'missingProceeds', count: 1 }],
+      rejectedRows: [
+        {
+          reason: 'missingProceeds',
+          count: 1,
+          rows: [{ rowNumber: 7, date: '01/16/2026', action: 'Sell', security: 'AAPL', amount: '' }],
+        },
+      ],
     };
 
     function investmentFile(summary: CsvInvestmentSummary | undefined, fileName = 'trades.csv') {
@@ -313,7 +319,16 @@ describe('ReviewStep', () => {
         actionCounts: { buy: 2, sell: 1 },
         cashFallbackValues: ['Sweep'],
         uncostedShareRows: 1,
-        rejectedRows: [{ reason: 'missingProceeds', count: 2 }],
+        rejectedRows: [
+          {
+            reason: 'missingProceeds',
+            count: 2,
+            rows: [
+              { rowNumber: 3, date: '02/01/2026', action: 'Sell', security: 'MSFT', amount: '' },
+              { rowNumber: 9, date: '02/03/2026', action: 'Sell', security: 'VTI', amount: '0' },
+            ],
+          },
+        ],
       };
       render(
         <ReviewStep
@@ -331,6 +346,43 @@ describe('ReviewStep', () => {
       expect(screen.getByText(/cash transactions: Journal, Sweep/)).toBeInTheDocument();
       expect(screen.getByText('3 rows cannot be imported:')).toBeInTheDocument();
       expect(screen.getByText(/Sell without price or proceeds/)).toBeInTheDocument();
+      // Rows from several files are named by file as well as row number
+      expect(screen.getByText('trades.csv, row 7')).toBeInTheDocument();
+      expect(screen.getByText('more.csv, row 3')).toBeInTheDocument();
+      expect(screen.getByText('more.csv, row 9')).toBeInTheDocument();
+    });
+
+    it('names each rejected row and the cells that decided it', () => {
+      const summary: CsvInvestmentSummary = {
+        actionCounts: {},
+        cashFallbackValues: [],
+        uncostedShareRows: 0,
+        rejectedRows: [
+          {
+            reason: 'missingAmount',
+            count: 3,
+            rows: [
+              { rowNumber: 12, date: '03/04/2026', action: 'Reinvest Fee', security: 'VTI', amount: '0.00' },
+              { rowNumber: 15, date: '03/05/2026', action: 'Journal', security: '', amount: '' },
+            ],
+          },
+        ],
+      };
+      render(<ReviewStep {...defaultProps} importFiles={[investmentFile(summary)] as any[]} />);
+
+      expect(screen.getByText('3 rows cannot be imported:')).toBeInTheDocument();
+      expect(screen.getByText(/Missing amount: 3/)).toBeInTheDocument();
+      expect(screen.getByText(/The amount cell is empty or zero/)).toBeInTheDocument();
+      const first = screen.getByText('Row 12').closest('li');
+      expect(first).toHaveTextContent(
+        'Row 12: date 03/04/2026, action Reinvest Fee, security VTI, amount 0.00',
+      );
+      const second = screen.getByText('Row 15').closest('li');
+      expect(second).toHaveTextContent(
+        'Row 15: date 03/05/2026, action Journal, security (empty), amount (empty)',
+      );
+      // The server details only the first rows; the rest are counted
+      expect(screen.getByText('and 1 more row')).toBeInTheDocument();
     });
 
     it('omits amber and red notices when the summary has nothing to warn about', () => {

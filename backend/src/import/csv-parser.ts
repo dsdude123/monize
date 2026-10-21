@@ -96,8 +96,28 @@ export interface CsvInvestmentSummary {
   cashFallbackValues: string[];
   /** Buy/reinvest rows downgraded to addshares because no cost was derivable */
   uncostedShareRows: number;
-  rejectedRows: { reason: string; count: number }[];
+  rejectedRows: CsvRejectedRowGroup[];
 }
+
+/** One row the parser refused, identified so the person can find it in the file. */
+export interface CsvRejectedRowDetail {
+  /** 1-based position of the row in the file, the header row included */
+  rowNumber: number;
+  date: string;
+  action: string;
+  security: string;
+  amount: string;
+}
+
+export interface CsvRejectedRowGroup {
+  reason: string;
+  count: number;
+  /** The first MAX_REJECTED_ROW_DETAILS rows refused for this reason */
+  rows: CsvRejectedRowDetail[];
+}
+
+export const MAX_REJECTED_ROW_DETAILS = 50;
+const REJECTED_ROW_FIELD_CHARS = 100;
 
 // Iteration order doubles as match priority when a keyword appears in more
 // than one action's list.
@@ -859,6 +879,26 @@ const SECURITY_REQUIRED_ACTIONS: ReadonlySet<CanonicalInvestmentAction> =
     "removeShares",
   ]);
 
+function describeRejectedRow(
+  row: string[],
+  config: CsvColumnMappingConfig,
+  rowNumber: number,
+): CsvRejectedRowDetail {
+  const field = (index: number | undefined) =>
+    truncate(getField(row, index).trim(), REJECTED_ROW_FIELD_CHARS);
+  const amount =
+    config.amount !== undefined
+      ? field(config.amount)
+      : [field(config.debit), field(config.credit)].filter(Boolean).join(" / ");
+  return {
+    rowNumber,
+    date: field(config.date),
+    action: field(config.actionColumn),
+    security: field(config.securityColumn),
+    amount,
+  };
+}
+
 interface InvestmentRowOutcome {
   transaction?: QifTransaction;
   /** Canonical action actually emitted (post-fallback/downgrade) */
@@ -1190,7 +1230,10 @@ export function parseCsv(
   const securitiesSet = new Set<string>();
   const actionCounts: Partial<Record<CanonicalInvestmentAction, number>> = {};
   const cashFallbackValues = new Set<string>();
-  const rejectedRowCounts = new Map<InvestmentRejectReason, number>();
+  const rejectedRowGroups = new Map<
+    InvestmentRejectReason,
+    CsvRejectedRowGroup
+  >();
   let uncostedShareRows = 0;
   const rawDates: string[] = [];
   const rules = transferRules || [];
@@ -1204,7 +1247,10 @@ export function parseCsv(
       ? detectTagSeparator(dataRows.map((row) => getField(row, config.tags!)))
       : null;
 
-  for (const row of dataRows) {
+  // Row numbers count the header row so they match a spreadsheet's.
+  const firstDataRowNumber = config.hasHeader ? 2 : 1;
+
+  for (const [dataRowIndex, row] of dataRows.entries()) {
     // Extract and parse the date
     const rawDate = getField(row, config.date);
     if (!rawDate) {
@@ -1295,10 +1341,18 @@ export function parseCsv(
         normalizedStatus,
       });
       if (outcome.rejectReason) {
-        rejectedRowCounts.set(
-          outcome.rejectReason,
-          (rejectedRowCounts.get(outcome.rejectReason) || 0) + 1,
-        );
+        const group = rejectedRowGroups.get(outcome.rejectReason) ?? {
+          reason: outcome.rejectReason,
+          count: 0,
+          rows: [],
+        };
+        group.count++;
+        if (group.rows.length < MAX_REJECTED_ROW_DETAILS) {
+          group.rows.push(
+            describeRejectedRow(row, config, firstDataRowNumber + dataRowIndex),
+          );
+        }
+        rejectedRowGroups.set(outcome.rejectReason, group);
         continue;
       }
       const emitted = outcome.emittedAction!;
@@ -1445,9 +1499,7 @@ export function parseCsv(
             actionCounts,
             cashFallbackValues: Array.from(cashFallbackValues).sort(),
             uncostedShareRows,
-            rejectedRows: Array.from(rejectedRowCounts.entries()).map(
-              ([reason, count]) => ({ reason, count }),
-            ),
+            rejectedRows: Array.from(rejectedRowGroups.values()),
           },
         }
       : {}),

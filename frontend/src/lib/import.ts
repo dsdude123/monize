@@ -173,7 +173,26 @@ export interface CsvInvestmentSummary {
   actionCounts: Partial<Record<CanonicalInvestmentAction, number>>;
   cashFallbackValues: string[];
   uncostedShareRows: number;
-  rejectedRows: { reason: string; count: number }[];
+  rejectedRows: CsvRejectedRowGroup[];
+}
+
+/** One row the parser refused, identified so the person can find it in the file. */
+export interface CsvRejectedRowDetail {
+  /** 1-based position in the file, the header row included */
+  rowNumber: number;
+  date: string;
+  action: string;
+  security: string;
+  amount: string;
+  /** Set by the review step when several files are combined */
+  fileName?: string;
+}
+
+export interface CsvRejectedRowGroup {
+  reason: string;
+  count: number;
+  /** The first rows refused for this reason (the server caps the list) */
+  rows: CsvRejectedRowDetail[];
 }
 
 export interface ParsedQifResponse {

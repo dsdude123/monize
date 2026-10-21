@@ -280,6 +280,18 @@
       "missingProceeds": "Verkauf ohne Kurs oder Erlös",
       "missingSplitRatio": "Split ohne Verhältnis"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Diese Aktionen benötigen ein Wertpapier, aber die Wertpapierzelle ist leer.",
+      "missingQuantity": "Diese Aktionen benötigen eine Stückzahl, aber die Mengenzelle ist leer oder null, oder es ist keine Mengenspalte zugeordnet.",
+      "missingAmount": "Die Betragszelle ist leer oder null, daher gibt es keinen Barbetrag zu buchen. Eine Zeile mit nicht erkannter Aktion wird nur dann als Barbuchung importiert, wenn sie einen Betrag hat; ist sie eine Wertpapierbewegung, fügen Sie ihren Aktionswert im Schritt der Spaltenzuordnung zu den Schlüsselwörtern dieser Aktion hinzu.",
+      "missingProceeds": "Ein Verkauf benötigt einen Kurs oder einen Erlösbetrag, und beide Zellen sind leer oder null.",
+      "missingSplitRatio": "Ein Split benötigt sein Verhältnis in der Mengenspalte, und diese Zelle ist leer oder null."
+    },
+    "rejectedRow": "Zeile {row}",
+    "rejectedRowInFile": "{file}, Zeile {row}",
+    "rejectedRowCells": "Datum {date}, Aktion {action}, Wertpapier {security}, Betrag {amount}",
+    "rejectedEmptyCell": "(leer)",
+    "rejectedMoreRows": "und {count, plural, one {# weitere Zeile} other {# weitere Zeilen}}",
     "rejectedGoBack": "Gehen Sie zurück zum Schritt Spaltenzuordnung, um Spalten oder Aktions-Schlüsselwörter anzupassen.",
     "importButton": "Buchungen importieren"
   },

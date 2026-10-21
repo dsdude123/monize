@@ -280,6 +280,18 @@
       "missingProceeds": "Venda sem preço nem valor recebido",
       "missingSplitRatio": "Desdobramento sem proporção"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Estas ações precisam de um título, mas a célula do título está vazia.",
+      "missingQuantity": "Estas ações precisam de uma quantidade de cotas, mas a célula da quantidade está vazia ou é zero, ou nenhuma coluna de quantidade foi mapeada.",
+      "missingAmount": "A célula do valor está vazia ou é zero, então não há dinheiro a lançar. Uma linha cuja ação não é reconhecida só é importada como dinheiro se tiver um valor; se for uma movimentação de cotas, adicione o valor da ação às palavras-chave dessa ação na etapa de mapeamento de colunas.",
+      "missingProceeds": "Uma venda precisa de um preço ou de um valor de receita, e as duas células estão vazias ou são zero.",
+      "missingSplitRatio": "Um desdobramento precisa da proporção na coluna de quantidade, e essa célula está vazia ou é zero."
+    },
+    "rejectedRow": "Linha {row}",
+    "rejectedRowInFile": "{file}, linha {row}",
+    "rejectedRowCells": "data {date}, ação {action}, título {security}, valor {amount}",
+    "rejectedEmptyCell": "(vazio)",
+    "rejectedMoreRows": "e {count, plural, one {mais # linha} other {mais # linhas}}",
     "rejectedGoBack": "Volte à etapa de mapeamento de colunas para ajustar as colunas ou as palavras-chave de ação.",
     "importButton": "Importar Transações"
   },
