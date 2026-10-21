@@ -280,6 +280,18 @@
       "missingProceeds": "卖出缺少价格或成交金额",
       "missingSplitRatio": "拆股缺少比例"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "这些操作需要证券，但证券单元格为空。",
+      "missingQuantity": "这些操作需要份额数量，但数量单元格为空或为零，或者没有映射数量列。",
+      "missingAmount": "金额单元格为空或为零，因此没有可记账的现金。操作未被识别的行只有在有金额时才会作为现金导入；如果它是份额变动，请在列映射步骤中把它的操作值添加到对应操作的关键字中。",
+      "missingProceeds": "卖出需要价格或卖出所得金额，而两个单元格都为空或为零。",
+      "missingSplitRatio": "拆股需要在数量列中填写比例，而该单元格为空或为零。"
+    },
+    "rejectedRow": "第 {row} 行",
+    "rejectedRowInFile": "{file}，第 {row} 行",
+    "rejectedRowCells": "日期 {date}，操作 {action}，证券 {security}，金额 {amount}",
+    "rejectedEmptyCell": "（空）",
+    "rejectedMoreRows": "以及另外 {count, plural, other {# 行}}",
     "rejectedGoBack": "返回列映射步骤以调整列或操作关键词。",
     "importButton": "导入交易"
   },

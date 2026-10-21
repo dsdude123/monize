@@ -280,6 +280,18 @@
       "missingProceeds": "[XX-Sell without price or proceeds-XX]",
       "missingSplitRatio": "[XX-Split without ratio-XX]"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "[XX-These actions need a security, but the security cell is empty.-XX]",
+      "missingQuantity": "[XX-These actions need a share quantity, but the quantity cell is empty or zero, or no quantity column is mapped.-XX]",
+      "missingAmount": "[XX-The amount cell is empty or zero, so there is no cash to book. A row whose action is not recognized is imported as cash only when it has an amount; if it is a share movement, add its action value to that action's keywords on the column mapping step.-XX]",
+      "missingProceeds": "[XX-A sell needs a price or a proceeds amount, and both cells are empty or zero.-XX]",
+      "missingSplitRatio": "[XX-A split needs its ratio in the quantity column, and that cell is empty or zero.-XX]"
+    },
+    "rejectedRow": "[XX-Row {row}-XX]",
+    "rejectedRowInFile": "[XX-{file}, row {row}-XX]",
+    "rejectedRowCells": "[XX-date {date}, action {action}, security {security}, amount {amount}-XX]",
+    "rejectedEmptyCell": "[XX-(empty)-XX]",
+    "rejectedMoreRows": "[XX-and {count, plural, one {# more row} other {# more rows}}-XX]",
     "rejectedGoBack": "[XX-Go back to the column mapping step to adjust columns or action keywords.-XX]",
     "importButton": "[XX-Import Transactions-XX]"
   },

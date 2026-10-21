@@ -174,9 +174,19 @@ investmentSummary?: {
   actionCounts: Record<string, number>;   // canonical action -> row count
   cashFallbackValues: string[];           // distinct unknown action values imported as cash
   uncostedShareRows: number;              // buy/reinvest rows downgraded to addshares
-  rejectedRows: { reason: string; count: number }[];
+  rejectedRows: {
+    reason: string;
+    count: number;
+    // the first MAX_REJECTED_ROW_DETAILS rows refused for this reason
+    rows: { rowNumber: number; date: string; action: string; security: string; amount: string }[];
+  }[];
 };
 ```
+
+`rowNumber` is the row's 1-based position in the file with the header row
+counted, so it matches the row a spreadsheet shows. A count alone gives the
+reader nothing to fix; each rejected row is named with the cells that
+decided it.
 
 It flows through `ParsedQifResponseDto` to the wizard, and the Review step
 renders it -- per-action counts, which values fell back to cash, and what was

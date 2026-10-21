@@ -280,6 +280,18 @@
       "missingProceeds": "賣出缺少價格或成交金額",
       "missingSplitRatio": "分割缺少比例"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "這些操作需要證券，但證券儲存格是空的。",
+      "missingQuantity": "這些操作需要股數，但數量儲存格是空的或為零，或者沒有對應數量欄。",
+      "missingAmount": "金額儲存格是空的或為零，因此沒有可記帳的現金。操作未被辨識的列只有在有金額時才會以現金匯入；如果它是股數異動，請在欄位對應步驟中將它的操作值加入對應操作的關鍵字。",
+      "missingProceeds": "賣出需要價格或賣出所得金額，而兩個儲存格都是空的或為零。",
+      "missingSplitRatio": "分割需要在數量欄填入比例，而該儲存格是空的或為零。"
+    },
+    "rejectedRow": "第 {row} 列",
+    "rejectedRowInFile": "{file}，第 {row} 列",
+    "rejectedRowCells": "日期 {date}，操作 {action}，證券 {security}，金額 {amount}",
+    "rejectedEmptyCell": "（空）",
+    "rejectedMoreRows": "以及另外 {count, plural, other {# 列}}",
     "rejectedGoBack": "返回欄位對應步驟以調整欄位或操作關鍵字。",
     "importButton": "匯入交易"
   },

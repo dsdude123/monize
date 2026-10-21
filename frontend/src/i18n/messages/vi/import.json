@@ -280,6 +280,18 @@
       "missingProceeds": "Bán mà không có giá hoặc số tiền thu về",
       "missingSplitRatio": "Tách mà không có tỷ lệ"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Các thao tác này cần một chứng khoán, nhưng ô chứng khoán đang trống.",
+      "missingQuantity": "Các thao tác này cần số lượng cổ phần, nhưng ô số lượng trống hoặc bằng không, hoặc chưa ánh xạ cột số lượng nào.",
+      "missingAmount": "Ô số tiền trống hoặc bằng không, nên không có tiền mặt để ghi nhận. Một dòng có thao tác không được nhận diện chỉ được nhập dưới dạng tiền mặt khi có số tiền; nếu đó là biến động cổ phần, hãy thêm giá trị thao tác vào từ khóa của thao tác đó ở bước ánh xạ cột.",
+      "missingProceeds": "Lệnh bán cần giá hoặc số tiền thu về, và cả hai ô đều trống hoặc bằng không.",
+      "missingSplitRatio": "Chia tách cần tỷ lệ trong cột số lượng, và ô đó trống hoặc bằng không."
+    },
+    "rejectedRow": "Dòng {row}",
+    "rejectedRowInFile": "{file}, dòng {row}",
+    "rejectedRowCells": "ngày {date}, thao tác {action}, chứng khoán {security}, số tiền {amount}",
+    "rejectedEmptyCell": "(trống)",
+    "rejectedMoreRows": "và {count, plural, other {# dòng khác}}",
     "rejectedGoBack": "Quay lại bước ánh xạ cột để điều chỉnh cột hoặc từ khóa hành động.",
     "importButton": "Nhập Khẩu Giao Dịch"
   },

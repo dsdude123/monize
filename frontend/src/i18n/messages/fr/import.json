@@ -280,6 +280,18 @@
       "missingProceeds": "Vente sans cours ni produit",
       "missingSplitRatio": "Division sans ratio"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Ces actions nécessitent un titre, mais la cellule du titre est vide.",
+      "missingQuantity": "Ces actions nécessitent une quantité de parts, mais la cellule de quantité est vide ou nulle, ou aucune colonne de quantité n'est associée.",
+      "missingAmount": "La cellule du montant est vide ou nulle, il n'y a donc aucun montant en espèces à enregistrer. Une ligne dont l'action n'est pas reconnue n'est importée comme mouvement d'espèces que si elle a un montant ; s'il s'agit d'un mouvement de titres, ajoutez sa valeur d'action aux mots-clés de cette action à l'étape d'association des colonnes.",
+      "missingProceeds": "Une vente nécessite un prix ou un montant de produit, et les deux cellules sont vides ou nulles.",
+      "missingSplitRatio": "Un fractionnement nécessite son ratio dans la colonne de quantité, et cette cellule est vide ou nulle."
+    },
+    "rejectedRow": "Ligne {row}",
+    "rejectedRowInFile": "{file}, ligne {row}",
+    "rejectedRowCells": "date {date}, action {action}, titre {security}, montant {amount}",
+    "rejectedEmptyCell": "(vide)",
+    "rejectedMoreRows": "et {count, plural, one {# autre ligne} other {# autres lignes}}",
     "rejectedGoBack": "Revenez à l'étape de mappage des colonnes pour ajuster les colonnes ou les mots-clés d'action.",
     "importButton": "Importer les transactions"
   },

@@ -280,6 +280,18 @@
       "missingProceeds": "가격이나 매도 대금 없는 매도",
       "missingSplitRatio": "비율 없는 분할"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "이 작업에는 유가증권이 필요하지만 유가증권 셀이 비어 있습니다.",
+      "missingQuantity": "이 작업에는 주식 수량이 필요하지만 수량 셀이 비어 있거나 0이거나, 수량 열이 매핑되지 않았습니다.",
+      "missingAmount": "금액 셀이 비어 있거나 0이므로 기록할 현금이 없습니다. 인식되지 않은 작업의 행은 금액이 있을 때만 현금으로 가져옵니다. 주식 이동이라면 열 매핑 단계에서 해당 작업 값을 그 작업의 키워드에 추가하세요.",
+      "missingProceeds": "매도에는 가격이나 매도 대금이 필요하지만 두 셀 모두 비어 있거나 0입니다.",
+      "missingSplitRatio": "분할에는 수량 열에 비율이 필요하지만 그 셀이 비어 있거나 0입니다."
+    },
+    "rejectedRow": "{row}행",
+    "rejectedRowInFile": "{file}, {row}행",
+    "rejectedRowCells": "날짜 {date}, 작업 {action}, 유가증권 {security}, 금액 {amount}",
+    "rejectedEmptyCell": "(비어 있음)",
+    "rejectedMoreRows": "외 {count, plural, other {#개 행}}",
     "rejectedGoBack": "열 매핑 단계로 돌아가 열이나 작업 키워드를 조정하세요.",
     "importButton": "거래 가져오기"
   },

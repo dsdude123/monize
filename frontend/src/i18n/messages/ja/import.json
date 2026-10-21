@@ -280,6 +280,18 @@
       "missingProceeds": "価格も売却代金もない売却",
       "missingSplitRatio": "分割比率のない株式分割"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "これらのアクションには有価証券が必要ですが、有価証券のセルが空です。",
+      "missingQuantity": "これらのアクションには株数が必要ですが、数量のセルが空かゼロであるか、数量の列がマッピングされていません。",
+      "missingAmount": "金額のセルが空かゼロのため、記帳する現金がありません。認識されないアクションの行は、金額がある場合にのみ現金として取り込まれます。株式の移動である場合は、列のマッピングの手順でそのアクションの値を該当するアクションのキーワードに追加してください。",
+      "missingProceeds": "売却には価格または売却代金が必要ですが、どちらのセルも空かゼロです。",
+      "missingSplitRatio": "分割には数量の列に比率が必要ですが、そのセルが空かゼロです。"
+    },
+    "rejectedRow": "{row} 行目",
+    "rejectedRowInFile": "{file}、{row} 行目",
+    "rejectedRowCells": "日付 {date}、アクション {action}、有価証券 {security}、金額 {amount}",
+    "rejectedEmptyCell": "(空)",
+    "rejectedMoreRows": "他 {count, plural, other {# 行}}",
     "rejectedGoBack": "列マッピングの手順に戻り、列またはアクションキーワードを調整してください。",
     "importButton": "取引をインポート"
   },

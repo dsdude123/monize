@@ -280,6 +280,18 @@
       "missingProceeds": "Vendita senza prezzo né ricavo",
       "missingSplitRatio": "Frazionamento senza rapporto"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Queste azioni richiedono un titolo, ma la cella del titolo è vuota.",
+      "missingQuantity": "Queste azioni richiedono una quantità di quote, ma la cella della quantità è vuota o pari a zero, oppure non è abbinata alcuna colonna di quantità.",
+      "missingAmount": "La cella dell'importo è vuota o pari a zero, quindi non c'è liquidità da registrare. Una riga la cui azione non è riconosciuta viene importata come liquidità solo se ha un importo; se è un movimento di quote, aggiungi il suo valore di azione alle parole chiave di quell'azione nel passaggio di abbinamento delle colonne.",
+      "missingProceeds": "Una vendita richiede un prezzo o un importo del ricavato, ed entrambe le celle sono vuote o pari a zero.",
+      "missingSplitRatio": "Un frazionamento richiede il suo rapporto nella colonna della quantità, e quella cella è vuota o pari a zero."
+    },
+    "rejectedRow": "Riga {row}",
+    "rejectedRowInFile": "{file}, riga {row}",
+    "rejectedRowCells": "data {date}, azione {action}, titolo {security}, importo {amount}",
+    "rejectedEmptyCell": "(vuoto)",
+    "rejectedMoreRows": "e {count, plural, one {# altra riga} other {altre # righe}}",
     "rejectedGoBack": "Torna al passaggio di mappatura delle colonne per modificare le colonne o le parole chiave operazione.",
     "importButton": "Importa transazioni"
   },

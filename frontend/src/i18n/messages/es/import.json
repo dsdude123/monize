@@ -280,6 +280,18 @@
       "missingProceeds": "Venta sin precio ni importe obtenido",
       "missingSplitRatio": "División sin proporción"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Estas acciones necesitan un valor, pero la celda del valor está vacía.",
+      "missingQuantity": "Estas acciones necesitan una cantidad de participaciones, pero la celda de cantidad está vacía o es cero, o no hay ninguna columna de cantidad asignada.",
+      "missingAmount": "La celda del importe está vacía o es cero, así que no hay efectivo que registrar. Una fila cuya acción no se reconoce solo se importa como efectivo si tiene un importe; si es un movimiento de participaciones, añade su valor de acción a las palabras clave de esa acción en el paso de asignación de columnas.",
+      "missingProceeds": "Una venta necesita un precio o un importe de ingresos, y ambas celdas están vacías o son cero.",
+      "missingSplitRatio": "Un desdoblamiento necesita su proporción en la columna de cantidad, y esa celda está vacía o es cero."
+    },
+    "rejectedRow": "Fila {row}",
+    "rejectedRowInFile": "{file}, fila {row}",
+    "rejectedRowCells": "fecha {date}, acción {action}, valor {security}, importe {amount}",
+    "rejectedEmptyCell": "(vacío)",
+    "rejectedMoreRows": "y {count, plural, one {# fila más} other {# filas más}}",
     "rejectedGoBack": "Vuelve al paso de mapeo de columnas para ajustar las columnas o las palabras clave de acción.",
     "importButton": "Importar Transacciones"
   },

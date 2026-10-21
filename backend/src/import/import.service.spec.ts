@@ -3294,7 +3294,21 @@ describe("ImportService", () => {
         actionCounts: { buy: 2, cashIn: 1 },
         cashFallbackValues: ["Journal"],
         uncostedShareRows: 1,
-        rejectedRows: [{ reason: "missingProceeds", count: 1 }],
+        rejectedRows: [
+          {
+            reason: "missingProceeds",
+            count: 1,
+            rows: [
+              {
+                rowNumber: 4,
+                date: "01/16/2026",
+                action: "Sell",
+                security: "AAPL",
+                amount: "",
+              },
+            ],
+          },
+        ],
       };
       mockedParseCsv.mockReturnValue({
         accountType: "INVESTMENT",

@@ -280,6 +280,18 @@
       "missingProceeds": "Sprzedaż bez ceny lub przychodu",
       "missingSplitRatio": "Podział bez współczynnika"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Te operacje wymagają papieru wartościowego, ale komórka papieru wartościowego jest pusta.",
+      "missingQuantity": "Te operacje wymagają liczby jednostek, ale komórka ilości jest pusta lub równa zero albo nie przypisano kolumny ilości.",
+      "missingAmount": "Komórka kwoty jest pusta lub równa zero, więc nie ma gotówki do zaksięgowania. Wiersz z nierozpoznaną operacją jest importowany jako gotówka tylko wtedy, gdy ma kwotę; jeśli to ruch jednostek, dodaj jego wartość operacji do słów kluczowych tej operacji w kroku przypisywania kolumn.",
+      "missingProceeds": "Sprzedaż wymaga ceny lub kwoty wpływów, a obie komórki są puste lub równe zero.",
+      "missingSplitRatio": "Podział wymaga proporcji w kolumnie ilości, a ta komórka jest pusta lub równa zero."
+    },
+    "rejectedRow": "Wiersz {row}",
+    "rejectedRowInFile": "{file}, wiersz {row}",
+    "rejectedRowCells": "data {date}, operacja {action}, papier wartościowy {security}, kwota {amount}",
+    "rejectedEmptyCell": "(puste)",
+    "rejectedMoreRows": "i {count, plural, one {# inny wiersz} few {# inne wiersze} many {# innych wierszy} other {# innego wiersza}}",
     "rejectedGoBack": "Wróć do kroku mapowania kolumn, aby dostosować kolumny lub słowa kluczowe akcji.",
     "importButton": "Import transakcji"
   },

@@ -280,6 +280,18 @@
       "missingProceeds": "Verkoop zonder koers of opbrengst",
       "missingSplitRatio": "Splitsing zonder verhouding"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Deze acties hebben een waardepapier nodig, maar de cel voor het waardepapier is leeg.",
+      "missingQuantity": "Deze acties hebben een aantal stukken nodig, maar de cel voor het aantal is leeg of nul, of er is geen kolom voor het aantal gekoppeld.",
+      "missingAmount": "De cel voor het bedrag is leeg of nul, dus er is geen contant geld te boeken. Een rij waarvan de actie niet wordt herkend, wordt alleen als contante boeking geïmporteerd als die een bedrag heeft; is het een beweging van stukken, voeg de actiewaarde dan bij de stap kolomkoppeling toe aan de trefwoorden van die actie.",
+      "missingProceeds": "Een verkoop heeft een koers of een opbrengst nodig, en beide cellen zijn leeg of nul.",
+      "missingSplitRatio": "Een splitsing heeft de verhouding in de kolom voor het aantal nodig, en die cel is leeg of nul."
+    },
+    "rejectedRow": "Rij {row}",
+    "rejectedRowInFile": "{file}, rij {row}",
+    "rejectedRowCells": "datum {date}, actie {action}, waardepapier {security}, bedrag {amount}",
+    "rejectedEmptyCell": "(leeg)",
+    "rejectedMoreRows": "en {count, plural, one {# andere rij} other {# andere rijen}}",
     "rejectedGoBack": "Ga terug naar de stap kolomkoppeling om kolommen of actiesleutelwoorden aan te passen.",
     "importButton": "Transacties importeren"
   },

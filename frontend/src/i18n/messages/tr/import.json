@@ -280,6 +280,18 @@
       "missingProceeds": "Fiyatı veya satış hasılatı olmayan satış",
       "missingSplitRatio": "Oranı olmayan bölünme"
     },
+    "rejectedReasonHints": {
+      "missingSecurity": "Bu işlemler bir menkul kıymet gerektirir, ancak menkul kıymet hücresi boş.",
+      "missingQuantity": "Bu işlemler pay adedi gerektirir, ancak adet hücresi boş veya sıfır ya da hiçbir adet sütunu eşleştirilmemiş.",
+      "missingAmount": "Tutar hücresi boş veya sıfır, bu yüzden kaydedilecek nakit yok. İşlemi tanınmayan bir satır yalnızca bir tutarı varsa nakit olarak içe aktarılır; bir pay hareketiyse, sütun eşleştirme adımında işlem değerini o işlemin anahtar kelimelerine ekleyin.",
+      "missingProceeds": "Bir satış fiyat veya satış tutarı gerektirir ve iki hücre de boş veya sıfır.",
+      "missingSplitRatio": "Bir bölünme, adet sütununda oranını gerektirir ve o hücre boş veya sıfır."
+    },
+    "rejectedRow": "Satır {row}",
+    "rejectedRowInFile": "{file}, satır {row}",
+    "rejectedRowCells": "tarih {date}, işlem {action}, menkul kıymet {security}, tutar {amount}",
+    "rejectedEmptyCell": "(boş)",
+    "rejectedMoreRows": "ve {count, plural, other {# satır daha}}",
     "rejectedGoBack": "Sütunları veya eylem anahtar kelimelerini değiştirmek için sütun eşleştirme adımına geri dönün.",
     "importButton": "İşlemleri İçe Aktar"
   },
