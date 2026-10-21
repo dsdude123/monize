@@ -34,6 +34,15 @@ describe('MapSecuritiesStep', () => {
     expect(screen.getByText('Map Securities')).toBeInTheDocument();
   });
 
+  // The step serves QIF, OFX and CSV imports alike, so its copy must not
+  // name one file format.
+  it('describes the source without naming a file format', () => {
+    render(<MapSecuritiesStep {...defaultProps} />);
+
+    expect(screen.queryByText(/QIF/)).not.toBeInTheDocument();
+    expect(screen.getByText(/found in your import file/)).toBeInTheDocument();
+  });
+
   it('shows needs attention and ready counts', () => {
     render(<MapSecuritiesStep {...defaultProps} />);
 

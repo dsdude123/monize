@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Mappa categorie",
-    "description": "Le seguenti categorie sono state trovate nel file QIF. Abbinale a categorie esistenti o creane di nuove.",
+    "description": "Le seguenti categorie sono state trovate nel file importato. Abbinale a categorie esistenti o creane di nuove.",
     "needAttention": "{count} richiedono attenzione",
     "matchedCategories": "{count} abbinate a categorie",
     "matchedLoans": "{count} abbinate a prestiti",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Mappa titoli",
-    "description": "I seguenti titoli sono stati trovati nel file QIF. Abbinali a titoli esistenti o creane di nuovi.",
+    "description": "I seguenti titoli sono stati trovati nel file importato. Abbinali a titoli esistenti o creane di nuovi.",
     "needAttention": "{count} richiedono attenzione",
     "ready": "{count} pronti",
     "lookingUp": "Ricerca titoli in corso...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Mappa conti di trasferimento",
-    "description": "I seguenti conti di trasferimento sono stati trovati nel file QIF. Abbinali a conti esistenti o creane di nuovi.",
+    "description": "I seguenti conti di trasferimento sono stati trovati nel file importato. Abbinali a conti esistenti o creane di nuovi.",
     "mapToExisting": "Abbina a esistente",
     "orCreateNew": "O crea nuovo",
     "newAccountNamePlaceholder": "Nome nuovo conto",

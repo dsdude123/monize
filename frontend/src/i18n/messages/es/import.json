@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Asignar Categorías",
-    "description": "Las siguientes categorías se encontraron en tu archivo QIF. Asígnalas a categorías existentes o crea nuevas.",
+    "description": "Las siguientes categorías se encontraron en tu archivo de importación. Asígnalas a categorías existentes o crea nuevas.",
     "needAttention": "{count} requieren atención",
     "matchedCategories": "{count} asignadas a categorías",
     "matchedLoans": "{count} asignadas a préstamos",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Asignar Valores",
-    "description": "Los siguientes valores se encontraron en tu archivo QIF. Asígnalos a valores existentes o crea nuevos.",
+    "description": "Los siguientes valores se encontraron en tu archivo de importación. Asígnalos a valores existentes o crea nuevos.",
     "needAttention": "{count} requieren atención",
     "ready": "{count} listos",
     "lookingUp": "Buscando valores...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Asignar Cuentas de Transferencia",
-    "description": "Las siguientes cuentas de transferencia se encontraron en tu archivo QIF. Asígnalas a cuentas existentes o crea nuevas.",
+    "description": "Las siguientes cuentas de transferencia se encontraron en tu archivo de importación. Asígnalas a cuentas existentes o crea nuevas.",
     "mapToExisting": "Asignar a existente",
     "orCreateNew": "O crear nueva",
     "newAccountNamePlaceholder": "Nombre de nueva cuenta",

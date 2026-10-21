@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "映射分类",
-    "description": "以下分类在您的 QIF 文件中找到。将它们映射到现有分类或创建新分类。",
+    "description": "以下分类在您的导入文件中找到。将它们映射到现有分类或创建新分类。",
     "needAttention": "{count} 个需要关注",
     "matchedCategories": "{count} 个已匹配到分类",
     "matchedLoans": "{count} 个已匹配到贷款",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "映射证券",
-    "description": "以下证券在您的 QIF 文件中找到。将它们映射到现有证券或创建新证券。",
+    "description": "以下证券在您的导入文件中找到。将它们映射到现有证券或创建新证券。",
     "needAttention": "{count} 个需要关注",
     "ready": "{count} 个已就绪",
     "lookingUp": "查询证券中...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "映射转账账户",
-    "description": "以下转账账户在您的 QIF 文件中找到。将它们映射到现有账户或创建新账户。",
+    "description": "以下转账账户在您的导入文件中找到。将它们映射到现有账户或创建新账户。",
     "mapToExisting": "映射到现有",
     "orCreateNew": "或创建新建",
     "newAccountNamePlaceholder": "新账户名称",

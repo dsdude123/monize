@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "對應類別",
-    "description": "以下類別從您的 QIF 檔案中找到。請將它們對應至現有類別或建立新類別。",
+    "description": "以下類別從您的匯入檔案中找到。請將它們對應至現有類別或建立新類別。",
     "needAttention": "{count} 項需要處理",
     "matchedCategories": "{count} 項已對應至類別",
     "matchedLoans": "{count} 項已對應至貸款",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "對應證券",
-    "description": "以下證券從您的 QIF 檔案中找到。請將它們對應至現有證券或建立新證券。",
+    "description": "以下證券從您的匯入檔案中找到。請將它們對應至現有證券或建立新證券。",
     "needAttention": "{count} 項需要處理",
     "ready": "{count} 項已就緒",
     "lookingUp": "查詢證券中...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "對應轉帳科目",
-    "description": "以下轉帳科目從您的 QIF 檔案中找到。請將它們對應至現有科目或建立新科目。",
+    "description": "以下轉帳科目從您的匯入檔案中找到。請將它們對應至現有科目或建立新科目。",
     "mapToExisting": "對應至現有",
     "orCreateNew": "或建立新",
     "newAccountNamePlaceholder": "新科目名稱",

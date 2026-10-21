@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "カテゴリのマッピング",
-    "description": "QIF ファイルで見つかったカテゴリです。既存のカテゴリにマッピングするか、新しいカテゴリを作成してください。",
+    "description": "インポートファイルで見つかったカテゴリです。既存のカテゴリにマッピングするか、新しいカテゴリを作成してください。",
     "needAttention": "{count} 件の対応が必要",
     "matchedCategories": "{count} 件のカテゴリに照合済み",
     "matchedLoans": "{count} 件のローンに照合済み",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "有価証券のマッピング",
-    "description": "QIF ファイルで見つかった有価証券です。既存の有価証券にマッピングするか、新しい有価証券を作成してください。",
+    "description": "インポートファイルで見つかった有価証券です。既存の有価証券にマッピングするか、新しい有価証券を作成してください。",
     "needAttention": "{count} 件の対応が必要",
     "ready": "{count} 件の準備完了",
     "lookingUp": "有価証券を検索中...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "振替勘定科目のマッピング",
-    "description": "QIF ファイルで見つかった振替勘定科目です。既存の勘定科目にマッピングするか、新しい勘定科目を作成してください。",
+    "description": "インポートファイルで見つかった振替勘定科目です。既存の勘定科目にマッピングするか、新しい勘定科目を作成してください。",
     "mapToExisting": "既存にマッピング",
     "orCreateNew": "または新規作成",
     "newAccountNamePlaceholder": "新しい勘定科目名",

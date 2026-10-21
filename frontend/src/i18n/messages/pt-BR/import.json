@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Mapear Categorias",
-    "description": "As seguintes categorias foram encontradas no seu arquivo QIF. Mapeie-as para categorias existentes ou crie novas.",
+    "description": "As seguintes categorias foram encontradas no seu arquivo de importação. Mapeie-as para categorias existentes ou crie novas.",
     "needAttention": "{count} necessitam atenção",
     "matchedCategories": "{count} correspondidas a categorias",
     "matchedLoans": "{count} correspondidas a empréstimos",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Mapear Títulos",
-    "description": "Os seguintes títulos foram encontrados no seu arquivo QIF. Mapeie-os para títulos existentes ou crie novos.",
+    "description": "Os seguintes títulos foram encontrados no seu arquivo de importação. Mapeie-os para títulos existentes ou crie novos.",
     "needAttention": "{count} necessitam atenção",
     "ready": "{count} prontos",
     "lookingUp": "Pesquisando títulos...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Mapear Contas de Transferência",
-    "description": "As seguintes contas de transferência foram encontradas no seu arquivo QIF. Mapeie-as para contas existentes ou crie novas.",
+    "description": "As seguintes contas de transferência foram encontradas no seu arquivo de importação. Mapeie-as para contas existentes ou crie novas.",
     "mapToExisting": "Mapear para existente",
     "orCreateNew": "Ou criar nova",
     "newAccountNamePlaceholder": "Nome da nova conta",
