@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/Button';
 import { CsvTransferRules } from './CsvTransferRules';
+import { CsvActionKeywordInput } from './CsvActionKeywordInput';
 import { ImportStep } from '@/app/import/import-utils';
 import {
   CsvColumnMappingConfig,
@@ -158,8 +159,7 @@ export function CsvColumnMappingStep({
     (v) => classifyCsvActionValue(v, columnMapping.actionKeywords) === null,
   );
 
-  const handleActionKeywordsChange = (action: CanonicalInvestmentAction, text: string) => {
-    const values = text.split(',').map((v) => v.trim()).filter(Boolean);
+  const handleActionKeywordsChange = (action: CanonicalInvestmentAction, values: string[]) => {
     const next = { ...(columnMapping.actionKeywords || {}) };
     if (values.length > 0) {
       next[action] = values;
@@ -615,12 +615,10 @@ export function CsvColumnMappingStep({
                           <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
                             {t(`csvMapping.actionNames.${action}` as Parameters<typeof t>[0])}
                           </label>
-                          <input
-                            type="text"
-                            value={(columnMapping.actionKeywords?.[action] || []).join(', ')}
-                            onChange={(e) => handleActionKeywordsChange(action, e.target.value)}
+                          <CsvActionKeywordInput
+                            keywords={columnMapping.actionKeywords?.[action] || []}
+                            onKeywordsChange={(values) => handleActionKeywordsChange(action, values)}
                             placeholder={DEFAULT_INVESTMENT_ACTION_KEYWORDS[action].join(', ')}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                           />
                         </div>
                       ))}

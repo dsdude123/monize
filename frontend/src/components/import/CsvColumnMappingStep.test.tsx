@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { useState } from 'react';
+import userEvent from '@testing-library/user-event';
 import { render } from '@/test/render';
 import { screen, fireEvent } from '@testing-library/react';
 import { CsvColumnMappingStep } from './CsvColumnMappingStep';
@@ -932,6 +934,51 @@ describe('CsvColumnMappingStep', () => {
       expect(props.onColumnMappingChange).toHaveBeenCalledWith(
         expect.objectContaining({ actionKeywords: { buy: ['acquisto', 'compra'] } }),
       );
+    });
+
+    it('lets a keyword list be typed with spaces and commas', async () => {
+      const user = userEvent.setup();
+      const seen: CsvColumnMappingConfig[] = [];
+      function ControlledStep() {
+        const [mapping, setMapping] = useState<CsvColumnMappingConfig>({
+          ...defaultMapping(),
+          amount: 5,
+          investmentMode: true,
+          actionColumn: 1,
+          securityColumn: 2,
+        });
+        return (
+          <CsvColumnMappingStep
+            headers={investmentHeaders}
+            sampleRows={investmentRows}
+            columnMapping={mapping}
+            onColumnMappingChange={(next) => { seen.push(next); setMapping(next); }}
+            onInvestmentModeChange={vi.fn()}
+            transferRules={[]}
+            onTransferRulesChange={vi.fn()}
+            accounts={[]}
+            savedMappings={[]}
+            onSaveMapping={vi.fn()}
+            onLoadMapping={vi.fn()}
+            onDeleteMapping={vi.fn()}
+            onDelimiterChange={vi.fn()}
+            onHasHeaderChange={vi.fn()}
+            isLoading={false}
+            onNext={vi.fn()}
+            setStep={vi.fn()}
+          />
+        );
+      }
+      render(<ControlledStep />);
+
+      await user.click(screen.getByText('Customize action keywords'));
+      const buyInput = screen.getByPlaceholderText(
+        'buy, bought, purchase, buy to open, you bought',
+      ) as HTMLInputElement;
+      await user.type(buyInput, 'market buy, bought');
+
+      expect(buyInput.value).toBe('market buy, bought');
+      expect(seen.at(-1)?.actionKeywords).toEqual({ buy: ['market buy', 'bought'] });
     });
 
     it('removes an action override when its keyword input is cleared', () => {
