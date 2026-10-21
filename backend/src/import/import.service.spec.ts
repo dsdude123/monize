@@ -3144,6 +3144,7 @@ describe("ImportService", () => {
         headers: ["Date", "Amount", "Payee"],
         sampleRows: [["2025-01-01", "-50", "Store"]],
         rowCount: 1,
+        columnValues: [["2025-01-01"], ["-50"], ["Store"]],
       });
 
       const result = await service.parseCsvHeaders(userId, csvContent);
@@ -3162,6 +3163,7 @@ describe("ImportService", () => {
         headers: ["Date", "Amount", "Payee"],
         sampleRows: [["2025-01-01", "-50", "Store"]],
         rowCount: 1,
+        columnValues: [["2025-01-01"], ["-50"], ["Store"]],
       });
 
       await service.parseCsvHeaders(userId, csvContent, ";");

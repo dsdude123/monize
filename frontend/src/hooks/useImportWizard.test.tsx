@@ -411,7 +411,7 @@ describe('useImportWizard - QIF file upload', () => {
 
 describe('useImportWizard - CSV upload', () => {
   it('parses CSV headers and goes to csvColumnMapping step', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount', 'Memo'], sampleRows: [['1/1/24', '10', 'x']], rowCount: 1 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount', 'Memo'], sampleRows: [['1/1/24', '10', 'x']], rowCount: 1, columnValues: [['1/1/24'], ['10'], ['x']] });
     const { result } = renderHook(() => useImportWizard());
     await waitFor(() => expect(mockGetCurrencies).toHaveBeenCalled());
 
@@ -422,10 +422,11 @@ describe('useImportWizard - CSV upload', () => {
     expect(result.current.step).toBe('csvColumnMapping');
     expect(result.current.fileType).toBe('csv');
     expect(result.current.csvHeaders).toEqual(['Date', 'Amount', 'Memo']);
+    expect(result.current.csvColumnValues).toEqual([['1/1/24'], ['10'], ['x']]);
   });
 
   it('handles bulk CSV upload', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0, columnValues: [] });
     const { result } = renderHook(() => useImportWizard());
     await waitFor(() => expect(mockGetCurrencies).toHaveBeenCalled());
 
@@ -461,7 +462,7 @@ describe('useImportWizard - CSV upload', () => {
   });
 
   it('CSV delimiter change re-parses headers', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['A', 'B'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['A', 'B'], sampleRows: [], rowCount: 0, columnValues: [] });
     const { result } = renderHook(() => useImportWizard());
     await waitFor(() => expect(mockGetCurrencies).toHaveBeenCalled());
 
@@ -469,7 +470,7 @@ describe('useImportWizard - CSV upload', () => {
       await result.current.handleFileSelect(fileEvent([makeFile('a.csv', 'A,B')]));
     });
 
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['X', 'Y'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['X', 'Y'], sampleRows: [], rowCount: 0, columnValues: [] });
     await act(async () => {
       await result.current.handleCsvDelimiterChange(';');
     });
@@ -488,7 +489,7 @@ describe('useImportWizard - CSV upload', () => {
   });
 
   it('CSV delimiter change handles parse error', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['A'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['A'], sampleRows: [], rowCount: 0, columnValues: [] });
     const { result } = renderHook(() => useImportWizard());
     await waitFor(() => expect(mockGetCurrencies).toHaveBeenCalled());
 
@@ -504,7 +505,7 @@ describe('useImportWizard - CSV upload', () => {
   });
 
   it('CSV hasHeader change re-parses headers', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['A'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['A'], sampleRows: [], rowCount: 0, columnValues: [] });
     const { result } = renderHook(() => useImportWizard());
     await waitFor(() => expect(mockGetCurrencies).toHaveBeenCalled());
 
@@ -529,7 +530,7 @@ describe('useImportWizard - CSV upload', () => {
   });
 
   it('CSV mapping complete parses files and advances step', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0, columnValues: [] });
     mockParseCsv.mockResolvedValue(baseParsedQif({ categories: [], transferAccounts: [] }));
 
     const { result } = renderHook(() => useImportWizard());
@@ -549,9 +550,9 @@ describe('useImportWizard - CSV upload', () => {
 
   it('CSV mapping complete handles bulk files with header check', async () => {
     mockParseCsvHeaders
-      .mockResolvedValueOnce({ headers: ['D', 'A'], sampleRows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ headers: ['D', 'A'], sampleRows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ headers: ['Different'], sampleRows: [], rowCount: 0 });
+      .mockResolvedValueOnce({ headers: ['D', 'A'], sampleRows: [], rowCount: 0, columnValues: [] })
+      .mockResolvedValueOnce({ headers: ['D', 'A'], sampleRows: [], rowCount: 0, columnValues: [] })
+      .mockResolvedValueOnce({ headers: ['Different'], sampleRows: [], rowCount: 0, columnValues: [] });
     mockParseCsv.mockResolvedValue(baseParsedQif({ categories: [] }));
 
     const { result } = renderHook(() => useImportWizard());
@@ -582,7 +583,7 @@ describe('useImportWizard - CSV upload', () => {
   });
 
   it('CSV mapping complete handles parse error', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['A'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['A'], sampleRows: [], rowCount: 0, columnValues: [] });
     mockParseCsv.mockRejectedValue(new Error('bad'));
     const { result } = renderHook(() => useImportWizard());
     await waitFor(() => expect(mockGetCurrencies).toHaveBeenCalled());
@@ -707,7 +708,7 @@ describe('useImportWizard - CSV investment mode', () => {
   }
 
   it('pre-enables investment mode when headers look like a brokerage export', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0, columnValues: [] });
     mockLooksLikeInvestmentCsv.mockReturnValue(true);
     mockAutoMatchInvestmentColumns.mockReturnValue({ actionColumn: 1, securityColumn: 2, quantityColumn: 3 });
 
@@ -725,7 +726,7 @@ describe('useImportWizard - CSV investment mode', () => {
   });
 
   it('does not pre-enable investment mode for a bank-looking CSV', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0, columnValues: [] });
     mockLooksLikeInvestmentCsv.mockReturnValue(false);
 
     const { result } = renderHook(() => useImportWizard());
@@ -738,7 +739,7 @@ describe('useImportWizard - CSV investment mode', () => {
   });
 
   it('enabling investment mode clears sign/type-column fields and transfer rules', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0, columnValues: [] });
     mockAutoMatchInvestmentColumns.mockReturnValue({ actionColumn: 1, securityColumn: 2 });
 
     const { result } = renderHook(() => useImportWizard());
@@ -778,7 +779,7 @@ describe('useImportWizard - CSV investment mode', () => {
   });
 
   it('disabling investment mode clears the investment-specific fields', async () => {
-    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0, columnValues: [] });
     mockLooksLikeInvestmentCsv.mockReturnValue(true);
     mockAutoMatchInvestmentColumns.mockReturnValue({
       actionColumn: 1, securityColumn: 2, quantityColumn: 3, priceColumn: 4, commissionColumn: 5,
@@ -815,7 +816,7 @@ describe('useImportWizard - CSV investment mode', () => {
       id: 'brk-1', name: 'Brokerage', accountType: 'INVESTMENT', accountSubType: 'INVESTMENT_BROKERAGE',
     });
     mockGetAllAccounts.mockResolvedValue([brokerage]);
-    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0, columnValues: [] });
     mockParseCsv.mockResolvedValue(baseParsedQif({
       accountType: 'INVESTMENT',
       categories: [],
@@ -854,7 +855,7 @@ describe('useImportWizard - CSV investment mode', () => {
 
   it('regular parse builds no security mappings and omits them from the payload', async () => {
     mockGetAllAccounts.mockResolvedValue([baseAccount()]);
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0, columnValues: [] });
     // Even with a stray securities value, a non-investment parse must not
     // produce security mappings.
     mockParseCsv.mockResolvedValue(baseParsedQif({
@@ -886,7 +887,7 @@ describe('useImportWizard - CSV investment mode', () => {
 
   it('a securities list from a non-investment parse is ignored', async () => {
     mockGetAllAccounts.mockResolvedValue([baseAccount()]);
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0, columnValues: [] });
     mockParseCsv.mockResolvedValue(baseParsedQif({
       accountType: 'CHEQUING',
       categories: [],
@@ -910,7 +911,7 @@ describe('useImportWizard - CSV investment mode', () => {
       id: 'brk-1', name: 'Brokerage', accountType: 'INVESTMENT', accountSubType: 'INVESTMENT_BROKERAGE',
     });
     mockGetAllAccounts.mockResolvedValue([brokerage]);
-    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0, columnValues: [] });
     mockParseCsv.mockResolvedValue(baseParsedQif({
       accountType: 'INVESTMENT',
       categories: [],
@@ -938,7 +939,7 @@ describe('useImportWizard - CSV investment mode', () => {
       id: 'brk-1', name: 'Brokerage', accountType: 'INVESTMENT', accountSubType: 'INVESTMENT_BROKERAGE',
     });
     mockGetAllAccounts.mockResolvedValue([baseAccount(), brokerage]);
-    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: investmentHeaders, sampleRows: [], rowCount: 0, columnValues: [] });
     mockParseCsv.mockResolvedValue(baseParsedQif({
       accountType: 'INVESTMENT',
       categories: [],
@@ -1274,7 +1275,7 @@ describe('useImportWizard - import handlers', () => {
 
   it('imports CSV successfully', async () => {
     mockGetAllAccounts.mockResolvedValue([baseAccount()]);
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['D', 'A'], sampleRows: [], rowCount: 0 });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['D', 'A'], sampleRows: [], rowCount: 0, columnValues: [] });
     mockParseCsv.mockResolvedValue(baseParsedQif({ categories: [] }));
     mockImportCsv.mockResolvedValue(importResult({ imported: 3 }));
 
@@ -1948,7 +1949,7 @@ describe('useImportWizard - handleFiles (Web Share Target hand-off)', () => {
 
   it('detects a shared CSV by extension, as the picker path does', async () => {
     mockGetAllAccounts.mockResolvedValue([baseAccount()]);
-    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [] });
+    mockParseCsvHeaders.mockResolvedValue({ headers: ['Date', 'Amount'], sampleRows: [], rowCount: 0, columnValues: [] });
     mockAutoMatchCsvColumns.mockReturnValue({});
     mockLooksLikeInvestmentCsv.mockReturnValue(false);
 

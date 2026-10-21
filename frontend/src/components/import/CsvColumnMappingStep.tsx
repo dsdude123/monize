@@ -21,6 +21,8 @@ import { Account } from '@/types/account';
 interface CsvColumnMappingStepProps {
   headers: string[];
   sampleRows: string[][];
+  /** Distinct values per column over every data row, from the headers endpoint */
+  columnValues: string[][];
   columnMapping: CsvColumnMappingConfig;
   onColumnMappingChange: (mapping: CsvColumnMappingConfig) => void;
   onInvestmentModeChange: (enabled: boolean) => void;
@@ -51,6 +53,7 @@ type AmountMode = 'single' | 'split';
 export function CsvColumnMappingStep({
   headers,
   sampleRows,
+  columnValues,
   columnMapping,
   onColumnMappingChange,
   onInvestmentModeChange,
@@ -151,8 +154,17 @@ export function CsvColumnMappingStep({
     onNext();
   };
 
+  // Every distinct value in a column across the whole file; the sample rows
+  // hold only the first few, which hides actions that appear later. Without
+  // a header row the first row is data too.
+  const distinctValuesInColumn = (index: number): string[] => {
+    const values = columnValues[index] || [];
+    const firstRow = columnMapping.hasHeader ? '' : (headers[index] || '').trim();
+    return firstRow ? [...new Set([firstRow, ...values])] : values;
+  };
+
   const actionColumnValues = investmentMode && columnMapping.actionColumn !== undefined
-    ? [...new Set(sampleRows.map((row) => (row[columnMapping.actionColumn!] || '').trim()).filter(Boolean))]
+    ? distinctValuesInColumn(columnMapping.actionColumn)
     : [];
   const unmatchedActionValues = actionColumnValues.filter(
     (v) => classifyCsvActionValue(v, columnMapping.actionKeywords) === null,
@@ -428,9 +440,7 @@ export function CsvColumnMappingStep({
                 </select>
               </div>
               {(() => {
-                const uniqueValues = [...new Set(
-                  sampleRows.map((row) => row[columnMapping.amountTypeColumn!] || '').filter(Boolean)
-                )];
+                const uniqueValues = distinctValuesInColumn(columnMapping.amountTypeColumn!);
                 return uniqueValues.length > 0 ? (
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {t('csvMapping.valuesFound', { values: uniqueValues.join(', ') })}

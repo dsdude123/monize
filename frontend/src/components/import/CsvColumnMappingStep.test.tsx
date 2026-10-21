@@ -22,13 +22,23 @@ function defaultMapping(): CsvColumnMappingConfig {
   };
 }
 
+// What the headers endpoint answers for a file holding only these rows.
+function distinctColumnValues(rows: string[][]): string[][] {
+  const width = Math.max(0, ...rows.map((r) => r.length));
+  return Array.from({ length: width }, (_, i) => [
+    ...new Set(rows.map((r) => (r[i] || '').trim()).filter(Boolean)),
+  ]);
+}
+
 function renderStep(overrides: Record<string, unknown> = {}) {
+  const sampleRows = (overrides.sampleRows as string[][] | undefined) ?? [
+    ['2024-01-01', '100.00', 'Store', 'Food'],
+    ['2024-01-02', '50.00', 'Gas Station', 'Transport'],
+  ];
   const defaultProps = {
     headers: ['Date', 'Amount', 'Payee', 'Category'],
-    sampleRows: [
-      ['2024-01-01', '100.00', 'Store', 'Food'],
-      ['2024-01-02', '50.00', 'Gas Station', 'Transport'],
-    ],
+    sampleRows,
+    columnValues: distinctColumnValues(sampleRows),
     columnMapping: defaultMapping(),
     onColumnMappingChange: vi.fn(),
     onInvestmentModeChange: vi.fn(),
@@ -904,6 +914,42 @@ describe('CsvColumnMappingStep', () => {
       expect(
         screen.getByText('Not matched (imported as cash by amount sign): Journal'),
       ).toBeInTheDocument();
+    });
+
+    it('lists action values from every row, not only the sample rows', () => {
+      renderStep({
+        headers: investmentHeaders,
+        sampleRows: investmentRows,
+        columnValues: [[], ['Bought', 'Journal', 'Sold', 'Dividend Received']],
+        columnMapping: {
+          ...defaultMapping(),
+          amount: 5,
+          investmentMode: true,
+          actionColumn: 1,
+          securityColumn: 2,
+        },
+      });
+
+      expect(
+        screen.getByText('Action values found: Bought, Journal, Sold, Dividend Received'),
+      ).toBeInTheDocument();
+    });
+
+    it('counts the first row as data when the file has no header row', () => {
+      renderStep({
+        headers: investmentHeaders.map((h, i) => (i === 1 ? 'Sold' : h)),
+        sampleRows: investmentRows,
+        columnMapping: {
+          ...defaultMapping(),
+          hasHeader: false,
+          amount: 5,
+          investmentMode: true,
+          actionColumn: 1,
+          securityColumn: 2,
+        },
+      });
+
+      expect(screen.getByText('Action values found: Sold, Bought, Journal')).toBeInTheDocument();
     });
 
     it('round-trips the action keyword editor', () => {

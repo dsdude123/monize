@@ -118,6 +118,7 @@ function ImportContent() {
           <CsvColumnMappingStep
             headers={wizard.csvHeaders}
             sampleRows={wizard.csvSampleRows}
+            columnValues={wizard.csvColumnValues}
             columnMapping={wizard.csvColumnMapping}
             onColumnMappingChange={wizard.handleCsvColumnMappingChange}
             onInvestmentModeChange={wizard.handleCsvInvestmentModeChange}

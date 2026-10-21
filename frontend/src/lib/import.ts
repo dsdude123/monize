@@ -369,6 +369,8 @@ export interface CsvHeadersResponse {
   headers: string[];
   sampleRows: string[][];
   rowCount: number;
+  /** Distinct non-empty values per column over every data row (capped per column) */
+  columnValues: string[][];
 }
 
 export interface SavedColumnMapping {
