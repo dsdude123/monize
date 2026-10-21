@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Categorieën koppelen",
-    "description": "De volgende categorieën zijn gevonden in jouw QIF-bestand. Koppel ze aan bestaande categorieën of maak nieuwe aan.",
+    "description": "De volgende categorieën zijn gevonden in jouw importbestand. Koppel ze aan bestaande categorieën of maak nieuwe aan.",
     "needAttention": "{count} vereisen aandacht",
     "matchedCategories": "{count} gekoppeld aan categorieën",
     "matchedLoans": "{count} gekoppeld aan leningen",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Waardepapieren koppelen",
-    "description": "De volgende waardepapieren zijn gevonden in jouw QIF-bestand. Koppel ze aan bestaande waardepapieren of maak nieuwe aan.",
+    "description": "De volgende waardepapieren zijn gevonden in jouw importbestand. Koppel ze aan bestaande waardepapieren of maak nieuwe aan.",
     "needAttention": "{count} vereisen aandacht",
     "ready": "{count} gereed",
     "lookingUp": "Waardepapieren opzoeken...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Overboekingsrekeningen koppelen",
-    "description": "De volgende overboekingsrekeningen zijn gevonden in jouw QIF-bestand. Koppel ze aan bestaande rekeningen of maak nieuwe aan.",
+    "description": "De volgende overboekingsrekeningen zijn gevonden in jouw importbestand. Koppel ze aan bestaande rekeningen of maak nieuwe aan.",
     "mapToExisting": "Koppelen aan bestaande",
     "orCreateNew": "Of nieuw aanmaken",
     "newAccountNamePlaceholder": "Naam nieuwe rekening",

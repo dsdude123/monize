@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Petakan Kategori",
-    "description": "Kategori berikut ditemukan di file QIF Anda. Petakan ke kategori yang ada atau buat yang baru.",
+    "description": "Kategori berikut ditemukan di file impor Anda. Petakan ke kategori yang ada atau buat yang baru.",
     "needAttention": "{count} perlu perhatian",
     "matchedCategories": "{count} dicocokkan ke kategori",
     "matchedLoans": "{count} dicocokkan ke pinjaman",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Petakan Sekuritas",
-    "description": "Sekuritas berikut ditemukan di file QIF Anda. Petakan ke sekuritas yang ada atau buat yang baru.",
+    "description": "Sekuritas berikut ditemukan di file impor Anda. Petakan ke sekuritas yang ada atau buat yang baru.",
     "needAttention": "{count} perlu perhatian",
     "ready": "{count} siap",
     "lookingUp": "Mencari sekuritas...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Petakan Akun Transfer",
-    "description": "Akun transfer berikut ditemukan di file QIF Anda. Petakan ke akun yang ada atau buat yang baru.",
+    "description": "Akun transfer berikut ditemukan di file impor Anda. Petakan ke akun yang ada atau buat yang baru.",
     "mapToExisting": "Petakan ke yang ada",
     "orCreateNew": "Atau buat baru",
     "newAccountNamePlaceholder": "Nama akun baru",

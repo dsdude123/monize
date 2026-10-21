@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "카테고리 매핑",
-    "description": "QIF 파일에서 다음 카테고리가 발견되었습니다. 기존 카테고리에 매핑하거나 새 카테고리를 만드세요.",
+    "description": "가져오기 파일에서 다음 카테고리가 발견되었습니다. 기존 카테고리에 매핑하거나 새 카테고리를 만드세요.",
     "needAttention": "{count}개 항목이 주의가 필요합니다",
     "matchedCategories": "{count}개가 카테고리에 매핑되었습니다",
     "matchedLoans": "{count}개가 대출에 매핑되었습니다",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "유가증권 매핑",
-    "description": "QIF 파일에서 다음 유가증권이 발견되었습니다. 기존 유가증권에 매핑하거나 새로 만드세요.",
+    "description": "가져오기 파일에서 다음 유가증권이 발견되었습니다. 기존 유가증권에 매핑하거나 새로 만드세요.",
     "needAttention": "{count}개 항목이 주의가 필요합니다",
     "ready": "{count}개 준비됨",
     "lookingUp": "유가증권 조회 중...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "이체 계정 매핑",
-    "description": "QIF 파일에서 다음 이체 계정이 발견되었습니다. 기존 계정에 매핑하거나 새로 만드세요.",
+    "description": "가져오기 파일에서 다음 이체 계정이 발견되었습니다. 기존 계정에 매핑하거나 새로 만드세요.",
     "mapToExisting": "기존 항목에 매핑",
     "orCreateNew": "또는 새로 만들기",
     "newAccountNamePlaceholder": "새 계정 이름",

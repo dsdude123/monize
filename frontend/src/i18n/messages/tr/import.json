@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Kategorileri Eşleştir",
-    "description": "QIF dosyanızda aşağıdaki kategoriler bulundu. Bunları mevcut kategorilerle eşleştirin veya yeni kategoriler oluşturun.",
+    "description": "İçe aktarma dosyanızda aşağıdaki kategoriler bulundu. Bunları mevcut kategorilerle eşleştirin veya yeni kategoriler oluşturun.",
     "needAttention": "{count} dikkat gerektiriyor",
     "matchedCategories": "{count} kategoriye eşleştirildi",
     "matchedLoans": "{count} krediye eşleştirildi",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Menkul Kıymetleri Eşleştir",
-    "description": "QIF dosyanızda aşağıdaki menkul kıymetler bulundu. Bunları mevcut menkul kıymetlerle eşleştirin veya yeni menkul kıymetler oluşturun.",
+    "description": "İçe aktarma dosyanızda aşağıdaki menkul kıymetler bulundu. Bunları mevcut menkul kıymetlerle eşleştirin veya yeni menkul kıymetler oluşturun.",
     "needAttention": "{count} dikkat gerektiriyor",
     "ready": "{count} hazır",
     "lookingUp": "Menkul kıymetler aranıyor...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Transfer Hesaplarını Eşleştir",
-    "description": "QIF dosyanızda aşağıdaki transfer hesapları bulundu. Bunları mevcut hesaplarla eşleştirin veya yeni hesaplar oluşturun.",
+    "description": "İçe aktarma dosyanızda aşağıdaki transfer hesapları bulundu. Bunları mevcut hesaplarla eşleştirin veya yeni hesaplar oluşturun.",
     "mapToExisting": "Mevcutla eşleştir",
     "orCreateNew": "Veya yeni oluştur",
     "newAccountNamePlaceholder": "Yeni hesap adı",

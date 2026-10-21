@@ -36,6 +36,15 @@ describe('MapCategoriesStep', () => {
     expect(screen.getByText('Map Categories')).toBeInTheDocument();
   });
 
+  // The step serves QIF, OFX and CSV imports alike, so its copy must not
+  // name one file format.
+  it('describes the source without naming a file format', () => {
+    render(<MapCategoriesStep {...defaultProps} />);
+
+    expect(screen.queryByText(/QIF/)).not.toBeInTheDocument();
+    expect(screen.getByText(/found in your import file/)).toBeInTheDocument();
+  });
+
   it('shows unmatched count', () => {
     render(<MapCategoriesStep {...defaultProps} />);
 

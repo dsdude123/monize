@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Kategorien zuordnen",
-    "description": "Die folgenden Kategorien wurden in Ihrer QIF-Datei gefunden. Ordnen Sie sie vorhandenen Kategorien zu oder erstellen Sie neue.",
+    "description": "Die folgenden Kategorien wurden in Ihrer Importdatei gefunden. Ordnen Sie sie vorhandenen Kategorien zu oder erstellen Sie neue.",
     "needAttention": "{count} benötigen Aufmerksamkeit",
     "matchedCategories": "{count} Kategorien zugeordnet",
     "matchedLoans": "{count} Darlehen zugeordnet",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Wertpapiere zuordnen",
-    "description": "Die folgenden Wertpapiere wurden in Ihrer QIF-Datei gefunden. Ordnen Sie sie vorhandenen Wertpapieren zu oder erstellen Sie neue.",
+    "description": "Die folgenden Wertpapiere wurden in Ihrer Importdatei gefunden. Ordnen Sie sie vorhandenen Wertpapieren zu oder erstellen Sie neue.",
     "needAttention": "{count} benötigen Aufmerksamkeit",
     "ready": "{count} bereit",
     "lookingUp": "Wertpapiere werden gesucht...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Überweisungskonten zuordnen",
-    "description": "Die folgenden Überweisungskonten wurden in Ihrer QIF-Datei gefunden. Ordnen Sie sie vorhandenen Konten zu oder erstellen Sie neue.",
+    "description": "Die folgenden Überweisungskonten wurden in Ihrer Importdatei gefunden. Ordnen Sie sie vorhandenen Konten zu oder erstellen Sie neue.",
     "mapToExisting": "Vorhandenem zuordnen",
     "orCreateNew": "Oder neu erstellen",
     "newAccountNamePlaceholder": "Neuer Kontoname",

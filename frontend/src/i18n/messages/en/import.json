@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Map Categories",
-    "description": "The following categories were found in your QIF file. Map them to existing categories or create new ones.",
+    "description": "The following categories were found in your import file. Map them to existing categories or create new ones.",
     "needAttention": "{count} need attention",
     "matchedCategories": "{count} matched to categories",
     "matchedLoans": "{count} matched to loans",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Map Securities",
-    "description": "The following securities were found in your QIF file. Map them to existing securities or create new ones.",
+    "description": "The following securities were found in your import file. Map them to existing securities or create new ones.",
     "needAttention": "{count} need attention",
     "ready": "{count} ready",
     "lookingUp": "Looking up securities...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Map Transfer Accounts",
-    "description": "The following transfer accounts were found in your QIF file. Map them to existing accounts or create new ones.",
+    "description": "The following transfer accounts were found in your import file. Map them to existing accounts or create new ones.",
     "mapToExisting": "Map to existing",
     "orCreateNew": "Or create new",
     "newAccountNamePlaceholder": "New account name",

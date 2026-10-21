@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Przypisz kategorie",
-    "description": "W pliku QIF znaleziono poniższe kategorie. Przypisz je do istniejących kategorii lub utwórz nowe.",
+    "description": "W importowanym pliku znaleziono poniższe kategorie. Przypisz je do istniejących kategorii lub utwórz nowe.",
     "needAttention": "{count} wymaga uwagi",
     "matchedCategories": "{count} dopasowano do kategorii",
     "matchedLoans": "{count} dopasowano do pożyczek",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Przypisz papiery wartościowe",
-    "description": "W pliku QIF znaleziono poniższe papiery wartościowe. Przypisz je do istniejących lub utwórz nowe.",
+    "description": "W importowanym pliku znaleziono poniższe papiery wartościowe. Przypisz je do istniejących lub utwórz nowe.",
     "needAttention": "{count} wymaga uwagi",
     "ready": "{count} gotowych",
     "lookingUp": "Wyszukiwanie papierów wartościowych...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Przypisz konta przelewów",
-    "description": "W pliku QIF znaleziono poniższe konta przelewów. Przypisz je do istniejących kont lub utwórz nowe.",
+    "description": "W importowanym pliku znaleziono poniższe konta przelewów. Przypisz je do istniejących kont lub utwórz nowe.",
     "mapToExisting": "Przypisz do istniejącego",
     "orCreateNew": "Lub utwórz nowe",
     "newAccountNamePlaceholder": "Nazwa nowego konta",

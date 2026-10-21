@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Mapper les catégories",
-    "description": "Les catégories suivantes ont été trouvées dans votre fichier QIF. Associez-les à des catégories existantes ou créez-en de nouvelles.",
+    "description": "Les catégories suivantes ont été trouvées dans votre fichier d'import. Associez-les à des catégories existantes ou créez-en de nouvelles.",
     "needAttention": "{count} nécessite(nt) une attention",
     "matchedCategories": "{count} associée(s) à des catégories",
     "matchedLoans": "{count} associée(s) à des prêts",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Mapper les titres",
-    "description": "Les titres suivants ont été trouvés dans votre fichier QIF. Associez-les à des titres existants ou créez-en de nouveaux.",
+    "description": "Les titres suivants ont été trouvés dans votre fichier d'import. Associez-les à des titres existants ou créez-en de nouveaux.",
     "needAttention": "{count} nécessite(nt) une attention",
     "ready": "{count} prêt(s)",
     "lookingUp": "Recherche des titres…",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Mapper les comptes de virement",
-    "description": "Les comptes de virement suivants ont été trouvés dans votre fichier QIF. Associez-les à des comptes existants ou créez-en de nouveaux.",
+    "description": "Les comptes de virement suivants ont été trouvés dans votre fichier d'import. Associez-les à des comptes existants ou créez-en de nouveaux.",
     "mapToExisting": "Associer à l'existant",
     "orCreateNew": "Ou créer nouveau",
     "newAccountNamePlaceholder": "Nouveau nom de compte",

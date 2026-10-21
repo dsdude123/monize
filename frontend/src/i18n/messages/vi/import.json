@@ -187,7 +187,7 @@
   },
   "mapCategories": {
     "heading": "Ánh Xạ Danh Mục",
-    "description": "Các danh mục sau đây đã được tìm thấy trong tệp QIF của bạn. Ánh xạ chúng với các danh mục hiện có hoặc tạo mới.",
+    "description": "Các danh mục sau đây đã được tìm thấy trong tệp nhập của bạn. Ánh xạ chúng với các danh mục hiện có hoặc tạo mới.",
     "needAttention": "{count} cần chú ý",
     "matchedCategories": "{count} đã khớp với danh mục",
     "matchedLoans": "{count} đã khớp với khoản vay",
@@ -219,7 +219,7 @@
   },
   "mapSecurities": {
     "heading": "Ánh Xạ Chứng Khoán",
-    "description": "Các chứng khoán sau đây đã được tìm thấy trong tệp QIF của bạn. Ánh xạ chúng với các chứng khoán hiện có hoặc tạo mới.",
+    "description": "Các chứng khoán sau đây đã được tìm thấy trong tệp nhập của bạn. Ánh xạ chúng với các chứng khoán hiện có hoặc tạo mới.",
     "needAttention": "{count} cần chú ý",
     "ready": "{count} sẵn sàng",
     "lookingUp": "Đang tra cứu chứng khoán...",
@@ -239,7 +239,7 @@
   },
   "mapAccounts": {
     "heading": "Ánh Xạ Tài Khoản Chuyển Khoản",
-    "description": "Các tài khoản chuyển khoản sau đây đã được tìm thấy trong tệp QIF của bạn. Ánh xạ chúng với các tài khoản hiện có hoặc tạo mới.",
+    "description": "Các tài khoản chuyển khoản sau đây đã được tìm thấy trong tệp nhập của bạn. Ánh xạ chúng với các tài khoản hiện có hoặc tạo mới.",
     "mapToExisting": "Ánh xạ với hiện có",
     "orCreateNew": "Hoặc tạo mới",
     "newAccountNamePlaceholder": "Tên tài khoản mới",
