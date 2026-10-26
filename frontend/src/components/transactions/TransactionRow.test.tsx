@@ -959,6 +959,44 @@ describe('TransactionRow', () => {
     expect(screen.getByText(/Buy: AAPL:/)).toBeInTheDocument();
   });
 
+  it('names a return of capital split line rather than printing the raw action (#1800)', () => {
+    renderRow(
+      { density: 'normal' },
+      {
+        isSplit: true,
+        splits: [
+          {
+            id: 's1',
+            amount: 2500,
+            kind: 'category',
+            category: { id: 'cat-salary', name: 'Salary' },
+            transferAccount: null,
+            investmentTransaction: null,
+          } as any,
+          {
+            id: 's2',
+            amount: 40,
+            kind: 'investment',
+            category: null,
+            transferAccount: null,
+            investmentTransaction: {
+              id: 'inv1',
+              action: 'RETURN_OF_CAPITAL',
+              securityId: 'sec1',
+              security: { id: 'sec1', symbol: 'XYZ', name: 'XYZ Fund' },
+              quantity: null,
+              price: 40,
+              commission: 0,
+              exchangeRate: 1,
+            },
+          } as any,
+        ],
+      },
+    );
+    expect(screen.getByText(/Return of Capital: XYZ:/)).toBeInTheDocument();
+    expect(screen.queryByText(/RETURN_OF_CAPITAL/)).not.toBeInTheDocument();
+  });
+
   it('falls back to raw action when investment split lacks a security', () => {
     renderRow(
       { density: 'normal' },
@@ -1287,5 +1325,57 @@ describe('TransactionRow hidden columns', () => {
     expect(screen.getByTitle('Click to cycle status')).toBeInTheDocument();
     const grid = container.querySelector('td > div')!;
     expect(grid.querySelectorAll(':scope > .col-span-3')).toHaveLength(2);
+  });
+});
+
+describe('TransactionRow warranties', () => {
+  it('renders exactly as before on a row without warranties', () => {
+    const first = renderRow({}, { warrantyCount: 0, attachmentCount: 2 });
+    const before = first.container.innerHTML;
+    first.unmount();
+    const { container: without } = renderRow({}, { attachmentCount: 2 });
+    expect(without.innerHTML).toBe(before);
+    expect(screen.queryByTestId('warranty-badge')).not.toBeInTheDocument();
+  });
+
+  it('shows the shield and count beside the paperclip in the attachments cell', () => {
+    renderRow({}, { warrantyCount: 2, attachmentCount: 1 });
+    const badge = screen.getByRole('img', { name: '2 warranties' });
+    expect(badge).toHaveTextContent('2');
+    const attachment = screen.getByTestId('attachment-badge');
+    expect(badge.closest('td')).toBe(attachment.closest('td'));
+  });
+
+  it('shows the shield alone, without the dash, on a row with no attachments', () => {
+    renderRow({}, { warrantyCount: 1 });
+    const badge = screen.getByRole('img', { name: '1 warranty' });
+    expect(badge.closest('td')).not.toHaveTextContent('-');
+    expect(screen.queryByTestId('attachment-badge')).not.toBeInTheDocument();
+  });
+
+  it('shows the shield on the phone card, and gates it with the attachments column', () => {
+    const first = renderRow({ wrapped: true }, { warrantyCount: 3 });
+    expect(screen.getByRole('img', { name: '3 warranties' })).toBeInTheDocument();
+    first.unmount();
+    renderRow({ wrapped: true, hidden: new Set(['attachments']) }, { warrantyCount: 3 });
+    expect(screen.queryByTestId('warranty-badge')).not.toBeInTheDocument();
+  });
+
+  it('offers no warranty action in the Copy menu, with or without warranties', () => {
+    // A warranty is not a copy: it is added from the transaction's form or the
+    // Warranties page, and the row's shield says one exists.
+    for (const warrantyCount of [0, 1]) {
+      const view = renderRow({ onDuplicate: vi.fn(), onScheduleRecurring: vi.fn() }, { warrantyCount });
+      fireEvent.click(screen.getByText('Copy'));
+      expect(screen.getByText('Duplicate')).toBeInTheDocument();
+      expect(screen.queryByText('Add warranty')).not.toBeInTheDocument();
+      expect(screen.queryByText('View warranties')).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it('keeps the single Duplicate button on a row with warranties', () => {
+    renderRow({ onDuplicate: vi.fn() }, { warrantyCount: 2 });
+    expect(screen.getByTitle('Duplicate transaction')).toBeInTheDocument();
   });
 });

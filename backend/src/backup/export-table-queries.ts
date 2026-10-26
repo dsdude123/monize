@@ -153,6 +153,8 @@ export const INTENTIONALLY_EXCLUDED_TABLES: ReadonlySet<string> = new Set([
   // exports it): after a restore the link form defaults the cut-off date to the
   // day after the newest transaction so history is not re-imported.
   "bank_sync_credentials",
+  // Provider request reservations are instance-local quota state, not portable financial data.
+  "bank_sync_provider_requests",
   "bank_sync_connections",
   "bank_sync_accounts",
   "bank_sync_imported_transactions",
@@ -388,6 +390,17 @@ export function buildExportTableQueries(
       sql: `SELECT ts.* FROM transaction_splits ts
             JOIN transactions t ON ts.transaction_id = t.id
             WHERE t.user_id = $1`,
+    },
+    {
+      // Warranties link to a transaction and a payee (both ON DELETE SET NULL)
+      // and never move money. Restored after both, and before
+      // transaction_attachments, whose rows can name a warranty as their parent.
+      key: "warranties",
+      sql: "SELECT * FROM warranties WHERE user_id = $1 ORDER BY purchase_date, created_at, id",
+    },
+    {
+      key: "warranty_claims",
+      sql: "SELECT * FROM warranty_claims WHERE user_id = $1 ORDER BY claim_date, created_at, id",
     },
     {
       // Attachment metadata. Restored after transactions (FK) and before

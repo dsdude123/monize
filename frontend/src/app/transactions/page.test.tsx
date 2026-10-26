@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@/test/render';
 import TransactionsPage from './page';
 import { TRANSACTION_SORT_STORAGE_KEY } from '@/lib/transaction-sort';
+import { useDensityStore } from '@/store/densityStore';
 
 // The global setup mock builds a fresh router per call, so pushes cannot be
 // observed. This one keeps a stable `push` for the navigation assertions.
@@ -48,7 +49,31 @@ vi.mock('next/dynamic', () => ({
     const DynamicComponent = (props: any) => {
       // Check loader path to determine which component
       if (props.transaction !== undefined || props.onSuccess !== undefined) {
-        return <div data-testid="dynamic-transaction-form">TransactionForm</div>;
+        return (
+          <div data-testid="dynamic-transaction-form">
+            TransactionForm
+            {props.onAddWarranty && (
+              <button data-testid="form-add-warranty" onClick={() => props.onAddWarranty(props.transaction)}>
+                Form add warranty
+              </button>
+            )}
+            {props.onAddWarrantyAfterCreate && (
+              <button data-testid="form-add-warranty-after-create" onClick={() => props.onAddWarrantyAfterCreate({ id: 'tx-new' })}>
+                Form add warranty after create
+              </button>
+            )}
+            {props.onOpenWarranty && (
+              <button data-testid="form-open-warranty" onClick={() => props.onOpenWarranty('w-9')}>
+                Form open warranty
+              </button>
+            )}
+            {props.onDirtyChange && (
+              <button data-testid="form-make-dirty" onClick={() => props.onDirtyChange(true)}>
+                Make dirty
+              </button>
+            )}
+          </div>
+        );
       }
       if (props.payee !== undefined) {
         return <div data-testid="dynamic-payee-form">PayeeForm</div>;
@@ -130,7 +155,14 @@ vi.mock('@/lib/logger', () => ({
   }),
 }));
 
-// Mock auth store
+// Mock auth store. `mockActing` is who the reader is acting as; a delegate
+// test sets it and the top-level `beforeEach` puts it back.
+const { mockActing } = vi.hoisted(() => ({
+  mockActing: {
+    actingAsUserId: null as string | null,
+    delegateSections: null as Record<string, boolean> | null,
+  },
+}));
 vi.mock('@/store/authStore', () => ({
   useAuthStore: Object.assign(
     (selector?: any) => {
@@ -140,6 +172,8 @@ vi.mock('@/store/authStore', () => ({
         isLoading: false,
         _hasHydrated: true,
         logout: vi.fn(),
+        actingAsUserId: mockActing.actingAsUserId,
+        delegateSections: mockActing.delegateSections,
       };
       return selector ? selector(state) : state;
     },
@@ -298,6 +332,7 @@ vi.mock('@/components/transactions/TransactionList', () => ({
           <span data-testid={`tx-${t.id}-attachments`}>{t.attachmentCount ?? 'none'}</span>
         </div>
       ))}
+      {(props.onAddWarranty || props.onViewWarranties) && <span data-testid="row-warranty-actions" />}
       {props.onPayeeClick && <button data-testid="payee-click-btn" onClick={() => props.onPayeeClick('payee-1')}>Payee</button>}
       {props.onTransferClick && <button data-testid="transfer-click-btn" onClick={() => props.onTransferClick('acc-2', 'tx-linked')}>Transfer</button>}
       {props.onCategoryClick && <button data-testid="category-click-btn" onClick={() => props.onCategoryClick('cat-1')}>Category</button>}
@@ -438,7 +473,14 @@ vi.mock('@/components/ui/ConfirmDialog', () => ({
 }));
 
 vi.mock('@/components/ui/UnsavedChangesDialog', () => ({
-  UnsavedChangesDialog: () => null,
+  UnsavedChangesDialog: ({ isOpen, onSave, onDiscard, onCancel }: any) =>
+    isOpen ? (
+      <div data-testid="unsaved-dialog">
+        <button data-testid="unsaved-save" onClick={onSave}>Save</button>
+        <button data-testid="unsaved-discard" onClick={onDiscard}>Discard</button>
+        <button data-testid="unsaved-cancel" onClick={onCancel}>Keep editing</button>
+      </div>
+    ) : null,
 }));
 
 vi.mock('@/components/ui/LoadingSpinner', () => ({
@@ -488,20 +530,29 @@ const mockTxOpenEdit = vi.fn();
 const mockTxClose = vi.fn();
 const mockSetFormDirty = vi.fn();
 
-vi.mock('@/hooks/useFormModal', () => ({
-  useFormModal: () => ({
-    showForm: false,
-    editingItem: null,
-    openCreate: mockTxOpenCreate,
-    openEdit: mockTxOpenEdit,
-    close: mockTxClose,
-    isEditing: false,
-    modalProps: {},
-    setFormDirty: mockSetFormDirty,
-    unsavedChangesDialog: { isOpen: false, onSave: vi.fn(), onDiscard: vi.fn(), onCancel: vi.fn() },
-    formSubmitRef: { current: null },
-  }),
-}));
+// A stub by default; a test that drives the edit window's close path (the
+// unsaved-changes check) sets `mockRealFormModal.value` for the real hook.
+const { mockRealFormModal } = vi.hoisted(() => ({ mockRealFormModal: { value: false } }));
+vi.mock('@/hooks/useFormModal', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/useFormModal')>();
+  return {
+    useFormModal: () =>
+      mockRealFormModal.value
+        ? actual.useFormModal()
+        : {
+            showForm: false,
+            editingItem: null,
+            openCreate: mockTxOpenCreate,
+            openEdit: mockTxOpenEdit,
+            close: mockTxClose,
+            isEditing: false,
+            modalProps: {},
+            setFormDirty: mockSetFormDirty,
+            unsavedChangesDialog: { isOpen: false, onSave: vi.fn(), onDiscard: vi.fn(), onCancel: vi.fn() },
+            formSubmitRef: { current: null },
+          },
+  };
+});
 
 // Stateless by default, which is what almost every test here wants. The sort
 // tests swap in a stateful implementation, because a click that cannot change
@@ -572,6 +623,13 @@ const mockLongPayees = [
   { id: 'long-pay-2', name: 'Grocery Chain Supermarket Location Two', defaultCategoryId: null },
   { id: 'long-pay-3', name: 'Grocery Chain Supermarket Location Three', defaultCategoryId: null },
 ];
+
+// Every suite in this file starts as the owner with the stubbed form modal.
+beforeEach(() => {
+  mockActing.actingAsUserId = null;
+  mockActing.delegateSections = null;
+  mockRealFormModal.value = false;
+});
 
 describe('TransactionsPage', () => {
   beforeEach(() => {
@@ -1583,12 +1641,19 @@ describe('TransactionsPage', () => {
         { date: '2026-02-01', balance: 0, accountId: 'acc-2', currencyCode: 'USD' },
       ]);
 
-      render(<TransactionsPage />);
+      // Inside act, as the first fold test: the page's other loads can
+      // resolve after the banner shows, and an update outside act fails the
+      // act guard (it did on CI).
+      await act(async () => {
+        render(<TransactionsPage />);
+      });
       await waitFor(() => {
         expect(screen.getByTestId('chart-zero-balances')).toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole('button', { name: 'Hide chart' }));
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Hide chart' }));
+      });
 
       expect(screen.queryByTestId('chart-zero-balances')).not.toBeInTheDocument();
       expect(screen.getByTestId('chart-collapsed-strip')).toBeInTheDocument();
@@ -1727,6 +1792,162 @@ describe('TransactionsPage', () => {
         expect(mockGetById).toHaveBeenCalledWith('tx-split');
         expect(mockTxOpenEdit).toHaveBeenCalledWith(splitTx);
       });
+    });
+  });
+
+  describe('Warranties', () => {
+    // A warranty is added from the transaction's form or the Warranties page.
+    beforeEach(() => {
+      mockGetAll.mockResolvedValue({
+        data: mockTransactions,
+        pagination: { page: 1, totalPages: 1, total: 3 },
+      });
+      mockGetSummary.mockResolvedValue({ totalIncome: 0, totalExpenses: 0, netCashFlow: 0, transactionCount: 0 });
+    });
+
+    it('gives the register rows no warranty action', async () => {
+      await act(async () => {
+        render(<TransactionsPage />);
+      });
+      await waitFor(() => expect(screen.getByTestId('tx-count')).toHaveTextContent('3 transactions'));
+      expect(screen.queryByTestId('row-warranty-actions')).not.toBeInTheDocument();
+    });
+
+    describe('for an acting delegate', () => {
+      it("gives the edit window no Add warranty", async () => {
+        mockRealFormModal.value = true;
+        mockActing.actingAsUserId = 'owner-1';
+        mockActing.delegateSections = { warranties: true };
+        await act(async () => {
+          render(<TransactionsPage />);
+        });
+        await waitFor(() => expect(screen.getByTestId('tx-tx-1')).toBeInTheDocument());
+        await act(async () => {
+          fireEvent.click(screen.getByTestId('tx-tx-1'));
+        });
+        expect(screen.getByTestId('dynamic-transaction-form')).toBeInTheDocument();
+        expect(screen.queryByTestId('form-add-warranty')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('form-add-warranty-after-create')).not.toBeInTheDocument();
+      });
+    });
+
+    describe('Add warranty from inside the edit window', () => {
+      // A link out of the window would drop unsaved edits without asking; the
+      // page closes the window through its own close path first.
+      async function openEditWindow() {
+        mockRealFormModal.value = true;
+        await act(async () => {
+          render(<TransactionsPage />);
+        });
+        await waitFor(() => expect(screen.getByTestId('tx-tx-1')).toBeInTheDocument());
+        await act(async () => {
+          fireEvent.click(screen.getByTestId('tx-tx-1'));
+        });
+        expect(screen.getByTestId('dynamic-transaction-form')).toBeInTheDocument();
+      }
+
+      it('asks about unsaved edits first and stays put', async () => {
+        await openEditWindow();
+        fireEvent.click(screen.getByTestId('form-make-dirty'));
+        fireEvent.click(screen.getByTestId('form-add-warranty'));
+        expect(screen.getByTestId('unsaved-dialog')).toBeInTheDocument();
+        expect(screen.getByTestId('dynamic-transaction-form')).toBeInTheDocument();
+        await new Promise((r) => setTimeout(r, 150));
+        expect(mockPush).not.toHaveBeenCalled();
+      });
+
+      it('keeps editing and does not navigate when the dialog is dismissed', async () => {
+        await openEditWindow();
+        fireEvent.click(screen.getByTestId('form-make-dirty'));
+        fireEvent.click(screen.getByTestId('form-add-warranty'));
+        fireEvent.click(screen.getByTestId('unsaved-cancel'));
+        expect(screen.queryByTestId('unsaved-dialog')).not.toBeInTheDocument();
+        expect(screen.getByTestId('dynamic-transaction-form')).toBeInTheDocument();
+        await new Promise((r) => setTimeout(r, 150));
+        expect(mockPush).not.toHaveBeenCalled();
+      });
+
+      it('navigates once the edits are discarded', async () => {
+        await openEditWindow();
+        fireEvent.click(screen.getByTestId('form-make-dirty'));
+        fireEvent.click(screen.getByTestId('form-add-warranty'));
+        fireEvent.click(screen.getByTestId('unsaved-discard'));
+        expect(screen.queryByTestId('dynamic-transaction-form')).not.toBeInTheDocument();
+        await waitFor(() =>
+          expect(mockPush).toHaveBeenCalledWith('/warranties?new=1&transactionId=tx-1'),
+        );
+      });
+
+      // On a new transaction the form calls Add only after it has saved the
+      // row, so the window's dirty flag is stale: no dialog, and no register
+      // reload behind a page that is being left.
+      it('on a new transaction, closes without asking and opens the warranty for the created row', async () => {
+        mockRealFormModal.value = true;
+        await act(async () => {
+          render(<TransactionsPage />);
+        });
+        await waitFor(() => expect(screen.getByText('+ New Transaction')).toBeInTheDocument());
+        await act(async () => {
+          fireEvent.click(screen.getByText('+ New Transaction'));
+        });
+        expect(screen.getByTestId('dynamic-transaction-form')).toBeInTheDocument();
+        const loadsBefore = mockGetAll.mock.calls.length;
+        fireEvent.click(screen.getByTestId('form-make-dirty'));
+        fireEvent.click(screen.getByTestId('form-add-warranty-after-create'));
+        expect(screen.queryByTestId('unsaved-dialog')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('dynamic-transaction-form')).not.toBeInTheDocument();
+        await waitFor(() =>
+          expect(mockPush).toHaveBeenCalledWith('/warranties?new=1&transactionId=tx-new'),
+        );
+        expect(mockGetAll.mock.calls.length).toBe(loadsBefore);
+      });
+
+      it('closes a clean form and navigates', async () => {
+        await openEditWindow();
+        fireEvent.click(screen.getByTestId('form-add-warranty'));
+        expect(screen.queryByTestId('unsaved-dialog')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('dynamic-transaction-form')).not.toBeInTheDocument();
+        await waitFor(() =>
+          expect(mockPush).toHaveBeenCalledWith('/warranties?new=1&transactionId=tx-1'),
+        );
+      });
+
+      // A linked warranty in the window's Warranties line: a bare link was
+      // undone by the closing Modal's history.back(), landing on Transactions.
+      it('opens a linked warranty by closing the window first', async () => {
+        await openEditWindow();
+        fireEvent.click(screen.getByTestId('form-open-warranty'));
+        expect(screen.queryByTestId('unsaved-dialog')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('dynamic-transaction-form')).not.toBeInTheDocument();
+        expect(mockPush).not.toHaveBeenCalled();
+        await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/warranties/w-9'));
+      });
+
+      it('asks about unsaved edits before opening a linked warranty', async () => {
+        await openEditWindow();
+        fireEvent.click(screen.getByTestId('form-make-dirty'));
+        fireEvent.click(screen.getByTestId('form-open-warranty'));
+        expect(screen.getByTestId('unsaved-dialog')).toBeInTheDocument();
+        expect(screen.getByTestId('dynamic-transaction-form')).toBeInTheDocument();
+        await new Promise((r) => setTimeout(r, 150));
+        expect(mockPush).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByTestId('unsaved-discard'));
+        expect(screen.queryByTestId('dynamic-transaction-form')).not.toBeInTheDocument();
+        await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/warranties/w-9'));
+      });
+    });
+
+    it("keeps the row's warranty count when a split is re-read for editing", async () => {
+      const splitTx = { id: 'tx-split', date: '2026-02-01', amount: -100, payee: { name: 'Store' }, isTransfer: false, isSplit: true, splits: [], warrantyCount: 2 };
+      const fullSplitTx = { ...splitTx, warrantyCount: undefined, splits: [{ id: 's1', amount: -100 }] };
+      mockGetAll.mockResolvedValue({ data: [splitTx], pagination: { page: 1, totalPages: 1, total: 1 } });
+      mockGetById.mockResolvedValue(fullSplitTx);
+      render(<TransactionsPage />);
+      await waitFor(() => expect(screen.getByTestId('tx-tx-split')).toBeInTheDocument());
+      fireEvent.click(screen.getByTestId('tx-tx-split'));
+      await waitFor(() =>
+        expect(mockTxOpenEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'tx-split', warrantyCount: 2 })),
+      );
     });
   });
 
@@ -2983,6 +3204,62 @@ describe('TransactionsPage register sorting', () => {
       expect(lastGetAllParams()).toMatchObject({ sortBy: 'date', sortDirection: 'desc' });
     } finally {
       mockPreferences.value = undefined;
+    }
+  });
+
+  it('falls back to the date sort on the phone card for a column the card does not show', async () => {
+    // The phone card (a phone at Normal density) shows no description or
+    // ref #, and its sort strip offers no chip for either, so a sort
+    // remembered from the tier table is resolved away while the card is
+    // drawn: this render only, storage untouched.
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(max-width: 639px)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+    const originalDensities = useDensityStore.getState().densities;
+    useDensityStore.setState({ densities: { transactions: 'normal' } });
+    mockUseLocalStorage.mockImplementation((key: string, defaultValue: any) => {
+      const [value, setValue] = React.useState(
+        key === TRANSACTION_SORT_STORAGE_KEY
+          ? { field: 'refNumber', direction: 'asc' }
+          : defaultValue,
+      );
+      return [value, setValue];
+    });
+
+    let unmount: (() => void) | undefined;
+    try {
+      ({ unmount } = render(<TransactionsPage />));
+      await waitFor(() => expect(mockGetAll).toHaveBeenCalled());
+      expect(screen.getByTestId('sort')).toHaveTextContent('date:desc');
+      expect(lastGetAllParams()).toMatchObject({ sortBy: 'date', sortDirection: 'desc' });
+      await waitFor(() => {
+        expect(screen.getByTestId('rows-sort')).toHaveTextContent('date:desc');
+      });
+
+      // Compact keeps the tier table on a phone, Ref # column and all, so the
+      // remembered sort comes back, and the rows are read again in it: the
+      // switch is no click, so only the page's own watch on it can reload.
+      await act(async () => {
+        useDensityStore.setState({ densities: { transactions: 'compact' } });
+      });
+      expect(screen.getByTestId('sort')).toHaveTextContent('refNumber:asc');
+      await waitFor(() => {
+        expect(screen.getByTestId('rows-sort')).toHaveTextContent('refNumber:asc');
+      });
+      expect(lastGetAllParams()).toMatchObject({ sortBy: 'refNumber', sortDirection: 'asc', page: 1 });
+    } finally {
+      // Unmounted first: putting the store back re-renders a mounted page.
+      unmount?.();
+      window.matchMedia = originalMatchMedia;
+      useDensityStore.setState({ densities: originalDensities });
     }
   });
 

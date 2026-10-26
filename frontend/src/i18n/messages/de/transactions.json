@@ -135,6 +135,7 @@
       "toggleTitle": "Das Jahr aus den Datumsangaben entfernen, damit mehr vom Zahlungsempfänger sichtbar ist"
     },
     "attachmentsCount": "{count, plural, one {# Anhang} other {# Anhänge}}",
+    "warrantiesCount": "{count, plural, one {# Garantie} other {# Garantien}}",
     "today": "Heute",
     "export": {
       "button": "Exportieren",
@@ -431,6 +432,7 @@
       "destinationRequired": "Bitte wählen Sie ein Zielkonto aus",
       "sameAccount": "Quell- und Zielkonto müssen verschieden sein",
       "negativeTransfer": "Überweisungsbetrag darf nicht negativ sein",
+      "convertToTransferUnsupported": "Eine bestehende Buchung kann hier nicht in eine Überweisung umgewandelt werden. Löschen Sie sie und erstellen Sie stattdessen die Überweisung.",
       "payeeCreated": "Zahlungsempfänger „{name}” erstellt",
       "payeeCreateFailed": "Zahlungsempfänger konnte nicht erstellt werden",
       "payeeReactivated": "Zahlungsempfänger „{name}” reaktiviert",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "Enthält eine Fremdwährungsgebühr von {percent}% ({fee})."
     },
-    "jointSplitDisabled": "Splitbuchungen in einem geteilten Konto kann nur der Eigentümer verwalten"
+    "jointSplitDisabled": "Splitbuchungen in einem geteilten Konto kann nur der Eigentümer verwalten",
+    "warranties": {
+      "title": "Garantien",
+      "add": "Garantie hinzufügen",
+      "expires": "Läuft ab am {date}",
+      "loading": "Garantien werden geladen",
+      "loadError": "Die Garantien zu dieser Buchung konnten nicht geladen werden.",
+      "empty": "Noch keine Garantien"
+    }
   },
   "splitEditor": {
     "header": "Details der Buchungsteile",
@@ -626,7 +636,8 @@
       "amountRange": "Betrag von 50 bis 100",
       "datePeriod": "Jeder Tag im März 2026",
       "isSplit": "Aufgeteilte Buchungen",
-      "hasAttachment": "Hat einen Anhang"
+      "hasAttachment": "Hat einen Anhang",
+      "hasWarranty": "Hat eine Garantie"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "Hat einen Anhang",
+        "warranty": "Hat eine Garantie",
         "ref": "Hat eine Referenznummer",
         "memo": "Hat eine Notiz",
         "tag": "Hat einen Tag"

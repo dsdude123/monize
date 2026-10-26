@@ -2,7 +2,10 @@ import { Injectable } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { withScopedDb } from "../common/db/scoped-db";
 import { Category } from "../categories/entities/category.entity";
-import { ReportCurrencyService } from "./report-currency.service";
+import {
+  ConversionGaps,
+  ReportCurrencyService,
+} from "./report-currency.service";
 import { roundMoney, toMoneyNumber } from "../common/round.util";
 import {
   MonthlyCategoryBreakdownResponse,
@@ -75,7 +78,9 @@ export class MonthlyCategoryBreakdownService {
     userId: string,
     startDate: string | undefined,
     endDate: string,
+    options: { accountIds?: string[] } = {},
   ): Promise<MonthlyCategoryBreakdownResponse> {
+    const { accountIds } = options;
     const defaultCurrency =
       await this.currencyService.getDefaultCurrency(userId);
     const rateMap = await this.currencyService.buildRateMap(defaultCurrency);
@@ -132,11 +137,17 @@ export class MonthlyCategoryBreakdownService {
         )
     `;
 
-    const params: (string | undefined)[] = [userId, endDate];
+    const params: (string | string[] | undefined)[] = [userId, endDate];
 
     if (startDate) {
       query += ` AND t.transaction_date >= $3`;
       params.push(startDate);
+    }
+
+    // An empty selection is "every account", like every other report filter.
+    if (accountIds && accountIds.length > 0) {
+      query += ` AND t.account_id = ANY($${params.length + 1}::uuid[])`;
+      params.push(accountIds);
     }
 
     query += `
@@ -159,23 +170,31 @@ export class MonthlyCategoryBreakdownService {
 
     const accumulators = new Map<string, CategoryAccumulator>();
     const monthSet = new Set<string>();
+    // A row with no rate into the reporting currency is unknown, never its
+    // unconverted figure (INV-FX-001): it is in no category value, no deposit or
+    // withdrawal total, no transfer row and no month, and its currency is named.
+    const gaps = new ConversionGaps();
 
     for (const row of rawResults) {
       const month = row.month;
-      monthSet.add(month);
 
-      const deposits = this.currencyService.convertAmount(
+      const deposits = this.currencyService.tryConvertAmount(
         toMoneyNumber(row.deposits),
         row.currency_code,
         defaultCurrency,
         rateMap,
       );
-      const withdrawals = this.currencyService.convertAmount(
+      const withdrawals = this.currencyService.tryConvertAmount(
         toMoneyNumber(row.withdrawals),
         row.currency_code,
         defaultCurrency,
         rateMap,
       );
+      if (deposits === null || withdrawals === null) {
+        gaps.record(row.currency_code);
+        continue;
+      }
+      monthSet.add(month);
 
       // Treat an unknown category_id (e.g. the row references a category that
       // no longer exists) the same as no category at all.
@@ -216,6 +235,8 @@ export class MonthlyCategoryBreakdownService {
       defaultCurrency,
       rateMap,
       monthSet,
+      gaps,
+      accountIds,
     );
 
     const months = Array.from(monthSet).sort();
@@ -224,7 +245,14 @@ export class MonthlyCategoryBreakdownService {
       accumulators.values(),
     ).map((acc) => this.buildRow(acc, categoryMap));
 
-    return { months, data, transfers, currency: defaultCurrency };
+    return {
+      months,
+      data,
+      transfers,
+      currency: defaultCurrency,
+      missingCurrencies: gaps.missingCurrencies,
+      excludedCount: gaps.excludedCount,
+    };
   }
 
   /**
@@ -243,6 +271,8 @@ export class MonthlyCategoryBreakdownService {
     defaultCurrency: string,
     rateMap: Map<string, number>,
     monthSet: Set<string>,
+    gaps: ConversionGaps,
+    accountIds?: string[],
   ): Promise<MonthlyBreakdownTransferRow[]> {
     let query = `
       SELECT
@@ -264,11 +294,18 @@ export class MonthlyCategoryBreakdownService {
         AND t.parent_transaction_id IS NULL
     `;
 
-    const params: (string | undefined)[] = [userId, endDate];
+    const params: (string | string[] | undefined)[] = [userId, endDate];
 
     if (startDate) {
       query += ` AND t.transaction_date >= $3`;
       params.push(startDate);
+    }
+
+    // The same scope as the category rows above: a transfer row is a row of
+    // one account, so it is kept or dropped with that account.
+    if (accountIds && accountIds.length > 0) {
+      query += ` AND t.account_id = ANY($${params.length + 1}::uuid[])`;
+      params.push(accountIds);
     }
 
     query += `
@@ -311,19 +348,23 @@ export class MonthlyCategoryBreakdownService {
     };
 
     for (const row of rawResults) {
-      monthSet.add(row.month);
-      const outflow = this.currencyService.convertAmount(
+      const outflow = this.currencyService.tryConvertAmount(
         toMoneyNumber(row.outflow),
         row.currency_code,
         defaultCurrency,
         rateMap,
       );
-      const inflow = this.currencyService.convertAmount(
+      const inflow = this.currencyService.tryConvertAmount(
         toMoneyNumber(row.inflow),
         row.currency_code,
         defaultCurrency,
         rateMap,
       );
+      if (outflow === null || inflow === null) {
+        gaps.record(row.currency_code);
+        continue;
+      }
+      monthSet.add(row.month);
       if (outflow !== 0) {
         addFlow(
           fromByAccount,

@@ -11,6 +11,7 @@ Paths beginning with `src/` or `scripts/`, and layer configuration filenames, ar
 - `ProtectedRoute` (`components/auth/ProtectedRoute.tsx`) wraps authenticated pages.
 - **No `setState` in `useEffect`** — ESLint rule `react-hooks/set-state-in-effect` is enforced. To reset child state when a prop changes, use the "info from previous render" pattern (track the prop in `useState` and update during render).
 - **Dialogs use `Modal`** (`components/ui/Modal.tsx`) — handles Escape, focus trap, body scroll lock, focus restore, and stacked-modal popstate. Opt into `pushHistory` so the browser back button also closes. `ConfirmDialog` forwards `pushHistory` for stacked confirm flows.
+- **Leaving the page from inside a `pushHistory` modal** closes the modal first, then navigates through `afterModalHistoryPop` (`lib/after-modal-history-pop.ts`), never a bare link and never a fixed `setTimeout`. The closing modal pops its entry with an asynchronous `history.back()`, which undoes any push that lands before it; a guessed delay loses that race on a slow render, so the helper waits for the pop itself.
 
 ## Reusing existing UI patterns
 
@@ -35,6 +36,8 @@ Both are resolved server-side in one walk up the ancestry: read `category.effect
 ## A status pill is `Badge`; table chrome is `Table.tsx`
 
 `components/ui/Badge.tsx` is the small status pill (previously hand-rolled ~50 times). Pass `variant` and `size`; pass `as="button"` where the pill is also a control, rather than nesting a button in a span. It deliberately does not absorb pills whose colour *means* something -- `CategoryPill`, `AccountTypePill` and `SCHEDULED_KIND_CHIP_CLASSES` are each already one source of truth, exempted by name.
+
+A warranty's status pill is `WarrantyStatusBadge` (`components/warranties/WarrantyStatusBadge.tsx`), fed by the server's `status` and `daysLeft`; no component compares a warranty's dates itself (WTY-002).
 
 `components/ui/Table.tsx` is constants (`TABLE_CLASS`, `TH_CLASS`, `TD_CLASS`) plus thin `Th`/`Td` cells, not a `<Table>` wrapper -- these tables are hand-laid with colspans and sticky cells. `SortableHeader` deliberately stays off `TH_CLASS` (about twenty-five report tables draw a lighter header, and folding it in would restyle every report).
 
@@ -170,6 +173,7 @@ server will refuse is worse than an absent one.
 ## An attachment is opened in `AttachmentPreviewDialog`, never downloaded from a row
 
 Clicking an attachment previews it; Download is a footer action of the preview.
+A warranty's documents are `AttachmentsSection` with a warranty parent (`{ warrantyId }`, wrapped by `WarrantyDocumentsSection`), never a second uploader; a new warranty's are its staged mode with `stagedFor="warranty"`, which `WarrantyForm` uploads once the warranty exists.
 Four rules the viewer holds, each with a test:
 
 - **Bytes come through `attachmentsApi.fetchBytes`**, never a bare `<img src>`
@@ -524,3 +528,7 @@ stored `body_text` that is really HTML is drawn the same way (`looksLikeHtml`). 
 ## Nothing interactive goes inside a `<button>` or an `<a>`
 
 The parser closes the outer element at the inner tag, so the click target ends where the nested control begins and the server's HTML stops matching React's -- a hydration mismatch. Fix it at the call site by making the two **siblings**: a wrapper carrying the border and hover, with the navigation button and the nested control side by side. Do not demote the inner control to a focusable `<span>` -- its implicit role is generic, screen readers drop its `aria-label`, and the result is a tab stop announcing nothing. `ui-conventions.test.ts` scans for this; changing a shared component's trigger element is a change to every call site, and the guard tells you which.
+
+## Bank Sync provider default
+
+The Bank Sync settings page defaults to SimpleFIN when at least one active connection has an account linked to an open Monize account and every such connection uses SimpleFIN. Pending, expired, revoked, failed, unlinked and closed-account-only connections do not decide the default. Automatic sync selects the cadence and is not an enablement test. Empty, loading and failed reads retain Enable Banking; a manual provider selection wins over subsequent reads for the current visit. Regression coverage is in `frontend/src/app/settings/bank-sync/page.test.tsx`.

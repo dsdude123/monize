@@ -316,6 +316,7 @@
     "totalInflows": "總流入",
     "totalOutflows": "總流出",
     "netCashFlow": "淨現金流",
+    "notAvailable": "不適用",
     "monthlyCashFlow": "每月現金流",
     "inflowsByCategory": "依類別流入",
     "outflowsByCategory": "依類別流出",
@@ -330,7 +331,31 @@
     "untagged": "未標記",
     "inflows": "已標記的流入",
     "outflows": "已標記的流出",
-    "sharesExceedNote": "若某筆記錄在此鍵下標記了多個值，則會計入每個值，因此各值的佔比加總可能超過 100%。"
+    "inflowsSeries": "已標記的流入：{value}",
+    "outflowsSeries": "已標記的流出：{value}",
+    "includeTransfers": "包含帶標籤的轉帳",
+    "balance": "結餘",
+    "balancePercent": "結餘 %",
+    "balancePercentTooltip": "結餘 %：{rate}",
+    "sharesExceedNote": "若某筆記錄在此鍵下標記了多個值，則會計入每個值，因此各值的佔比加總可能超過 100%。",
+    "valueLabel": "標籤值",
+    "allValues": "所有值",
+    "selectValue": "選擇一個值",
+    "fundsIncome": "收入",
+    "fundsTagged": "帶標籤的轉帳：{value}",
+    "fundsAvailable": "可用資金",
+    "fundsSpent": "已支出",
+    "fundsLoadFailed": "無法載入帶標籤轉帳的資料。",
+    "notIncome": "非收入",
+    "noNetTagged": "此期間該值沒有帶標籤的淨流入。",
+    "monthlySummaryTitle": "按月結餘（含帶標籤的轉帳）：{value}",
+    "fundsExpenses": "支出",
+    "fundsPartialNote": "部分金額無法換算（缺少 {currencies} 的匯率），因此結餘為小計，且不顯示結餘 %。",
+    "fundsPartialNoteGeneric": "部分金額無法計入，因此結餘為小計，且不顯示結餘 %。",
+    "actualVsAvailable": "實際與可用資金對比",
+    "budgetFundsPartialNote": "部分金額無法換算（缺少 {currencies} 的匯率），因此可用資金為小計。",
+    "budgetFundsPartialNoteGeneric": "部分金額無法計入，因此可用資金為小計。",
+    "fundsSeriesName": "可用資金 ({value})"
   },
   "categoryPerformance": {
     "noBudgets": "找不到預算。請建立預算以查看類別績效。",
@@ -764,6 +789,7 @@
     "totalValue": "總值",
     "costBasis": "成本基礎",
     "totalGainLoss": "總損益",
+    "gainPartialCaption": "僅限有價格的持倉",
     "return": "報酬率",
     "viewHoldings": "持倉",
     "viewAllocation": "配置",
@@ -821,6 +847,7 @@
     "actionCapitalGainShort": "短期資本利得",
     "actionCapitalGainLong": "長期資本利得",
     "actionRedeem": "贖回定存單/債券",
+    "actionReturnOfCapital": "資本返還",
     "colCommission": "佣金",
     "colPriceCurrency": "價格幣別",
     "colAmountCurrency": "金額幣別",
@@ -1146,6 +1173,11 @@
     "vsMonth": "對比 {month}",
     "inMonth": "{amount} 在 {month}",
     "netWorthTotal": "總計：{amount}",
+    "netWorthSummaryPartial": "您在 {currentMonth} 的資產淨值為 <strong>{netWorth}</strong>。由於 {pairs} 沒有匯率，無法計算相較 {previousMonth} 的變化；請在貨幣頁面新增。",
+    "pdfPartialSuffix": "{amount}（不完整）",
+    "pdfNote": "備註",
+    "pdfNotAvailable": "不適用",
+    "pdfPartialNote": "不完整的總額：{pairs} 沒有匯率。",
     "netWorthSummary": "您在 {currentMonth} 的資產淨值為 <strong>{netWorth}</strong>，相較 {previousMonth} 變化了 <delta>{changeAmount}</delta>。",
     "pdfTitle": "月度比較",
     "pdfSubtitle": "{current} 對比 {previous}",
@@ -1193,7 +1225,12 @@
     "colNetWorth": "資產淨值",
     "barStyle": "長條樣式",
     "barStyleNetWorth": "資產淨值",
-    "barStyleAccountType": "依帳戶類型"
+    "barStyleAccountType": "依帳戶類型",
+    "notAvailable": "不適用",
+    "colNote": "備註",
+    "partialMonthNote": "不完整：{pairs} 沒有匯率",
+    "pdfPartialNote": "不完整的總額：{pairs} 沒有匯率。請在貨幣頁面新增。",
+    "partialMonth": "未顯示：本月部分金額無法換算，因此資產淨值未知。"
   },
   "portfolioValue": {
     "highestValue": "最高價值",
@@ -1279,6 +1316,7 @@
     "colDate": "日期",
     "colShares": "股數",
     "colPrice": "價格",
+    "returnOfCapitalRow": "超出成本基礎的資本返還",
     "pdfTitle": "已實現獲利報表",
     "pdfSubtitle": "{count} 個證券 | 淨獲利：{gain}",
     "csvColSecurity": "證券",
@@ -1288,7 +1326,11 @@
     "csvColCostBasis": "成本基礎",
     "csvColGainLoss": "損益",
     "csvColReturn": "報酬率 %",
-    "csvNoRate": "無匯率"
+    "csvNoRate": "無匯率",
+    "csvUnknownCost": "未知",
+    "unknownBasisReason": "無法計算此收益：該持倉包含未記錄成本而新增的股份，因此已賣出股份的成本未知。請開啟新增這些股份的交易並輸入其價格。",
+    "knownPart": "已知部分：{amount}",
+    "unknownCostNotice": "{count, plural, one {# 筆賣出} other {# 筆賣出}}的成本未知，因為新增股份時沒有價格。{count, plural, one {該筆} other {這些}}不提供收益，因此收益合計只顯示已知部分。"
   },
   "recurringExpenses": {
     "recurringExpenses": "固定支出",
@@ -1851,6 +1893,13 @@
   "foreignCurrencyFees": {
     "noEligibleAccounts": "沒有科目設定境外交易手續費。在科目上設定手續費百分比，即可在此追蹤其外幣手續費。"
   },
+  "partialData": {
+    "notice": "部分數字不完整：{count, plural, other {# 筆金額}}無法換算為 {displayCurrency}，已被排除。{currencies} 沒有匯率；請在貨幣頁面新增。",
+    "noticeExcluded": "部分數字不完整：{count, plural, other {# 筆金額}}無法計算，已被排除。",
+    "pdfNote": "不完整的總額：{currencies} 沒有匯率",
+    "pdfNoteExcluded": "不完整的總額：已排除 {count, plural, other {# 筆金額}}",
+    "pdfSuffix": "（不完整）"
+  },
   "sankey": {
     "help": "流入的資金經過中間，流向其被花費的去處、被儲蓄或投資的部分以及用於償還債務的部分。預設情況下，報表涵蓋您未關閉的支票、儲蓄、現金、信用卡和信用額度帳戶，這些帳戶之間的轉帳不會顯示。將某個儲蓄帳戶從帳戶篩選中移除，即可看到您轉入其中的金額。信用卡繳款從不算作債務還款：它結清的消費已計為支出。",
     "depthLabel": "細節",
@@ -1897,5 +1946,8 @@
       "residualDeficit": "動用餘額",
       "unlinkedAccount": "（未關聯帳戶）"
     }
+  },
+  "pdfExport": {
+    "generatedAt": "產生時間：{timestamp}"
   }
 }

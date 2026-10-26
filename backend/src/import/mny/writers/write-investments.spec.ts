@@ -47,6 +47,7 @@ function investment(
     accruedInterest: 0,
     totalAmount: 1009.99,
     currencyCode: "USD",
+    securityCurrencyCode: "USD",
     exchangeRate: 1,
     cashAmount: -1009.99,
     status: TransactionStatus.CLEARED,
@@ -54,6 +55,7 @@ function investment(
     categoryHandle: null,
     description: null,
     linkedInvestmentId: null,
+    tagHandles: [],
     ...overrides,
   };
 }
@@ -144,6 +146,7 @@ const baseInput = {
   payeeIdByHandle: new Map<number, string>(),
   payeeNameByHandle: new Map<number, string>(),
   symbolByHandle: new Map([[1, "VOO"]]),
+  tagIdByHandle: new Map([[552, "tag-552"]]),
 };
 
 describe("writeSecurities", () => {
@@ -240,6 +243,43 @@ describe("writeInvestments", () => {
       totalAmount: 1009.99,
       linkedTransactionId: null,
     });
+  });
+
+  it("puts the trade's Money classification on the cash leg it writes", async () => {
+    const { manager, transactions } = doubles();
+
+    const result = await writeInvestments(manager, "user-1", {
+      ...baseInput,
+      transactions: [investment({ tagHandles: [552, 999] })],
+    });
+
+    // The doubles hand every other entity the transactions repository, so the
+    // link insert is the second call on it, after the cash row. The unknown
+    // item writes nothing.
+    const cashRow = transactions.insert.mock.calls[0][0][0];
+    expect(result.tagLinksApplied).toBe(1);
+    expect(transactions.insert).toHaveBeenCalledTimes(2);
+    expect(transactions.insert.mock.calls[1][0]).toEqual([
+      { transactionId: cashRow.id, tagId: "tag-552" },
+    ]);
+  });
+
+  it("writes no tag link when the trade has no cash leg of its own", async () => {
+    const { manager, transactions } = doubles();
+
+    await writeInvestments(manager, "user-1", {
+      ...baseInput,
+      transactions: [
+        investment({
+          action: InvestmentAction.ADD_SHARES,
+          cashAmount: 0,
+          cashAccountKey: null,
+          tagHandles: [552],
+        }),
+      ],
+    });
+
+    expect(transactions.insert).not.toHaveBeenCalled();
   });
 
   it("persists the mapped status on the investment row, not only the cash leg", async () => {
@@ -636,17 +676,43 @@ describe("writeInvestments", () => {
     });
   });
 
-  it("quotes the label in the row's own currency", async () => {
+  it("quotes the label in the currency the price and total are in", async () => {
     const { manager, transactions } = doubles();
 
     await writeInvestments(manager, "user-1", {
       ...baseInput,
-      transactions: [investment({ currencyCode: "EUR" })],
+      transactions: [investment({ securityCurrencyCode: "EUR" })],
     });
 
     expect(transactions.insert.mock.calls[0][0][0].payeeName).toBe(
       "Buy: VOO 10 @ €100.00",
     );
+  });
+
+  it("keeps the cash row in the account currency when the trade is in another", async () => {
+    const { manager, transactions } = doubles();
+
+    await writeInvestments(manager, "user-1", {
+      ...baseInput,
+      transactions: [
+        investment({
+          currencyCode: "CAD",
+          securityCurrencyCode: "USD",
+          exchangeRate: 1.25,
+          totalAmount: 1000,
+          price: 100,
+          commission: 0,
+          cashAmount: -1250,
+        }),
+      ],
+    });
+
+    expect(transactions.insert.mock.calls[0][0][0]).toMatchObject({
+      amount: -1250,
+      currencyCode: "CAD",
+      exchangeRate: 1,
+      payeeName: "Buy: VOO 10 @ $100.00",
+    });
   });
 
   it("labels an income leg with its total rather than a unit price", async () => {

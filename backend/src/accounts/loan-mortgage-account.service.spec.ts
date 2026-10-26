@@ -372,6 +372,38 @@ describe("LoanMortgageAccountService", () => {
       expect(accountsRepository.save).not.toHaveBeenCalled();
       expect(scheduledTransactionsService.create).not.toHaveBeenCalled();
     });
+
+    it("refuses a payment account in another currency before saving the loan (A26-S15-10)", async () => {
+      accountsRepository.findOne.mockResolvedValue({
+        id: "acc-chequing",
+        userId,
+        currencyCode: "PLN",
+      });
+
+      await expect(
+        service.createLoanAccount(userId, makeValidLoanDto()),
+      ).rejects.toThrow(
+        "The payment account is in PLN and the loan in CAD. Choose an account in CAD.",
+      );
+      expect(accountsRepository.findOne).toHaveBeenCalledWith({
+        where: { id: "acc-chequing", userId },
+      });
+      expect(accountsRepository.create).not.toHaveBeenCalled();
+      expect(accountsRepository.save).not.toHaveBeenCalled();
+      expect(scheduledTransactionsService.create).not.toHaveBeenCalled();
+    });
+
+    it("creates the loan when the payment account is in its currency", async () => {
+      accountsRepository.findOne.mockResolvedValue({
+        id: "acc-chequing",
+        userId,
+        currencyCode: "CAD",
+      });
+
+      await service.createLoanAccount(userId, makeValidLoanDto());
+
+      expect(scheduledTransactionsService.create).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("createMortgageAccount", () => {
@@ -387,8 +419,7 @@ describe("LoanMortgageAccountService", () => {
         interestRate: 5.0,
         institution: "RBC",
         amortizationMonths: 300,
-        isCanadianMortgage: true,
-        isVariableRate: false,
+        mortgageType: "CANADIAN_FIXED",
         termMonths: 60,
         interestCategoryId: "cat-interest",
       }) as any;
@@ -405,8 +436,6 @@ describe("LoanMortgageAccountService", () => {
           interestRate: 5.0,
           institution: "RBC",
           mortgageType: "CANADIAN_FIXED",
-          isCanadianMortgage: true,
-          isVariableRate: false,
           amortizationMonths: 300,
           originalPrincipal: 500000,
         }),
@@ -628,6 +657,38 @@ describe("LoanMortgageAccountService", () => {
       );
       expect(accountsRepository.create).not.toHaveBeenCalled();
       expect(scheduledTransactionsService.create).not.toHaveBeenCalled();
+    });
+
+    it("refuses a payment account in another currency before saving the mortgage (A26-S15-10)", async () => {
+      accountsRepository.findOne.mockResolvedValue({
+        id: "acc-chequing",
+        userId,
+        currencyCode: "PLN",
+      });
+
+      await expect(
+        service.createMortgageAccount(userId, makeValidMortgageDto()),
+      ).rejects.toThrow(
+        "The payment account is in PLN and the loan in CAD. Choose an account in CAD.",
+      );
+      expect(accountsRepository.findOne).toHaveBeenCalledWith({
+        where: { id: "acc-chequing", userId },
+      });
+      expect(accountsRepository.create).not.toHaveBeenCalled();
+      expect(accountsRepository.save).not.toHaveBeenCalled();
+      expect(scheduledTransactionsService.create).not.toHaveBeenCalled();
+    });
+
+    it("creates the mortgage when the payment account is in its currency", async () => {
+      accountsRepository.findOne.mockResolvedValue({
+        id: "acc-chequing",
+        userId,
+        currencyCode: "CAD",
+      });
+
+      await service.createMortgageAccount(userId, makeValidMortgageDto());
+
+      expect(scheduledTransactionsService.create).toHaveBeenCalledTimes(1);
     });
 
     it("refuses a mortgage interest category the caller does not own before writing anything", async () => {
@@ -867,8 +928,7 @@ describe("LoanMortgageAccountService", () => {
         paymentFrequency: "MONTHLY",
         paymentStartDate: new Date("2024-01-01"),
         amortizationMonths: 300,
-        isCanadianMortgage: true,
-        isVariableRate: false,
+        mortgageType: "CANADIAN_FIXED",
         isClosed: false,
         scheduledTransactionId: "sched-tx-1",
         interestCategoryId: "cat-interest",
@@ -1003,8 +1063,6 @@ describe("LoanMortgageAccountService", () => {
       // the effective date, not the through-today current balance.
       const account = makeMortgageAccount({
         mortgageType: "ANNUITY",
-        isCanadianMortgage: false,
-        isVariableRate: false,
       });
       manager.query.mockResolvedValue([{ balance: "-440000" }]);
 
@@ -1040,13 +1098,9 @@ describe("LoanMortgageAccountService", () => {
       expect(loanRateChangesService.create).not.toHaveBeenCalled();
     });
 
-    it("reads the stored type over the flags", async () => {
+    it("prices an ANNUITY mortgage on the nominal rate", async () => {
       const storedAnnuity = await service.updateMortgageRate(
-        makeMortgageAccount({
-          mortgageType: "ANNUITY",
-          isCanadianMortgage: true,
-          isVariableRate: false,
-        }),
+        makeMortgageAccount({ mortgageType: "ANNUITY" }),
         userId,
         6,
         new Date("2025-06-01"),
@@ -1055,15 +1109,11 @@ describe("LoanMortgageAccountService", () => {
       expect(storedAnnuity.interestPayment).toBe(2250);
     });
 
-    it("should handle variable rate mortgage calculation differently", async () => {
+    it("prices CANADIAN_FIXED and ANNUITY by their own compounding", async () => {
       const fixedAccount = makeMortgageAccount({
-        isCanadianMortgage: true,
-        isVariableRate: false,
+        mortgageType: "CANADIAN_FIXED",
       });
-      const variableAccount = makeMortgageAccount({
-        isCanadianMortgage: true,
-        isVariableRate: true,
-      });
+      const variableAccount = makeMortgageAccount({ mortgageType: "ANNUITY" });
 
       const fixedResult = await service.updateMortgageRate(
         fixedAccount,
@@ -1078,8 +1128,8 @@ describe("LoanMortgageAccountService", () => {
         new Date("2025-06-01"),
       );
 
-      // Canadian fixed uses semi-annual compounding; variable uses monthly
-      // So the results should differ
+      // Canadian fixed compounds semi-annually; ANNUITY divides the nominal
+      // rate, so the results differ.
       expect(fixedResult.interestPayment).not.toBe(
         variableResult.interestPayment,
       );

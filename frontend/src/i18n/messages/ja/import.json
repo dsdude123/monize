@@ -34,18 +34,18 @@
   },
   "page": {
     "title": "取引のインポート",
-    "subtitle": "QIF、OFX/QFX、CSV ファイルから取引をインポートするか、Microsoft Money (.mny) ファイルをまるごと取り込みます"
+    "subtitle": "QIF/QMTF、OFX/QFX、CSV ファイルから取引をインポートするか、Microsoft Money (.mny) ファイルをまるごと取り込みます"
   },
   "upload": {
     "heading": "取引ファイルのアップロード",
-    "instructions": "インポートするファイルを 1 つ以上選択してください。対応形式: QIF、OFX/QFX、CSV、Microsoft Money (.mny)。\n一括インポートのために同じ種類の複数ファイルを選択できます。Microsoft Money ファイルは 1 つずつインポートしてください。.mny ファイルにはプロファイル全体が含まれます。",
+    "instructions": "インポートするファイルを 1 つ以上選択してください。対応形式: QIF/QMTF、OFX/QFX、CSV、Microsoft Money (.mny)。\n一括インポートのために同じ種類の複数ファイルを選択できます。Microsoft Money ファイルは 1 つずつインポートしてください。.mny ファイルにはプロファイル全体が含まれます。",
     "importingTo": "インポート先:",
     "clickToSelect": "クリックしてファイルを選択",
     "orDragAndDrop": "またはここにドラッグ＆ドロップ",
     "dropToImport": "ドロップしてインポート",
-    "unsupportedDrop": "次のファイルはインポートできません: {names}。QIF、OFX、QFX、CSV、または Microsoft Money (.mny) ファイルを使用してください。",
+    "unsupportedDrop": "次のファイルはインポートできません: {names}。QIF/QMTF、OFX、QFX、CSV、または Microsoft Money (.mny) ファイルを使用してください。",
     "processing": "処理中...",
-    "acceptedFormats": "QIF、OFX、QFX、CSV、または Microsoft Money (.mny)",
+    "acceptedFormats": "QIF/QMTF、OFX、QFX、CSV、または Microsoft Money (.mny)",
     "mnyFailedHeading": "この Microsoft Money ファイルを開けませんでした",
     "wikiNotice": {
       "title": "インポートする前に",
@@ -290,7 +290,7 @@
     "totalImported": "インポート合計:",
     "totalImportedSuffix": "件の取引",
     "totalSkipped": "スキップ合計:",
-    "totalSkippedSuffix": "件の重複振替",
+    "totalSkippedSuffix": "件の取引",
     "totalErrors": "エラー合計:",
     "categoriesCreated": "作成したカテゴリ:",
     "accountsCreated": "作成した勘定科目:",
@@ -302,17 +302,24 @@
     "imported": "インポート済み:",
     "importedSuffix": "件の取引",
     "skipped": "スキップ:",
-    "skippedSuffix": "件の重複振替",
+    "skippedSuffix": "件の取引",
     "errors": "エラー:",
     "errorsLabel": "エラー:",
     "andMoreErrors": "...さらに {count} 件のエラー",
+    "skippedRowsHeading": "スキップした行:",
+    "skippedRow": "{date}: {amount}、{payee}（{reason}）",
+    "skippedRowNoPayee": "{date}: {amount}（{reason}）",
+    "skipReasonAlreadyImported": "インポート済み",
+    "skipReasonDuplicateTransfer": "振替は記録済み",
+    "andMoreSkipped": "...さらに {count} 行をスキップ",
     "loanSetupHeading": "定期支払いの設定",
     "loanSetupDescription": "以下のローン/住宅ローン勘定科目は定期支払いなしでインポートされました。ローンの進捗状況を引き続き追跡するために定期支払いを設定してください。",
     "setUpPayments": "支払いを設定",
     "scheduledPaymentsConfigured": "{count} 件の勘定科目{plural}に定期支払いを設定しました。",
     "viewInvestments": "投資を表示",
     "viewTransactions": "取引を表示",
-    "importMoreFiles": "さらにファイルをインポート"
+    "importMoreFiles": "さらにファイルをインポート",
+    "bondRowsWithoutSeries": "{count, plural, other {#件の債券購入がシリーズなしでインポートされました。銘柄の債券ロットでシリーズを選択してください。}}"
   },
   "multiAccountReview": {
     "heading": "複数勘定科目 QIF インポート",
@@ -358,6 +365,7 @@
       "transfersLinked": "振替 {count} 件をリンク",
       "payees": "支払先",
       "categories": "カテゴリ",
+      "tags": "分類から作成したタグ",
       "accounts": "口座",
       "securities": "有価証券",
       "investments": "投資取引",
@@ -472,6 +480,7 @@
       "splits": "分割行",
       "payees": "支払先",
       "categories": "カテゴリ",
+      "taggedRows": "分類からタグ付けした行",
       "securities": "有価証券",
       "investments": "投資取引",
       "prices": "価格",
@@ -495,7 +504,8 @@
     },
     "warningsHeading": "このインポートに関する注意",
     "downloadReport": "レポートをダウンロード",
-    "done": "完了"
+    "done": "完了",
+    "bondRowsWithoutSeries": "{count, plural, other {#件の債券購入がシリーズなしでインポートされました。銘柄の債券ロットでシリーズを選択してください。}}"
   },
   "mnyWarnings": {
     "missingTable": "この Money バージョンには、インポートが使用するテーブルが {count, plural, other {# 個}} ありません。",
@@ -506,6 +516,7 @@
     "categoryFlattened": "{count, plural, other {# 件のカテゴリ}} が 2 階層より深かったため、親カテゴリにまとめました。",
     "categoryTypeInferred": "{count, plural, other {# 件のカテゴリ}} に Money の収入フラグがなかったため、収入か支出かをカテゴリツリーから判断しました。",
     "degeneratePayeeSkipped": "Money が内部的に保持している {count, plural, other {# 件のプレースホルダー支払先}} をスキップしました。",
+    "unknownClassificationItem": "{count, plural, one {# 件の取引} other {# 件の取引}}がファイルに定義されていない分類項目を参照していたため、そのタグなしでインポートしました。",
     "unusableTransaction": "{count, plural, other {# 件の取引}} に口座または使用可能な日付がなかったため、スキップしました。",
     "orphanedTransferSide": "{count, plural, other {# 件の振替}} は相手側がファイルに存在しなかったため、スキップしました。",
     "orphanedSplit": "{count, plural, other {# 件の分割行}} に親取引がなかったため、スキップしました。",
@@ -524,6 +535,8 @@
     "unusableBill": "{count, plural, other {# 件の予定された支払い}} に口座、利用可能な日付、または認識できる繰り返し設定がなく、スキップしました。",
     "billFrequencyApproximated": "{count, plural, other {# 件の予定された支払い}} は Monize が正確に表現できない繰り返し間隔を使用しているため、最も近い短い間隔を使用しました。",
     "loanInterestCategoryUnclear": "{count, plural, other {# 件のローン返済}}に元本以外の複数のカテゴリが含まれていたため、ローンの利息カテゴリは未設定のままになりました。支払いにエスクロー（escrow）が含まれるか確認し、インポート後に利息カテゴリを設定してください。",
+    "transferAmountMismatch": "{count, plural, other {# 件の投資口座への振替}}で、投資側に銀行側と異なる金額が記録されていました。投資側は記録どおりにインポートされました。",
+    "crossCurrencyTradeUnconverted": "{count, plural, other {# 件の他通貨建て証券の取引}}は、ファイルに取引日付近のその通貨ペアの為替レートがないため、口座の通貨で保存されました。為替レートを追加してから、各取引の価格を修正してください。",
     "showTransactions": "{count, plural, other {# 件の取引}}を表示",
     "hideTransactions": "取引を隠す",
     "reviewInMoney": "Microsoft Money でこれらを開いて確認または修正し、あらためてエクスポートしてインポートしてください。",
@@ -542,6 +555,8 @@
     "mnyImportFailed": "インポート中に問題が発生しました。何も保存されていないため、やり直せます。",
     "mnyJobStalled": "インポートが応答しなくなりました。サーバーが再起動した可能性が高いです。アップロードしたファイルは残っているため、再試行しても安全です。",
     "mnyJobStalledAfterCommit": "インポートはデータを保存した後に応答しなくなりました。サーバーが再起動した可能性が高いです。取り込まれたレコードはアカウントに保存されているため、同じファイルをもう一度インポートすると重複します。ほかのファイルをインポートする前に口座をご確認ください。",
+    "mnyImportFailedAfterCommit": "インポートはデータを保存しましたが、その後の手順が失敗しました。取り込まれたレコードはアカウントに保存されているため、同じファイルをもう一度インポートすると重複します。ほかのファイルをインポートする前に口座をご確認ください。",
+    "mnyAlreadyImported": "このファイルはすでにアカウントにインポートされています。もう一度インポートするとレコードが重複します。置き換えるには、最初からやり直して既存のデータを置き換える設定を選んでください。",
     "mnyStagedFileMissing": "アップロードした Money ファイルは既に利用できません。もう一度アップロードしてください。",
     "mnyFileTruncated": "この Money ファイルは不完全なようです。アップロードが中断された可能性があります。",
     "mnyNotAMoneyFile": "このファイルは Microsoft Money (.mny) ファイルではありません。",
@@ -592,7 +607,8 @@
       "notEvaluated": {
         "afterStop": "未評価：前のルールがそれ以降のルールを停止しました。",
         "disabled": "未評価：ルールがオフになっています。",
-        "invalid": "未評価：ルールが無効です。開いて修正してください。"
+        "invalid": "未評価：ルールが無効です。開いて修正してください。",
+        "outside_active_window": "未評価：行の日付がルールの有効期間外です。"
       },
       "condition": {
         "met": "条件を満たしています",

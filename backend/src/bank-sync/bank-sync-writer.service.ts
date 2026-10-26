@@ -38,7 +38,7 @@ import {
   type ResolvedPayee,
 } from "./bank-sync-payee-lookup";
 import {
-  findLedgerKeys,
+  findHeldRows,
   newPlannedRows,
   planFingerprint,
 } from "./bank-sync-plan-fingerprint";
@@ -51,6 +51,7 @@ import { BankSyncAccount } from "./entities/bank-sync-account.entity";
 
 /** A bank balance that passed validation, at the column's money precision. */
 export interface NormalizedBankBalance {
+  reportedAt?: string | null;
   amount: number;
   currencyCode: string;
   referenceDate: string | null;
@@ -138,12 +139,16 @@ export interface BankSyncWriteOutcome {
  * step 5): the ledger rows, the payees, the transactions, the import rules, the
  * balance and the sync outcome commit together or not at all.
  *
- * **INV-BANKSYNC-001, the mechanism.** Each planned row first claims its ledger
- * row with `INSERT ... ON CONFLICT (account_id, external_key) DO NOTHING
- * RETURNING id`; nothing returned means the bank transaction was imported
- * before, and nothing else is written for it. The ledger is keyed on the Monize
- * account, so the claim holds across reconnects, and the unique index is what
- * makes two concurrent syncs converge.
+ * **INV-BANKSYNC-001, the mechanism.** A planned row's key is a function of the
+ * row alone (`explainBankImport`). A row the ledger already holds, under that
+ * key or a key an earlier planner gave the same bank transaction
+ * (`findHeldRows`, read under the link and account row locks this write holds),
+ * is skipped. Every other row first claims its ledger row with
+ * `INSERT ... ON CONFLICT (account_id, external_key) DO NOTHING RETURNING id`;
+ * nothing returned means the bank transaction was imported before, and nothing
+ * else is written for it. The ledger is keyed on the Monize account, so the
+ * claim holds across reconnects, and the unique index is what makes two
+ * concurrent syncs converge.
  *
  * **INV-BANKSYNC-003.** Every row is written in the account's own currency,
  * through `assertTransactionCurrencyMatchesAccount`; the plan already refused a
@@ -272,26 +277,30 @@ export class BankSyncWriterService {
         );
       }
 
-      // 3b. A confirmed preview or a selection: what is about to be written is
-      //     what was shown. The rows are the planned ones the ledger does not
-      //     hold yet, read under the row lock this transaction holds, so a
-      //     concurrent sync of the same account has either committed (and its
-      //     rows are duplicates now) or waits behind it.
+      // 3b. The planned rows the ledger already holds, under its own key or a
+      //     key an earlier version of the planner gave the same bank
+      //     transaction (`findHeldRows`), read under the row lock this
+      //     transaction holds, so a concurrent sync of the same account has
+      //     either committed (and its rows are held now) or waits behind it.
+      //     A confirmed preview or a selection: what is about to be written is
+      //     what was shown.
+      if (plan.review && (link.backfillThrough ?? null) !== plan.review.cursor)
+        throw new BankSyncPlanChangedException(
+          tr(
+            "errors.bankSync.planChanged",
+            "The bank's data changed since the preview. Nothing was imported; preview again.",
+          ),
+        );
       const { selection } = input;
       if (selection !== undefined) assertDisjointSelection(selection);
+      const held = await findHeldRows(m, userId, accountId, plan.planned);
       let newKeys: ReadonlySet<string> | null = null;
       if (input.expectedFingerprint !== undefined || selection !== undefined) {
-        const ledgerKeys = await findLedgerKeys(
-          m,
-          userId,
-          accountId,
-          plan.planned.map((row) => row.externalKey),
-        );
-        const newRows = newPlannedRows(plan.planned, ledgerKeys);
+        const newRows = newPlannedRows(plan.planned, held);
         newKeys = new Set(newRows.map((row) => row.externalKey));
         if (
           input.expectedFingerprint !== undefined &&
-          planFingerprint(newRows) !== input.expectedFingerprint
+          planFingerprint(newRows, plan.review) !== input.expectedFingerprint
         ) {
           throw new BankSyncPlanChangedException(
             tr(
@@ -354,6 +363,10 @@ export class BankSyncWriterService {
 
       for (const row of plan.planned) {
         if (importKeys !== null && !importKeys.has(row.externalKey)) continue;
+        if (held.has(row.externalKey)) {
+          skipped += 1;
+          continue;
+        }
         const claimed = returnedRows<{ id: string }>(
           await m.query(
             `INSERT INTO bank_sync_imported_transactions
@@ -588,8 +601,9 @@ export class BankSyncWriterService {
       `UPDATE bank_sync_accounts
           SET last_synced_at = CURRENT_TIMESTAMP,
               last_success_at = CASE WHEN $6::boolean
-                                     THEN CURRENT_TIMESTAMP
+                                     THEN CASE WHEN $8::boolean THEN last_success_at ELSE CURRENT_TIMESTAMP END
                                      ELSE last_success_at END,
+              backfill_through = CASE WHEN $6::boolean THEN $7::date ELSE backfill_through END,
               last_sync_status = 'succeeded',
               last_sync_error = NULL,
               last_imported_count = $3,
@@ -603,6 +617,8 @@ export class BankSyncWriterService {
         skipped,
         refused,
         advanceWindow,
+        input.plan.review?.remaining ? input.plan.review.dateTo : null,
+        input.plan.review?.remaining ?? false,
       ],
     );
     // A balance the bank did not report leaves the stored one as it was: null is
@@ -622,6 +638,11 @@ export class BankSyncWriterService {
           input.balance.referenceDate,
         ],
       );
+      if (input.balance.reportedAt !== undefined)
+        await m.query(
+          "UPDATE bank_sync_accounts SET bank_balance_at=$1::timestamptz WHERE id=$2 AND user_id=$3",
+          [input.balance.reportedAt, input.bankAccountId, input.userId],
+        );
     }
   }
 }

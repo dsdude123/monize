@@ -28,6 +28,7 @@ import { usePayeeDisplay } from '@/hooks/usePayeeDisplay';
 import { useNumberFormat } from '@/hooks/useNumberFormat';
 import { useLocalizedAmount } from '@/hooks/useLocalizedAmount';
 import { LinkifiedText } from '@/components/ui/LinkifiedText';
+import { WarrantyBadge, rowHasWarranties } from '@/components/transactions/WarrantyBadge';
 
 /**
  * The default for `hidden`: nothing hidden. A module constant so a caller
@@ -47,6 +48,7 @@ const INVESTMENT_ACTION_LABELS: Record<string, string> = {
   REINVEST: 'Reinvest',
   ADD_SHARES: 'Add Shares',
   REMOVE_SHARES: 'Remove Shares',
+  RETURN_OF_CAPITAL: 'Return of Capital',
 };
 
 function describeInvestmentSplit(split: TransactionSplit, uncategorizedLabel: string): string {
@@ -302,6 +304,7 @@ export const TransactionRow = memo(function TransactionRow({
   // Read-only amounts, grouped in the user's number locale (en-US unchanged).
   const formatAmountLocal = useLocalizedAmount();
   const isVoid = transaction.status === TransactionStatus.VOID;
+  const hasWarranties = rowHasWarranties(transaction);
 
   // When this row is the deep-link target, scroll it into view once it mounts
   // so the user lands on it rather than hunting through the page.
@@ -438,13 +441,20 @@ export const TransactionRow = memo(function TransactionRow({
                   {transaction.account?.name || '-'}
                 </span>
               )}
-              {/* Attachments sit left of the category, as the tier table's
-                  column does. A row with none renders nothing here -- not the
-                  tier cell's dash, and no empty element either -- so the
-                  category stays flush to the card's left edge. */}
-              {isVisible('attachments') && transaction.attachmentCount && transaction.attachmentCount > 0 ? (
-                <AttachmentBadge count={transaction.attachmentCount} />
-              ) : null}
+              {/* Attachments, and the warranty shield beside them, sit left
+                  of the category, as the tier table's column does (both under
+                  the Attachments column's gate). A row with neither renders
+                  nothing here -- not the tier cell's dash, and no empty
+                  element either -- so the category stays flush to the card's
+                  left edge. */}
+              {isVisible('attachments') && (
+                <>
+                  {transaction.attachmentCount && transaction.attachmentCount > 0 ? (
+                    <AttachmentBadge count={transaction.attachmentCount} />
+                  ) : null}
+                  {hasWarranties ? <WarrantyBadge count={transaction.warrantyCount!} /> : null}
+                </>
+              )}
               {transaction.linkedInvestmentTransactionId ? (
                 // No `title` here, unlike the tier cell: a hover tooltip is
                 // unreachable on a phone, and the pill's own label already
@@ -903,7 +913,14 @@ export const TransactionRow = memo(function TransactionRow({
       )}
       {isVisible('attachments') && (
         <td className={`${cellPadding} whitespace-nowrap text-center text-sm ${registerColumnClass('attachments')}`}>
-          {transaction.attachmentCount && transaction.attachmentCount > 0 ? (
+          {hasWarranties ? (
+            <span className="inline-flex items-center gap-2">
+              {transaction.attachmentCount && transaction.attachmentCount > 0 ? (
+                <AttachmentBadge count={transaction.attachmentCount} />
+              ) : null}
+              <WarrantyBadge count={transaction.warrantyCount!} />
+            </span>
+          ) : transaction.attachmentCount && transaction.attachmentCount > 0 ? (
             <AttachmentBadge count={transaction.attachmentCount} />
           ) : (
             <span className="text-gray-400 dark:text-gray-500">-</span>

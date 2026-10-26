@@ -23,6 +23,12 @@ import { repriceSettledLoanTemplates } from "../loan-installments/reprice-templa
 import { InvestmentTransaction } from "../securities/entities/investment-transaction.entity";
 import { TransactionAttachment } from "../attachments/entities/transaction-attachment.entity";
 import { primaryAttachmentSql } from "../attachments/primary-attachment.util";
+import {
+  attachmentReachableFromTransactionSql,
+  reachedTransactionIdSql,
+  reachingWarrantyJoinSql,
+} from "../attachments/attachment-parent";
+import { Warranty } from "../warranties/entities/warranty.entity";
 import { CreateTransactionDto } from "./dto/create-transaction.dto";
 import { UpdateTransactionDto } from "./dto/update-transaction.dto";
 import { CreateTransactionSplitDto } from "./dto/create-transaction-split.dto";
@@ -108,12 +114,17 @@ import {
 import { deletionBalanceEffect } from "../common/deletion-balance.util";
 import { getActiveScopedManager, withScopedDb } from "../common/db/scoped-db";
 import { isExternalIdConflict } from "./transaction-external-id";
-import { lockTransactionRow, lockTransactionRows } from "../common/db/locks";
+import {
+  lockTransactionRow,
+  lockTransactionRows,
+  type LockedTransactionRow,
+} from "../common/db/locks";
 import { assertReconciledRowsMutable } from "./reconciled-lock.util";
 import { roundMoney } from "../common/round.util";
 import {
   assertTransactionCurrencyMatchesAccount,
   normalizeFxEntry,
+  roundFxRate,
   type FxEntry,
   type FxEntryInput,
 } from "../common/fx-entry.util";
@@ -134,6 +145,12 @@ export interface CreateTransactionOptions {
    * `settle_loan_installment` rule refuses it (`row_from_scheduled_posting`).
    */
   fromScheduledPosting?: boolean;
+  /**
+   * Runs inside the write's own transaction before anything is written. A
+   * throw refuses the create with nothing written. The joint register
+   * re-asserts the grantee's grant here (A26-M04).
+   */
+  beforeWrite?: (m: EntityManager) => Promise<void>;
 }
 
 /**
@@ -148,6 +165,8 @@ export interface CreateTransactionOutcome {
 export interface TransactionWithInvestmentLink extends Transaction {
   linkedInvestmentTransactionId?: string | null;
   attachmentCount?: number;
+  /** Unarchived warranties linked to the row. */
+  warrantyCount?: number;
 }
 
 /**
@@ -579,6 +598,7 @@ export class TransactionsService {
     let savedTransactionId: string;
     try {
       savedTransactionId = await withScopedDb(this.dataSource, async (m) => {
+        if (options?.beforeWrite) await options.beforeWrite(m);
         const transaction = m.create(Transaction, {
           ...transactionData,
           // Derived from the account, not taken from the request: `amount` is in
@@ -1426,9 +1446,12 @@ export class TransactionsService {
       if (hasAttachments !== undefined) {
         // Primaries only: a scan pair's hidden original is not an attachment
         // the user has, so "no attachments" must not be false because one is
-        // stored behind the row they deleted the visible half of.
+        // stored behind the row they deleted the visible half of. The row's
+        // own attachments and its linked warranties' documents alike
+        // (attachment-parent.ts).
         const existsSubquery =
-          `SELECT 1 FROM transaction_attachments ta WHERE ta.transaction_id = transaction.id ` +
+          `SELECT 1 FROM transaction_attachments ta WHERE ` +
+          `${attachmentReachableFromTransactionSql("ta", "transaction.id")} ` +
           `AND ${primaryAttachmentSql("ta")}`;
         queryBuilder.andWhere(
           hasAttachments
@@ -2302,9 +2325,11 @@ export class TransactionsService {
 
     if (filters.hasAttachments !== undefined) {
       // Primaries only, as the listing counts them: a scan pair's hidden
-      // original is not an attachment the user has.
+      // original is not an attachment the user has. The same reach as the
+      // listing, own rows and linked warranties' documents.
       const attachmentExists =
-        `SELECT 1 FROM transaction_attachments bfTa WHERE bfTa.transaction_id = bf.id ` +
+        `SELECT 1 FROM transaction_attachments bfTa WHERE ` +
+        `${attachmentReachableFromTransactionSql("bfTa", "bf.id")} ` +
         `AND ${primaryAttachmentSql("bfTa")}`;
       qb.andWhere(
         filters.hasAttachments
@@ -2438,6 +2463,7 @@ export class TransactionsService {
     const transactionIds = data.map((tx) => tx.id);
     const investmentLinkMap = new Map<string, string>();
     const attachmentCountMap = new Map<string, number>();
+    const warrantyCountMap = new Map<string, number>();
 
     if (transactionIds.length > 0) {
       // includes VOID rows: records read -- the register links a VOID cash
@@ -2455,23 +2481,48 @@ export class TransactionsService {
         }
       }
 
-      // One grouped count over the current page's ids (index-backed by
-      // idx on transaction_id); avoids an N+1 and keeps the blob-free
-      // attachments table off the main query.
+      // One grouped count over the current page's ids; avoids an N+1 and
+      // keeps the blob-free attachments table off the main query. A row's
+      // attachments are its own plus the documents of every warranty linked
+      // to it, archived or not (attachment-parent.ts), so each attachment is
+      // keyed by the transaction it is reached from.
       const attachmentCounts = await m
         .getRepository(TransactionAttachment)
         .createQueryBuilder("ta")
-        .select("ta.transactionId", "transactionId")
+        .leftJoin(Warranty, "w", reachingWarrantyJoinSql("ta", "w"))
+        .select(reachedTransactionIdSql("ta", "w"), "transactionId")
         .addSelect("COUNT(*)", "count")
-        .where("ta.transactionId IN (:...transactionIds)", { transactionIds })
+        .where(
+          `${reachedTransactionIdSql("ta", "w")} IN (:...transactionIds)`,
+          {
+            transactionIds,
+          },
+        )
         // A scan pair counts once: the register's paperclip is a count of what
         // the attachments list shows, and that list hides originals.
         .andWhere(primaryAttachmentSql("ta"))
-        .groupBy("ta.transactionId")
+        .groupBy(reachedTransactionIdSql("ta", "w"))
         .getRawMany<{ transactionId: string; count: string }>();
 
       for (const row of attachmentCounts) {
         attachmentCountMap.set(row.transactionId, Number(row.count));
+      }
+
+      // The same shape for warranties (idx_warranties_transaction): an
+      // archived warranty is put away, so the register's badge does not
+      // count it.
+      const warrantyCounts = await m
+        .getRepository(Warranty)
+        .createQueryBuilder("w")
+        .select("w.transactionId", "transactionId")
+        .addSelect("COUNT(*)", "count")
+        .where("w.transactionId IN (:...transactionIds)", { transactionIds })
+        .andWhere("w.archivedAt IS NULL")
+        .groupBy("w.transactionId")
+        .getRawMany<{ transactionId: string; count: string }>();
+
+      for (const row of warrantyCounts) {
+        warrantyCountMap.set(row.transactionId, Number(row.count));
       }
     }
 
@@ -2482,6 +2533,7 @@ export class TransactionsService {
       isVoid: tx.isVoid,
       linkedInvestmentTransactionId: investmentLinkMap.get(tx.id) || null,
       attachmentCount: attachmentCountMap.get(tx.id) ?? 0,
+      warrantyCount: warrantyCountMap.get(tx.id) ?? 0,
     }));
   }
 
@@ -2529,6 +2581,68 @@ export class TransactionsService {
     }
 
     return transaction;
+  }
+
+  /**
+   * A transfer leg's amount, account, date and rate belong to the pair, so the
+   * generic row update refuses a change to any of them on one leg; the
+   * transfer routes write both legs together (A26-M10, MON-H11). Judged on the
+   * row the caller has locked: a row converted to a transfer since the caller
+   * looked carries its link by now (`convertToTransfer` sets it with the
+   * flag), and the stored rate is read under that lock. A change is a value
+   * difference: a form re-sending the figures the row already holds is not one.
+   */
+  private async assertNoStructuralTransferLegEdit(
+    m: EntityManager,
+    userId: string,
+    locked: LockedTransactionRow,
+    snapshotIsTransfer: boolean,
+    updateData: Omit<UpdateTransactionDto, "splits" | "tagIds" | "createdAt">,
+  ): Promise<void> {
+    if (!locked.linkedTransactionId && !snapshotIsTransfer) return;
+    let structural =
+      (updateData.amount !== undefined &&
+        roundMoney(Number(updateData.amount)) !==
+          roundMoney(Number(locked.amount))) ||
+      (updateData.accountId !== undefined &&
+        updateData.accountId !== locked.accountId) ||
+      (updateData.transactionDate !== undefined &&
+        updateData.transactionDate !== locked.transactionDate);
+    if (!structural && updateData.exchangeRate !== undefined) {
+      const row = await m.getRepository(Transaction).findOne({
+        where: { id: locked.id, userId },
+      });
+      structural =
+        roundFxRate(Number(updateData.exchangeRate)) !==
+        roundFxRate(Number(row?.exchangeRate));
+    }
+    if (structural) {
+      throw new BadRequestException(
+        tr(
+          "errors.transactions.cannotEditTransfer",
+          "Transfers can't be edited here. Edit the transfer from the Transactions screen.",
+        ),
+      );
+    }
+  }
+
+  /**
+   * One transaction as the register shows it: the row plus the facts the list
+   * adds to every row (`linkedInvestmentTransactionId`, `attachmentCount`,
+   * `warrantyCount`), from the same enrichment. A form opened on a row read
+   * by id, from any page, then knows what the register would: whether the
+   * row has warranties to list, and whether an investment owns it.
+   */
+  async findOneForDisplay(
+    userId: string,
+    id: string,
+    jointAccountIds: string[] = [],
+  ): Promise<TransactionWithInvestmentLink> {
+    const transaction = await this.findOne(userId, id, jointAccountIds);
+    const [enriched] = await withScopedDb(this.dataSource, (m) =>
+      this.enrichWithInvestmentLinks(m, [transaction]),
+    );
+    return enriched;
   }
 
   async update(
@@ -2676,6 +2790,13 @@ export class TransactionsService {
       // Strict reconciled lock, against the LOCKED row and before any write:
       // an edit refused here must not already have happened.
       await assertReconciledRowsMutable(m, userId, [locked]);
+      await this.assertNoStructuralTransferLegEdit(
+        m,
+        userId,
+        locked,
+        transaction.isTransfer,
+        updateData,
+      );
       if (options?.beforeWrite) await options.beforeWrite(m);
 
       const oldAmount = locked.amount;
@@ -3034,7 +3155,19 @@ export class TransactionsService {
     return finalTransaction;
   }
 
-  async remove(userId: string, id: string): Promise<void> {
+  async remove(
+    userId: string,
+    id: string,
+    options?: {
+      /**
+       * Runs inside the delete's own transaction, after the row lock and the
+       * reconciled lock and before anything is removed. A throw refuses the
+       * delete with nothing written (the joint register's grant re-check,
+       * A26-M04).
+       */
+      beforeWrite?: (m: EntityManager) => Promise<void>;
+    },
+  ): Promise<void> {
     const transaction = await this.findOne(userId, id);
     const beforeSnapshot = this.snapshotTransaction(transaction);
     // Every account this deletion moves, not only the selected row's, so the
@@ -3083,6 +3216,7 @@ export class TransactionsService {
       }
       // Strict reconciled lock, before the delete and any split cleanup.
       await assertReconciledRowsMutable(m, userId, [locked]);
+      if (options?.beforeWrite) await options.beforeWrite(m);
 
       // The locked row's account joins the fan-out set: a concurrent edit could
       // have moved the row, and the balance reversal below uses locked.accountId.
@@ -3268,6 +3402,10 @@ export class TransactionsService {
     userId: string,
     id: string,
     isCleared: boolean,
+    options?: {
+      /** Inside the status write's transaction, after the row lock (A26-M04). */
+      beforeWrite?: (m: EntityManager) => Promise<void>;
+    },
   ): Promise<Transaction> {
     return this.reconciliationService.markCleared(
       userId,
@@ -3276,6 +3414,7 @@ export class TransactionsService {
       (accountId: string, userId: string) =>
         this.netWorthService.triggerDebouncedRecalc(accountId, userId),
       this.findOne.bind(this),
+      options?.beforeWrite,
     );
   }
 
@@ -3792,6 +3931,7 @@ export class TransactionsService {
       createdAt: tx.createdAt,
       splits: tx.splits?.map((s) => ({
         id: s.id,
+        kind: s.kind,
         categoryId: s.categoryId,
         transferAccountId: s.transferAccountId,
         linkedTransactionId: s.linkedTransactionId,

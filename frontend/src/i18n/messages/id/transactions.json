@@ -135,6 +135,7 @@
       "toggleTitle": "Hilangkan tahun dari tanggal agar nama penerima lebih terlihat"
     },
     "attachmentsCount": "{count, plural, other {# lampiran}}",
+    "warrantiesCount": "{count, plural, other {# garansi}}",
     "today": "Hari ini",
     "export": {
       "button": "Ekspor",
@@ -431,6 +432,7 @@
       "destinationRequired": "Silakan pilih akun tujuan",
       "sameAccount": "Akun sumber dan tujuan harus berbeda",
       "negativeTransfer": "Jumlah transfer tidak boleh negatif",
+      "convertToTransferUnsupported": "Transaksi yang sudah ada tidak dapat diubah menjadi transfer di sini. Hapus transaksi tersebut dan buat transfer sebagai gantinya.",
       "payeeCreated": "Penerima \"{name}\" dibuat",
       "payeeCreateFailed": "Gagal membuat penerima",
       "payeeReactivated": "Penerima \"{name}\" diaktifkan kembali",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "Termasuk biaya transaksi luar negeri {percent}% ({fee})."
     },
-    "jointSplitDisabled": "Transaksi split di akun bersama hanya dapat dikelola oleh pemilik"
+    "jointSplitDisabled": "Transaksi split di akun bersama hanya dapat dikelola oleh pemilik",
+    "warranties": {
+      "title": "Garansi",
+      "add": "Tambah garansi",
+      "expires": "Berakhir {date}",
+      "loading": "Memuat garansi",
+      "loadError": "Garansi untuk transaksi ini tidak dapat dimuat.",
+      "empty": "Belum ada garansi"
+    }
   },
   "splitEditor": {
     "header": "Detail Pembagian",
@@ -626,7 +636,8 @@
       "amountRange": "Jumlah dari 50 sampai 100",
       "datePeriod": "Hari apa pun di Maret 2026",
       "isSplit": "Transaksi terpisah",
-      "hasAttachment": "Memiliki lampiran"
+      "hasAttachment": "Memiliki lampiran",
+      "hasWarranty": "Memiliki garansi"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "Memiliki lampiran",
+        "warranty": "Memiliki garansi",
         "ref": "Memiliki nomor referensi",
         "memo": "Memiliki catatan",
         "tag": "Memiliki tag"

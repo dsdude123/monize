@@ -2315,7 +2315,6 @@ describe("row hover comes from the shared pair, not a hand-picked grey", () => {
     "/src/components/reports/DividendYieldGrowthReport.tsx",
     "/src/components/reports/GeographicAllocationReport.tsx",
     "/src/components/reports/IncomeBySourceReport.tsx",
-    "/src/components/reports/IncomeVsExpensesReport.tsx",
     "/src/components/reports/InvestmentPerformanceReport.tsx",
     "/src/components/reports/InvestmentReportViewer.tsx",
     "/src/components/reports/InvestmentTransactionHistoryReport.tsx",
@@ -2705,7 +2704,6 @@ describe("table chrome comes from Table.tsx, not a repeated divide string", () =
     "/src/components/reports/DuplicateTransactionReport.tsx",
     "/src/components/reports/GeographicAllocationReport.tsx",
     "/src/components/reports/IncomeBySourceReport.tsx",
-    "/src/components/reports/IncomeVsExpensesReport.tsx",
     "/src/components/reports/InvestmentPerformanceReport.tsx",
     "/src/components/reports/InvestmentReportColumnChooser.tsx",
     "/src/components/reports/InvestmentReportViewer.tsx",
@@ -3481,5 +3479,39 @@ describe("an investment amount is formatted with its own currency", () => {
         withoutComments("// formatCurrency(tx.totalAmount) is the defect"),
       ),
     ).toBe(false);
+  });
+});
+
+describe("a relative time is read through useRelativeTime", () => {
+  /**
+   * `formatRelativeTime` in `lib/format.ts` hardcodes English ("5m ago",
+   * "Yesterday") and a browser-locale date, so a Polish reader got English
+   * beside a translated page. `useRelativeTime()` goes through
+   * `Intl.RelativeTimeFormat` in the reader's language.
+   */
+  const RAW_RELATIVE_TIME_IMPORT =
+    /import\s*\{[^}]*\bformatRelativeTime\b[^}]*\}\s*from\s*["']@\/lib\/format["']/;
+  const UI_FILE = /^\/src\/(components|app|hooks)\//;
+
+  it("has no UI file importing formatRelativeTime from @/lib/format", () => {
+    const offenders = productionSources()
+      .filter(([path]) => UI_FILE.test(path))
+      .filter(([, content]) => RAW_RELATIVE_TIME_IMPORT.test(withoutComments(content)))
+      .map(([path]) => path);
+
+    // Use `useRelativeTime()` (hooks/useRelativeTime.ts).
+    expect(offenders).toEqual([]);
+  });
+
+  it("still recognises the import it bans", () => {
+    expect(
+      RAW_RELATIVE_TIME_IMPORT.test(
+        "import { formatDate, formatRelativeTime } from '@/lib/format';",
+      ),
+    ).toBe(true);
+    expect(
+      RAW_RELATIVE_TIME_IMPORT.test("import { useRelativeTime } from '@/hooks/useRelativeTime';"),
+    ).toBe(false);
+    expect(sources["/src/lib/format.ts"]).toContain("export function formatRelativeTime");
   });
 });

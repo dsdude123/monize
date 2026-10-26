@@ -125,6 +125,7 @@ describe("TokenService", () => {
       expect(jwtService.sign).toHaveBeenCalledWith(
         {
           sub: "user-1",
+          type: "access",
           email: "test@example.com",
           authProvider: "local",
           role: "user",
@@ -186,6 +187,7 @@ describe("TokenService", () => {
       expect(jwtService.sign).toHaveBeenCalledWith(
         {
           sub: "user-1",
+          type: "access",
           email: "test@example.com",
           authProvider: "local",
           role: "user",
@@ -203,6 +205,7 @@ describe("TokenService", () => {
   describe("refreshTokens", () => {
     let mockManager: Record<string, jest.Mock>;
     let stageRefresh: (token: unknown, user?: unknown) => void;
+    let txEndings: string[];
 
     beforeEach(() => {
       mockManager = {
@@ -231,10 +234,28 @@ describe("TokenService", () => {
         }
       };
 
+      // Record how each transaction ended. A refusal that must revoke has to
+      // COMMIT and throw afterwards: a throw inside the callback rolls the
+      // revocation back, and a bare "update was called" assertion cannot tell
+      // the two apart (A26-H01).
+      txEndings = [];
       dataSource.transaction.mockImplementation(async (callback) => {
-        return callback(mockManager);
+        try {
+          const result = await callback(mockManager);
+          txEndings.push("commit");
+          return result;
+        } catch (error) {
+          txEndings.push("rollback");
+          throw error;
+        }
       });
     });
+
+    /** Answer the grace-successor probe with a live successor. */
+    const stageGraceSuccessor = () =>
+      mockManager.query.mockImplementation((sql: string) =>
+        Promise.resolve(sql.includes("FROM refresh_tokens") ? [{}] : []),
+      );
 
     it("should rotate token and return new token pair on success", async () => {
       const existingToken = {
@@ -271,6 +292,7 @@ describe("TokenService", () => {
       expect(jwtService.sign).toHaveBeenCalledWith(
         {
           sub: "user-1",
+          type: "access",
           email: "test@example.com",
           authProvider: "local",
           role: "user",
@@ -318,6 +340,8 @@ describe("TokenService", () => {
       await expect(service.refreshTokens("unknown-token")).rejects.toThrow(
         "Invalid refresh token",
       );
+      // Nothing was written, so this refusal may roll back.
+      expect(txEndings).toEqual(["rollback", "rollback"]);
     });
 
     it("should revoke entire family and throw when token is already revoked (replay detection)", async () => {
@@ -338,6 +362,73 @@ describe("TokenService", () => {
         { familyId: "family-1" },
         { isRevoked: true },
       );
+      // The revocation committed; the 401 was raised after it.
+      expect(txEndings).toEqual(["commit"]);
+    });
+
+    it("answers the immediate predecessor inside the grace with an access token only", async () => {
+      const predecessor = {
+        ...mockRefreshToken,
+        isRevoked: true,
+        replacedByHash: "successor-hash",
+      };
+      stageRefresh(predecessor, mockUser);
+      stageGraceSuccessor();
+
+      const result = await service.refreshTokens("predecessor-token");
+
+      expect(result).toEqual({
+        accessToken: "mock-access-token",
+        refreshToken: null,
+        userId: "user-1",
+      });
+      expect(mockManager.query).toHaveBeenCalledWith(
+        expect.stringContaining("created_at > CURRENT_TIMESTAMP"),
+        ["successor-hash", "family-1", TokenService.ROTATION_GRACE_SECONDS],
+      );
+      // Nothing revoked, nothing minted.
+      expect(mockManager.update).not.toHaveBeenCalled();
+      expect(mockManager.save).not.toHaveBeenCalled();
+      expect(mockManager.create).not.toHaveBeenCalled();
+    });
+
+    it("treats a predecessor as reuse when no live successor is inside the grace", async () => {
+      const predecessor = {
+        ...mockRefreshToken,
+        isRevoked: true,
+        replacedByHash: "successor-hash",
+      };
+      stageRefresh(predecessor);
+
+      await expect(service.refreshTokens("predecessor-token")).rejects.toThrow(
+        "Refresh token reuse detected",
+      );
+      expect(mockManager.update).toHaveBeenCalledWith(
+        RefreshToken,
+        { familyId: "family-1" },
+        { isRevoked: true },
+      );
+      expect(txEndings).toEqual(["commit"]);
+    });
+
+    it("revokes the family when the user went inactive inside the grace", async () => {
+      const predecessor = {
+        ...mockRefreshToken,
+        isRevoked: true,
+        replacedByHash: "successor-hash",
+      };
+      stageRefresh(predecessor, { ...mockUser, isActive: false });
+      stageGraceSuccessor();
+
+      await expect(service.refreshTokens("predecessor-token")).rejects.toThrow(
+        "User not found or inactive",
+      );
+      expect(mockManager.update).toHaveBeenCalledWith(
+        RefreshToken,
+        { familyId: "family-1" },
+        { isRevoked: true },
+      );
+      expect(txEndings).toEqual(["commit"]);
     });
 
     it("should throw with correct message on replay detection", async () => {
@@ -368,6 +459,7 @@ describe("TokenService", () => {
 
       expect(expiredToken.isRevoked).toBe(true);
       expect(mockManager.save).toHaveBeenCalledWith(expiredToken);
+      expect(txEndings).toEqual(["commit"]);
     });
 
     it("should throw with correct message on expired token", async () => {
@@ -403,6 +495,7 @@ describe("TokenService", () => {
         { familyId: "family-1" },
         { isRevoked: true },
       );
+      expect(txEndings).toEqual(["commit"]);
     });
 
     it("should revoke family and throw when user is inactive", async () => {
@@ -426,6 +519,7 @@ describe("TokenService", () => {
         { familyId: "family-1" },
         { isRevoked: true },
       );
+      expect(txEndings).toEqual(["commit"]);
     });
   });
 
@@ -644,40 +738,34 @@ describe("TokenService", () => {
   });
 
   describe("purgeExpiredRefreshTokens", () => {
-    it("should delete expired and revoked tokens", async () => {
-      refreshTokensRepository.delete
-        .mockResolvedValueOnce({ affected: 3 })
-        .mockResolvedValueOnce({ affected: 5 });
+    // A rotated row stays as the evidence reuse detection needs: replaying a
+    // stolen, already-rotated token must find it to revoke the family.
+    it("deletes only expired tokens, never by isRevoked", async () => {
+      refreshTokensRepository.delete.mockResolvedValue({ affected: 3 });
 
       await service.purgeExpiredRefreshTokens();
 
-      expect(refreshTokensRepository.delete).toHaveBeenCalledTimes(2);
+      expect(refreshTokensRepository.delete).toHaveBeenCalledTimes(1);
       expect(refreshTokensRepository.delete).toHaveBeenCalledWith({
         expiresAt: expect.anything(),
       });
-      expect(refreshTokensRepository.delete).toHaveBeenCalledWith({
-        isRevoked: true,
-      });
+      expect(refreshTokensRepository.delete).not.toHaveBeenCalledWith(
+        expect.objectContaining({ isRevoked: expect.anything() }),
+      );
     });
 
-    it("should log when totalPurged > 0", async () => {
-      refreshTokensRepository.delete
-        .mockResolvedValueOnce({ affected: 2 })
-        .mockResolvedValueOnce({ affected: 3 });
+    it("should log when tokens were purged", async () => {
+      refreshTokensRepository.delete.mockResolvedValue({ affected: 5 });
 
       const logSpy = jest.spyOn(service["logger"], "log");
 
       await service.purgeExpiredRefreshTokens();
 
-      expect(logSpy).toHaveBeenCalledWith(
-        "Purged 5 expired/revoked refresh tokens",
-      );
+      expect(logSpy).toHaveBeenCalledWith("Purged 5 expired refresh tokens");
     });
 
-    it("should not log when totalPurged is 0", async () => {
-      refreshTokensRepository.delete
-        .mockResolvedValueOnce({ affected: 0 })
-        .mockResolvedValueOnce({ affected: 0 });
+    it("should not log when nothing was purged", async () => {
+      refreshTokensRepository.delete.mockResolvedValue({ affected: 0 });
 
       const logSpy = jest.spyOn(service["logger"], "log");
 
@@ -687,9 +775,9 @@ describe("TokenService", () => {
     });
 
     it("should handle undefined affected counts", async () => {
-      refreshTokensRepository.delete
-        .mockResolvedValueOnce({ affected: undefined })
-        .mockResolvedValueOnce({ affected: undefined });
+      refreshTokensRepository.delete.mockResolvedValue({
+        affected: undefined,
+      });
 
       const logSpy = jest.spyOn(service["logger"], "log");
 
