@@ -135,6 +135,7 @@
       "toggleTitle": "Usuń rok z dat, aby zmieściło się więcej nazwy odbiorcy"
     },
     "attachmentsCount": "{count, plural, one {# załącznik} few {# załączniki} many {# załączników} other {# załącznika}}",
+    "warrantiesCount": "{count, plural, one {# gwarancja} few {# gwarancje} many {# gwarancji} other {# gwarancji}}",
     "today": "Dzisiaj",
     "export": {
       "button": "Eksportuj",
@@ -431,6 +432,7 @@
       "destinationRequired": "Wybierz konto docelowe",
       "sameAccount": "Konto źródłowe i docelowe muszą być różne",
       "negativeTransfer": "Kwota przelewu nie może być ujemna",
+      "convertToTransferUnsupported": "Istniejącej transakcji nie można tutaj zmienić w przelew. Usuń ją i utwórz przelew.",
       "payeeCreated": "Utworzono odbiorcę \"{name}\"",
       "payeeCreateFailed": "Nie udało się utworzyć odbiorcy",
       "payeeReactivated": "Odbiorca \"{name}\" został przywrócony",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "Zawiera opłatę za transakcję zagraniczną {percent}% ({fee})."
     },
-    "jointSplitDisabled": "Transakcjami podzielonymi na wspólnym koncie może zarządzać tylko właściciel"
+    "jointSplitDisabled": "Transakcjami podzielonymi na wspólnym koncie może zarządzać tylko właściciel",
+    "warranties": {
+      "title": "Gwarancje",
+      "add": "Dodaj gwarancję",
+      "expires": "Wygasa {date}",
+      "loading": "Wczytywanie gwarancji",
+      "loadError": "Nie udało się wczytać gwarancji tej transakcji.",
+      "empty": "Nie ma jeszcze gwarancji"
+    }
   },
   "splitEditor": {
     "header": "Szczegóły podziału",
@@ -626,7 +636,8 @@
       "amountRange": "Kwota od 50 do 100",
       "datePeriod": "Dowolny dzień marca 2026",
       "isSplit": "Transakcje podzielone",
-      "hasAttachment": "Ma załącznik"
+      "hasAttachment": "Ma załącznik",
+      "hasWarranty": "Ma gwarancję"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "Ma załącznik",
+        "warranty": "Ma gwarancję",
         "ref": "Ma numer referencyjny",
         "memo": "Ma notatkę",
         "tag": "Ma tag"

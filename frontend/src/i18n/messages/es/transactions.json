@@ -135,6 +135,7 @@
       "toggleTitle": "Quitar el año de las fechas para que se vea más del beneficiario"
     },
     "attachmentsCount": "{count, plural, one {# adjunto} other {# adjuntos}}",
+    "warrantiesCount": "{count, plural, one {# garantía} other {# garantías}}",
     "today": "Hoy",
     "export": {
       "button": "Exportar",
@@ -431,6 +432,7 @@
       "destinationRequired": "Selecciona una cuenta destino",
       "sameAccount": "Las cuentas origen y destino deben ser diferentes",
       "negativeTransfer": "La cantidad de la transferencia no debe ser negativa",
+      "convertToTransferUnsupported": "Una transacción existente no se puede convertir aquí en una transferencia. Elimínala y crea la transferencia en su lugar.",
       "payeeCreated": "Beneficiario \"{name}\" creado",
       "payeeCreateFailed": "Error al crear el beneficiario",
       "payeeReactivated": "Beneficiario \"{name}\" reactivado",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "Incluye una comisión por transacción en el extranjero del {percent}% ({fee})."
     },
-    "jointSplitDisabled": "Solo el propietario puede gestionar transacciones divididas en una cuenta compartida"
+    "jointSplitDisabled": "Solo el propietario puede gestionar transacciones divididas en una cuenta compartida",
+    "warranties": {
+      "title": "Garantías",
+      "add": "Añadir garantía",
+      "expires": "Vence el {date}",
+      "loading": "Cargando garantías",
+      "loadError": "No se pudieron cargar las garantías de esta transacción.",
+      "empty": "Aún no hay garantías"
+    }
   },
   "splitEditor": {
     "header": "Detalles del desglose",
@@ -626,7 +636,8 @@
       "amountRange": "Importe de 50 a 100",
       "datePeriod": "Cualquier día de marzo de 2026",
       "isSplit": "Transacciones divididas",
-      "hasAttachment": "Tiene un adjunto"
+      "hasAttachment": "Tiene un adjunto",
+      "hasWarranty": "Tiene una garantía"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "Tiene un adjunto",
+        "warranty": "Tiene una garantía",
         "ref": "Tiene un número de referencia",
         "memo": "Tiene una nota",
         "tag": "Tiene una etiqueta"

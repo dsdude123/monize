@@ -61,6 +61,22 @@ the other two.
 Three providers behind one interface (`save`/`load`/`delete`), selected by
 deployment.
 
+**An attachment's parent is a transaction or a warranty, never both and never
+neither** (INV-WTY-003): `transaction_attachments` carries `transaction_id` and
+`warranty_id` under `chk_attachment_one_parent`, and `AttachmentsService.create`
+and `findAllFor` take an `AttachmentParent` (`backend/src/attachments/attachment-parent.ts`)
+rather than an id. Ownership is the row's own `user_id` whichever parent it has,
+so everything below -- the upload intent, the tombstone trigger, the orphan
+sweep, the provider relocation -- is keyed by attachment id and knows nothing
+about the parent. The per-parent cap is counted under the parent's row lock
+(`lockTransactionRow` or `lockWarrantyRow`, one doctrine), and both halves of a
+scan pair carry the same parent and `document_kind` (a kind change,
+`AttachmentsService.updateDocumentKind`, writes both in one statement). One
+parent is not one reader: a transaction's attachments are its own rows plus the
+documents of every warranty linked to it, reached through
+`warranties.transaction_id` by the fragment in `attachment-parent.ts`
+(INV-WTY-003); nothing below depends on it, because none of it reads the parent.
+
 **One upload can write two objects.** A scanned document is stored as a pair --
 the enhanced image the user sees and the original photo it came from
 (`docs/specs/document-scanner.md`) -- written by one `create` call in one
@@ -182,7 +198,7 @@ cascading `ai_relay_attachment_blobs` row, not through
 `ATTACHMENT_STORAGE_PROVIDER` -- the provider's `database` implementation writes
 `attachment_blobs`, whose primary key is a foreign key to
 `transaction_attachments` and whose policy reads the owner from that row, so a
-relay attachment (which has no transaction) cannot be stored there at all, and
+relay attachment (which has no parent) cannot be stored there at all, and
 branching on the bound provider's name would put a deployment-shaped decision
 inside the relay. The consequence is that this one path has no external side
 effect: bytes and metadata commit or roll back together on every provider, and
@@ -234,10 +250,13 @@ leaves the machine (INV-BACKUP-002).
 `local` and as a key prefix on `s3`, because automatic backup filenames carry
 only a tier and a date. A flat folder gave every user the same name for the same
 day, so whoever's cron ran last overwrote the rest and one user's retention pass
-deleted another's files. `enforceRetention` still sweeps the old flat layout for
-files written before the fix -- a `local`-only concept, since the `s3` store has
-never had a layout without an owner in the key, and one the listing marks
-`legacy` so nothing downloadable is served from it. The folder browse and
+deleted another's files. Files written to the old flat layout before the fix are
+listed as `legacy` -- a `local`-only concept, since the `s3` store has never had a
+layout without an owner in the key -- and are never served, never counted against
+a user's retention and never deleted by any user's pass: a flat name carries no
+owner, so sweeping it could take another user's only pre-upgrade recovery point
+(A26-M07). `enforceRetention` skips them and logs how many remain;
+`LocalBackupStorageTarget.remove` refuses one. They are the operator's to remove. The folder browse and
 validate endpoints are admin-gated at the controller, and under an `s3` store
 they answer a typed refusal rather than walking a filesystem that has nothing to
 do with where the bytes are.
@@ -285,6 +304,17 @@ restoring user, every backup id is remapped to a fresh UUID so a backup restored
 into a different account cannot collide with that account's rows, and every table
 and column is checked against an allowlist. What it lacks is integrity
 verification of the payload, per EXT-002 above.
+
+Restore is also the **third writer of the object-intent protocol**, beside
+`AttachmentsService.create` and the storage migrator. For `local` and `s3`, staging
+writes the carried bytes before the restore transaction, so each staged key takes
+an upload intent first (`recordObjectIntent`, lease
+`RESTORE_STAGING_INTENT_LEASE_MS`), the transaction clears them all with the
+fenced `clearObjectIntent`, and a discard drops an intent only after its delete
+succeeded. A process death between staging and commit therefore leaves
+tombstones the orphan sweeper reclaims once the leases expire, where it used to
+leave bytes nothing could enumerate (A26-S06-03).
+`docs/backup-restore-contract.md` section 4 has the protocol.
 
 ### Off-machine copies
 
@@ -479,6 +509,18 @@ leaves is decided by the chain's two outcomes: a window the carrying providers
 answered with nothing may be remembered as empty for thirty minutes, a window
 a carrying provider never answered never is, because the provider that fell
 silent may hold what the others do not (INV-FX-005).
+
+**No FX provider call inside someone else's transaction.** A rate fetch is an
+HTTP round trip, and inside a caller's open transaction it holds that
+transaction's row locks and pooled connection for the provider's response time,
+while the window it persists commits or rolls back with work it has nothing to
+do with. `InvestmentTransactionsService.previewCreateInvestmentTransaction`
+therefore reads only stored rates (`getRateForDate(..., { fetchMissing: false })`)
+when it runs under an ambient scoped manager (`getActiveScopedManager()`), which
+is how the email-receipt pipeline builds a trade card while it holds the
+receipt's row lock: a missing rate is refused by name and the card waits for the
+rate cron. A request-scoped preview (the assistant, MCP) still fetches
+(A26-L18).
 
 Failures propagate as `null`, deliberately. `getRateForDate`'s own comment says
 it "returns null when no rate can be determined (so the caller can reject or flag
@@ -738,3 +780,9 @@ replica whose INSERT returned a row emails), and the bill reminder (a lease plus
 a delivery record written after the send, keyed on the run's date and the set of
 bills). Section 5's grant-commit-after-delivery belongs in the same category.
 Those are the patterns the rest of this table should be closed by imitating.
+
+## SimpleFIN setup tokens (EXT-001 / EXT-003)
+
+SimplefinSetupService serializes setup/removal with a two-minute per-user JobClaimService lease. Before POSTing a one-time setup token, it commits a SHA-256 attempt marker. This marker means attempted, not connected: ambiguous timeout/crash outcomes are never automatically replayed. Existing job-claim retention applies; a person starts recovery using a fresh Bridge token. The claimed Access URL is encrypted and committed before a separate discovery read. If saving cannot be confirmed after claim, the response instructs the owner to check status and revoke the remote app token if needed. Discovery retries do not consume another setup token, and all reads spend a committed rolling-budget reservation before HTTP.
+
+The persistence transaction locks and verifies the current unexpired lease token before credential writes. Discovery locks the owned credential after HTTP and compares it with the credential used for the request; replacement/removal makes a stale response ineligible to reconcile. Local removal disables sync and preserves history, and makes no claim of remote revocation.

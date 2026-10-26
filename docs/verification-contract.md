@@ -88,6 +88,7 @@ INV-LOAN-002's entry names the missing source scan while its row said `--`.
 | INV-REGISTER-001 one balance per row | required | required | **required** | -- | -- | -- | -- | supporting |
 | INV-REDEEM-001 accrued interest | required | **required** | required | -- | -- | -- | -- | optional |
 | INV-RECONCILE-001 reconciled lock | supporting | **required** | required | required | -- | -- | -- | optional |
+| INV-DELEGATION-001 grant re-checked where written | supporting | -- | required | **required** | -- | -- | -- | -- |
 | INV-FX-001 no 1:1 fallback | **required** | **required** | required | -- | -- | required | optional | required |
 | INV-FX-002 a row's own rate on every surface | **required** | -- | required | -- | -- | -- | -- | optional |
 | INV-FX-003 one stored orientation per pair | **required** | **required** | required (owed by the contract release) | -- | -- | -- | -- | -- |
@@ -102,6 +103,7 @@ INV-LOAN-002's entry names the missing source scan while its row said `--`.
 | INV-REPORT-001 report account scope | supporting | **required** | **required** | -- | -- | -- | -- | optional |
 | INV-REPORT-002 chart reduction | **required** | **required** | -- | -- | -- | -- | -- | -- |
 | INV-REPORT-003 a transfer leg is a named flow | **required** | -- | required | -- | -- | -- | -- | optional |
+| INV-REPORT-004 a category's cost is its signed sum | required | -- | **required** | -- | -- | -- | -- | -- |
 | INV-SANKEY-001 the Sankey closes | **required** | -- | required | -- | -- | -- | -- | -- |
 | INV-SANKEY-002 a leg counts once, by scope and class | required | -- | **required** | -- | -- | -- | -- | -- |
 | INV-SANKEY-003 linkage and VOID out of every branch | supporting | **required** | required | -- | -- | -- | -- | -- |
@@ -145,6 +147,7 @@ INV-LOAN-002's entry names the missing source scan while its row said `--`.
 | INV-ACTIVITY-001 activity attribution | supporting | -- | **required** | -- | -- | -- | -- | -- |
 | INV-PROFILE-001 allowlist | required | **required** | supporting | -- | -- | -- | -- | -- |
 | INV-DISPLAY-001 reader's number locale | **required** | **required** | -- | -- | -- | -- | -- | optional |
+| INV-DISPLAY-002 partial figure relabelled | **required** | **required** | **required** | -- | -- | -- | -- | optional |
 | INV-MCP-001 request identity | **required** | **required** | required | -- | -- | -- | -- | -- |
 | INV-MCP-002 transport answers MCP | **required** | -- | -- | -- | -- | -- | -- | optional |
 | INV-MCP-003 confirmation binding | **required** | **required** | -- | -- | -- | -- | -- | -- |
@@ -218,6 +221,13 @@ INV-LOAN-002's entry names the missing source scan while its row said `--`.
 | INV-SEARCH-003 terms hold on the counted row | supporting | -- | **required** | -- | -- | -- | -- | optional |
 | INV-SEARCH-004 search never inflates an aggregate | -- | -- | **required** | -- | -- | -- | -- | -- |
 | INV-SEARCH-005 assistant totals and rows agree | -- | required | **required** | -- | -- | -- | -- | -- |
+| INV-WTY-001 a warranty never moves money | -- | **required** | -- | -- | -- | -- | -- | -- |
+| INV-WTY-002 every warranty status is the server's | **required** | required (not yet met) | -- | -- | -- | -- | -- | optional |
+| INV-WTY-003 an attachment has exactly one parent | required | required | **required** | -- | -- | -- | -- | optional |
+| INV-WTY-004 one warranty reminder per threshold | required | -- | required | **required** | -- | -- | -- | -- |
+| INV-WTY-005 a warranty refusal before the write | required | -- | **required** | -- | -- | -- | -- | -- |
+| INV-WTY-006 an import's preview and commit agree | **required** | -- | required | -- | -- | -- | -- | -- |
+| INV-WTY-007 no transaction through a warranty | required | -- | **required** | -- | -- | -- | -- | -- |
 
 Bold marks the kind that is load-bearing -- the one whose absence means the
 invariant is unverified no matter how many others pass. `INV-PROFILE-001`'s is a
@@ -488,7 +498,10 @@ differences produce failures that look like regressions and are not.
 A container image CI pulls (a workflow's `image:`, the compose file CI runs,
 a script's `*_IMAGE=` default, a Dockerfile's `FROM`) comes from Google's mirror
 of the Docker Official Images, `mirror.gcr.io/library/<name>:<tag>` (the same
-content and digests as Docker Hub), or from `ghcr.io`, never from Docker Hub: an
+content and digests as Docker Hub), from `ghcr.io`, or -- for an image only
+Microsoft publishes, the Playwright image `scripts/e2e-playwright.sh` runs the E2E
+suites in -- from `mcr.microsoft.com`, which is not Docker Hub and needs no login;
+never from Docker Hub: an
 anonymous Docker Hub pull from a shared runner IP is rate-limited, and the login
 that avoids it needs `DOCKERHUB_*` secrets a fork's repository does not have, so
 the job fails before its own step runs (the schema-drift job did, with "Username
@@ -496,7 +509,12 @@ and password required"). `backend/src/common/ci-images.guard.spec.ts` scans the
 workflows, `docker-compose.e2e.yml`, `scripts/*.sh` and every `FROM` in a
 tracked Dockerfile (CI builds those images for the E2E, Lighthouse and ZAP jobs),
 and fails a workflow that still reads `DOCKERHUB_*` secrets: no job needs that
-login. `.hadolint.yaml` trusts the same two registries. Not the ECR Public
+login. `.hadolint.yaml` trusts `mirror.gcr.io` and `ghcr.io`, the registries
+the Dockerfiles use. A tag alone is a name, not content, so the same files are
+also scanned by `backend/src/common/image-digest-pin.guard.spec.ts`, which
+fails a `mirror.gcr.io` or `mcr.microsoft.com` reference with no `@sha256:`
+digest and keeps `docs/container-images.md`'s digest map from drifting from
+the references in either direction. Not the ECR Public
 mirror (`public.ecr.aws`): its anonymous pulls carry a data limit per source
 IP, which GitHub's shared runners exhaust, and the E2E build failed with
 "toomanyrequests: Data limit exceeded". A registry can still answer a burst of

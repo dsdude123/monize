@@ -62,6 +62,22 @@ A missing table yields zero rows; a missing column yields the converter's defaul
 reported in `TableAvailability` (`missingTables` / `missingFields`) so the wizard can say "this
 file has no scheduled bills" instead of failing.
 
+### A row in `CAT` is not necessarily a category
+
+`CAT` holds the items of Money's two user-named classifications beside the
+categories, told apart only by `hct` (`CT.hct`; 0 is the category tree). A
+classification's top-level item is `nLevel` 0 with a null parent, exactly like
+the INCOME and EXPENSE roots, so the level filter alone hides it -- but a nested
+item is `nLevel` 1 under it and would import as a top-level category named after
+it. `mapCategories` filters on `isClassificationItem` first, and
+`map/map-classifications.ts` turns the items a row references into tags named
+`<classification>:<item path>` (`Properties:20 Spring Apartment`), the
+`key:value` shape `tag-key-value.util.ts` already groups by. `TRN.lHcls1` /
+`lHcls2` name the item per row, so each side of a transfer and each split leg is
+tagged on its own; a trade's cash leg takes the investment row's item, plus the item
+on Money's own sleeve-side cash row it replaces (`adoptCashLegTags`), when this
+writer creates the leg, and keeps the banking row's own when it adopts one.
+
 ## Inspecting a real file
 
 ```bash
@@ -107,6 +123,18 @@ not the cause -- see `helm/README.md` for the sizing table.
   transaction is open -- and the wizard only polls every 1500 ms, so a report per 500-row chunk
   writes a hundred-odd updates nobody reads.
 
+### A trade is stored in the security's currency
+
+`TRN.amt` is in the account's currency, but Monize reads an investment row's `price` and `total_amount`
+as the security's currency and `exchange_rate` as security -> cash account. For a security quoted in
+another currency than its account, `mapInvestments` converts at import with the file's own rate
+(`resolveExchangeRates` rows through `resolveFxRate`, rate 1 only for equal codes). The cash leg stays
+in the account's currency. With no rate near the trade date the figures stay in the account's currency
+at rate 1 and a `crossCurrencyTradeUnconverted` warning says so. In the same way a synthesized sleeve
+row takes the far row's own amount across currencies, and `transferAmountMismatch` compares each
+synthesized row with Money's far row, which the expected-balance check (a sum of the mapped rows)
+cannot do.
+
 ### A row Money does not store may still be one Monize has to write
 
 Money's model and Monize's are not the same shape, and the gaps are silent. A transfer from a
@@ -138,7 +166,7 @@ money moved, on rows that exist only to say a trade settled (issue #1204).
 
 The leg now carries the same activity label a natively entered and a QIF-imported trade already
 store (`Buy: VOO 10 @ $100.00`), built by `backend/src/securities/investment-cash-payee.util.ts` --
-the one implementation of that label, quoted in the row's own currency. Money's payee still wins
+the one implementation of that label, quoted in the currency the price and total are in (`securityCurrencyCode`). Money's payee still wins
 when the file recorded one; the label is the fallback, never an override, so nothing the user
 entered is replaced by generated text.
 

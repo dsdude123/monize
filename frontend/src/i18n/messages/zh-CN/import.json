@@ -34,18 +34,18 @@
   },
   "page": {
     "title": "导入交易",
-    "subtitle": "从 QIF、OFX/QFX 或 CSV 文件导入交易，或整体导入 Microsoft Money (.mny) 文件"
+    "subtitle": "从 QIF/QMTF、OFX/QFX 或 CSV 文件导入交易，或整体导入 Microsoft Money (.mny) 文件"
   },
   "upload": {
     "heading": "上传交易文件",
-    "instructions": "选择一个或多个文件进行导入。支持的格式：QIF、OFX/QFX、CSV 和 Microsoft Money (.mny)。\n您可以选择多个相同类型的文件进行批量导入。请一次导入一个 Microsoft Money 文件——一个 .mny 文件包含完整的账套。",
+    "instructions": "选择一个或多个文件进行导入。支持的格式：QIF/QMTF、OFX/QFX、CSV 和 Microsoft Money (.mny)。\n您可以选择多个相同类型的文件进行批量导入。请一次导入一个 Microsoft Money 文件——一个 .mny 文件包含完整的账套。",
     "importingTo": "导入至：",
     "clickToSelect": "点击选择文件",
     "orDragAndDrop": "或将文件拖放到此处",
     "dropToImport": "松开以导入",
-    "unsupportedDrop": "无法导入以下文件：{names}。请使用 QIF、OFX、QFX、CSV 或 Microsoft Money (.mny) 文件。",
+    "unsupportedDrop": "无法导入以下文件：{names}。请使用 QIF/QMTF、OFX、QFX、CSV 或 Microsoft Money (.mny) 文件。",
     "processing": "处理中...",
-    "acceptedFormats": "QIF、OFX、QFX、CSV 或 Microsoft Money (.mny)",
+    "acceptedFormats": "QIF/QMTF、OFX、QFX、CSV 或 Microsoft Money (.mny)",
     "mnyFailedHeading": "无法打开该 Microsoft Money 文件",
     "wikiNotice": {
       "title": "导入之前",
@@ -290,7 +290,7 @@
     "totalImported": "导入总数：",
     "totalImportedSuffix": "笔交易",
     "totalSkipped": "跳过总数：",
-    "totalSkippedSuffix": "笔重复转账",
+    "totalSkippedSuffix": "笔交易",
     "totalErrors": "错误总数：",
     "categoriesCreated": "已创建分类数：",
     "accountsCreated": "已创建账户数：",
@@ -302,17 +302,24 @@
     "imported": "已导入：",
     "importedSuffix": "笔交易",
     "skipped": "已跳过：",
-    "skippedSuffix": "笔重复转账",
+    "skippedSuffix": "笔交易",
     "errors": "错误：",
     "errorsLabel": "错误：",
     "andMoreErrors": "...以及另外 {count} 个错误",
+    "skippedRowsHeading": "已跳过的行：",
+    "skippedRow": "{date}：{amount}，{payee}（{reason}）",
+    "skippedRowNoPayee": "{date}：{amount}（{reason}）",
+    "skipReasonAlreadyImported": "已导入",
+    "skipReasonDuplicateTransfer": "转账已记录",
+    "andMoreSkipped": "...以及另外 {count} 行已跳过",
     "loanSetupHeading": "设置定期还款",
     "loanSetupDescription": "以下贷款/抵押贷款账户已导入但未配置定期还款。设置定期还款以继续追踪贷款进度。",
     "setUpPayments": "设置还款",
     "scheduledPaymentsConfigured": "已为 {count} 个账户{plural}配置定期还款。",
     "viewInvestments": "查看投资",
     "viewTransactions": "查看交易",
-    "importMoreFiles": "导入更多文件"
+    "importMoreFiles": "导入更多文件",
+    "bondRowsWithoutSeries": "{count, plural, other {有 # 笔债券买入在没有系列的情况下导入。请在该证券的债券批次中选择系列。}}"
   },
   "multiAccountReview": {
     "heading": "多账户 QIF 导入",
@@ -358,6 +365,7 @@
       "transfersLinked": "已关联 {count} 笔转账",
       "payees": "收款人",
       "categories": "类别",
+      "tags": "来自分类的标签",
       "accounts": "账户",
       "securities": "证券",
       "investments": "投资交易",
@@ -472,6 +480,7 @@
       "splits": "拆分明细",
       "payees": "收款人",
       "categories": "类别",
+      "taggedRows": "按分类打上标签的行",
       "securities": "证券",
       "investments": "投资交易",
       "prices": "价格",
@@ -495,7 +504,8 @@
     },
     "warningsHeading": "关于本次导入的说明",
     "downloadReport": "下载报告",
-    "done": "完成"
+    "done": "完成",
+    "bondRowsWithoutSeries": "{count, plural, other {有 # 笔债券买入在没有系列的情况下导入。请在该证券的债券批次中选择系列。}}"
   },
   "mnyWarnings": {
     "missingTable": "此 Money 版本缺少导入所需的 {count, plural, other {# 张表}}。",
@@ -506,6 +516,7 @@
     "categoryFlattened": "{count, plural, other {# 个类别}}层级超过两层，已合并到其父类别。",
     "categoryTypeInferred": "{count, plural, other {# 个类别}}缺少 Money 的收入标记，收入或支出根据类别树推断。",
     "degeneratePayeeSkipped": "已跳过 Money 内部保留的 {count, plural, other {# 个占位收款人}}。",
+    "unknownClassificationItem": "{count, plural, one {# 笔交易} other {# 笔交易}}引用了文件中未定义的分类项目，已在没有该标签的情况下导入。",
     "unusableTransaction": "{count, plural, other {# 笔交易}}没有账户或可用日期，已跳过。",
     "orphanedTransferSide": "{count, plural, other {# 笔转账}}在文件中缺少对应的另一方，已跳过。",
     "orphanedSplit": "{count, plural, other {# 条拆分明细}}没有对应的父交易，已跳过。",
@@ -524,6 +535,8 @@
     "unusableBill": "{count, plural, other {# 个定期账单}}没有账户、可用日期或可识别的重复周期，已跳过。",
     "billFrequencyApproximated": "{count, plural, other {# 个定期账单}}使用了 Monize 无法精确表达的重复间隔，因此采用了最接近的较短间隔。",
     "loanInterestCategoryUnclear": "{count, plural, other {# 笔贷款还款}}包含了本金以外的多个类别，因此贷款的利息类别未设置。请检查还款是否包含托管款项（escrow），并在导入后设置利息类别。",
+    "transferAmountMismatch": "{count, plural, other {# 笔转入投资账户的转账}}在投资一侧记录的金额与银行一侧不同。投资一侧已按记录的金额导入。",
+    "crossCurrencyTradeUnconverted": "{count, plural, other {# 笔以其他货币计价的证券交易}}已按账户货币保存，因为文件中没有该货币对在交易日期前后的汇率。请添加汇率，然后更正每笔交易的价格。",
     "showTransactions": "显示{count, plural, other {# 笔交易}}",
     "hideTransactions": "隐藏交易",
     "reviewInMoney": "请在 Microsoft Money 中打开这些交易进行核对或更正，然后重新导出并导入。",
@@ -542,6 +555,8 @@
     "mnyImportFailed": "导入过程中出现问题。没有保存任何内容 -- 您可以重试。",
     "mnyJobStalled": "导入已停止响应，很可能是服务器重启所致。您上传的文件仍在，重试是安全的。",
     "mnyJobStalledAfterCommit": "导入在已保存您的数据之后停止响应，很可能是服务器重启所致。导入的记录已在您的账户中，再次导入同一文件会造成重复。请先检查账户，再导入其他文件。",
+    "mnyImportFailedAfterCommit": "导入已保存您的数据,但之后的一个步骤失败了。导入的记录已在您的账户中,再次导入同一文件会造成重复。在导入其他内容之前,请先检查您的账户。",
+    "mnyAlreadyImported": "此文件已导入您的账户,再次导入会使其记录重复。如需替换,请重新开始并选择替换现有数据。",
     "mnyStagedFileMissing": "上传的 Money 文件已不可用，请重新上传。",
     "mnyFileTruncated": "该 Money 文件似乎不完整，上传可能被中断。",
     "mnyNotAMoneyFile": "该文件不是 Microsoft Money (.mny) 文件。",
@@ -592,7 +607,8 @@
       "notEvaluated": {
         "afterStop": "未评估：前面的规则已停止后续规则。",
         "disabled": "未评估：规则已关闭。",
-        "invalid": "未评估：规则无效。请打开它进行修复。"
+        "invalid": "未评估：规则无效。请打开它进行修复。",
+        "outside_active_window": "未评估：该行的日期不在规则的生效日期内。"
       },
       "condition": {
         "met": "条件已满足",

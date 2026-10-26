@@ -25,7 +25,6 @@
     "manual": "Manuell",
     "manualTitle": "Erfordert manuelle Buchung",
     "negativeBalanceWarning": "Diese Buchung bringt den Kontosaldo unter null",
-    "viewAll": "Alle Rechnungen und Einzahlungen anzeigen",
     "moreItems": "+{count} weitere",
     "overdue": "Überfällig",
     "today": "Heute",
@@ -90,8 +89,12 @@
     "title": "Ausgaben-Einblicke",
     "empty": "Keine Einblicke verfügbar. Besuchen Sie die Einblicke-Seite, um Ihre erste Analyse zu generieren.",
     "goToInsights": "Zu Einblicken",
-    "viewAll": "Alle Einblicke anzeigen",
     "activeCount": "{count} aktiv"
+  },
+  "warrantiesExpiring": {
+    "title": "Bald ablaufende Garantien",
+    "empty": "In den nächsten 30 Tagen läuft nichts ab",
+    "loadFailed": "Ihre ablaufenden Garantien konnten nicht geladen werden. Laden Sie das Dashboard neu, um es erneut zu versuchen."
   },
   "topMovers": {
     "title": "Top-Beweger",
@@ -125,8 +128,7 @@
     "dailyChange": "Tagesveränderung",
     "dailyChangeOn": "Tagesveränderung · {date}",
     "openPriceHistory": "Kursverlauf für {symbol}",
-    "refreshPrices": "Kurse aktualisieren",
-    "manage": "Wertpapiere verwalten"
+    "refreshPrices": "Kurse aktualisieren"
   },
   "netWorth": {
     "title": "Reinvermögen",
@@ -143,6 +145,7 @@
     "netWorthLabel": "Reinvermögen",
     "assets": "Aktiva",
     "liabilities": "Verbindlichkeiten",
+    "partialName": "{name} (unvollständig)",
     "viewCallouts": "Beschriftungen",
     "viewLegend": "Legende"
   },

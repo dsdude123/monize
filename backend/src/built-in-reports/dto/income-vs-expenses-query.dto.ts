@@ -13,16 +13,7 @@ import {
   Min,
 } from "class-validator";
 import { ReportQueryDto } from "./report-query.dto";
-
-/** A comma-separated query parameter, as a trimmed non-empty array. */
-function csv({ value }: { value: unknown }): unknown {
-  if (Array.isArray(value)) return value;
-  if (typeof value !== "string") return value;
-  return value
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-}
+import { splitCsv } from "../../common/helpers/split-csv";
 
 /** Surrounding whitespace is a paste artifact, never part of a tag key. */
 const trimmed = ({ value }: { value: unknown }) =>
@@ -40,13 +31,33 @@ export class IncomeVsExpensesQueryDto extends ReportQueryDto {
     type: [String],
   })
   @IsOptional()
-  @Transform(csv)
+  @Transform(splitCsv)
   @IsArray()
   // Bounded because an unbounded array is a lever on the query planner, and
   // `common/array-bound-dto.spec.ts` fails a new one without a cap.
   @ArrayMaxSize(200)
   @IsUUID("4", { each: true })
   accountIds?: string[];
+
+  /**
+   * The account boundary a tagged transfer is judged against when `accountIds`
+   * is absent (`docs/specs/report-tag-key-breakdown.md` section 10.8.1): the
+   * accounts the client's account picker offers, so the default "All Accounts"
+   * reads the tagged flows exactly as selecting every offered account does.
+   * Scopes ONLY `taggedInflows` / `taggedOutflows`; income, expenses and net
+   * stay unfiltered. Ignored when `accountIds` is non-empty.
+   */
+  @ApiPropertyOptional({
+    description:
+      "Account ids (comma-separated) that bound the tagged transfer flows when accountIds is absent. Income and expenses are not filtered by it.",
+    type: [String],
+  })
+  @IsOptional()
+  @Transform(splitCsv)
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID("4", { each: true })
+  transferScopeAccountIds?: string[];
 
   @ApiPropertyOptional({
     description: "Width of one bar. Defaults to month.",

@@ -1,7 +1,8 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
-import { DataSource } from "typeorm";
+import { DataSource, QueryFailedError } from "typeorm";
 import { createScopedDbMocks } from "../test-helpers/scoped-db-testing";
+import { EXTERNAL_ID_INDEX } from "../transactions/transaction-external-id";
 
 jest.mock("../common/db/scoped-db", () =>
   jest.requireActual("../test-helpers/scoped-db-testing").scopedDbMockModule(),
@@ -1903,21 +1904,33 @@ describe("ImportService", () => {
           openingBalance: 0,
           currentBalance: 200,
         });
+        // The opening balance the delta is taken from, read under the lock.
+        const defaultQuery =
+          mockQueryRunner.manager.query.getMockImplementation();
+        mockQueryRunner.manager.query.mockImplementation(
+          async (sql: string, params?: unknown[]) =>
+            typeof sql === "string" && sql.includes("SELECT opening_balance")
+              ? [{ opening_balance: "0" }]
+              : defaultQuery
+                ? defaultQuery(sql, params)
+                : [],
+        );
 
         await service.importQifFile(userId, makeBaseDto());
 
-        // Should update account with new opening balance and adjusted current balance
-        const updateCalls = mockQueryRunner.manager.update.mock.calls.filter(
-          (call: unknown[]) => call[0] === Account && call[1] === "acct-1",
-        );
-        const openingBalanceUpdate = updateCalls.find(
-          (call: unknown[]) =>
-            (call[2] as Record<string, unknown>).openingBalance !== undefined,
+        // The opening balance is set and current_balance moved by the change,
+        // as one atomic delta under the account lock (A26-M13), never an
+        // absolute figure computed from the account read before the import.
+        const openingBalanceUpdate = (
+          mockQueryRunner.manager.query.mock.calls as unknown[][]
+        ).find(
+          ([sql]) =>
+            typeof sql === "string" && sql.includes("SET opening_balance"),
         );
         expect(openingBalanceUpdate).toBeDefined();
-        expect(openingBalanceUpdate[2].openingBalance).toBe(500.5);
-        // new currentBalance = 200 - 0 + 500.50 = 700.50
-        expect(openingBalanceUpdate[2].currentBalance).toBe(700.5);
+        const [, , newOpening, delta] = openingBalanceUpdate![1] as unknown[];
+        expect(newOpening).toBe(500.5);
+        expect(delta).toBe(500.5);
       });
     });
 
@@ -3132,6 +3145,102 @@ describe("ImportService", () => {
       expect(result).toBeDefined();
       expect(result.imported).toBeDefined();
     });
+
+    describe("a row whose bank id another writer committed first", () => {
+      const ofxRow = (overrides: Record<string, unknown>) => ({
+        date: "2025-03-01",
+        amount: -50,
+        payee: "Store",
+        memo: "",
+        number: "",
+        cleared: true,
+        reconciled: false,
+        category: "",
+        isTransfer: false,
+        transferAccount: "",
+        splits: [],
+        security: "",
+        action: "",
+        price: 0,
+        quantity: 0,
+        commission: 0,
+        ...overrides,
+      });
+
+      const importTwoRows = async (constraint: string) => {
+        mockedValidateOfxContent.mockReturnValue({ valid: true });
+        mockedParseOfx.mockReturnValue({
+          accountType: "CHEQUING",
+          accountName: "",
+          transactions: [
+            ofxRow({ fitId: "A1" }),
+            ofxRow({ date: "2025-03-02", amount: -7.5, fitId: "A2" }),
+          ],
+          categories: [],
+          transferAccounts: [],
+          securities: [],
+          detectedDateFormat: "YYYY-MM-DD",
+          sampleDates: [],
+          openingBalance: null,
+          openingBalanceDate: null,
+        });
+        accountsRepository.findOne.mockResolvedValue(mockChequingAccount);
+        // The lookup missed (findOne answers null), and the unique index
+        // refuses the insert of the first row: the race the lookup cannot see.
+        const save = mockQueryRunner.manager.save.getMockImplementation();
+        mockQueryRunner.manager.save.mockImplementation(
+          (entity: { externalId?: string | null }) =>
+            entity?.externalId === "ofx:A1"
+              ? Promise.reject(
+                  new QueryFailedError("INSERT INTO transactions", [], {
+                    code: "23505",
+                    constraint,
+                  } as unknown as Error),
+                )
+              : save!(entity),
+        );
+
+        return service.importOfxFile(userId, {
+          content: "<OFX>...</OFX>",
+          accountId: "acct-1",
+          categoryMappings: [],
+          accountMappings: [],
+        });
+      };
+
+      it("rolls the row back and counts it as already imported, not as an error", async () => {
+        const result = await importTwoRows(EXTERNAL_ID_INDEX);
+
+        expect(result.errors).toBe(0);
+        expect(result.errorMessages).toEqual([]);
+        expect(result.imported).toBe(1);
+        expect(result.skipped).toBe(1);
+        expect(result.skippedRows).toEqual([
+          {
+            date: "2025-03-01",
+            amount: -50,
+            currencyCode: "CAD",
+            payee: "Store",
+            reason: "alreadyImported",
+          },
+        ]);
+        const sqls = mockQueryRunner.query.mock.calls.map((call) => call[0]);
+        expect(sqls).toContain("ROLLBACK TO SAVEPOINT tx_import_1");
+        expect(sqls).toContain("RELEASE SAVEPOINT tx_import_2");
+        // Each row created its payee, and the first one's was rolled back with
+        // it, so only the second counts.
+        expect(result.payeesCreated).toBe(1);
+      });
+
+      it("still reports a violation of another constraint as an error", async () => {
+        const result = await importTwoRows("some_other_index");
+
+        expect(result.errors).toBe(1);
+        expect(result.skipped).toBe(0);
+        expect(result.skippedRows).toEqual([]);
+        expect(result.imported).toBe(1);
+      });
+    });
   });
 
   // --- CSV Tests ---
@@ -4183,6 +4292,125 @@ describe("ImportService", () => {
       expect(result.categoriesCreated).toBe(3);
     });
 
+    it("creates every level of a multi-level category, from definitions and from transactions", async () => {
+      // Quicken budgets three and four levels deep. Splitting at the first
+      // colon only filed "Housing:Mortgage:Interest" as a child named
+      // "Mortgage:Interest" and lost the roll-up at "Mortgage".
+      mockedValidateQifContent.mockReturnValue({ valid: true });
+      const parsed = makeFullParseResult({
+        categoryDefs: [
+          {
+            name: "Housing:Mortgage:Interest",
+            description: "",
+            isIncome: false,
+            taxRelated: false,
+            taxSchedule: "",
+          },
+          {
+            name: "Housing:Mortgage:Principal",
+            description: "",
+            isIncome: false,
+            taxRelated: false,
+            taxSchedule: "",
+          },
+        ],
+      });
+      parsed.accountBlocks[0].categories = [
+        "Housing:Mortgage:Interest",
+        "Auto:Fuel:Diesel",
+      ];
+      mockedParseQifFull.mockReturnValue(parsed);
+      mockQueryRunner.manager.findOne.mockImplementation((entity) => {
+        if (entity === Account) {
+          return Promise.resolve({
+            id: "acct-1",
+            userId,
+            name: "Checking",
+            accountType: AccountType.CHEQUING,
+            currencyCode: "CAD",
+          });
+        }
+        return Promise.resolve(null);
+      });
+
+      const result = await service.importQifMultiAccountFile(userId, baseDto);
+
+      const inserts = mockQueryRunner.query.mock.calls
+        .filter(
+          (call: unknown[]) =>
+            typeof call[0] === "string" &&
+            call[0].includes("INSERT INTO categories"),
+        )
+        .map((call: unknown[]) => (call[1] as unknown[]).slice(1, 3));
+      expect(inserts).toEqual([
+        ["Housing", null],
+        ["Mortgage", "cat-1"],
+        ["Interest", "cat-2"],
+        ["Principal", "cat-2"],
+        // Only referenced by a transaction, never defined in !Type:Cat.
+        ["Auto", null],
+        ["Fuel", "cat-5"],
+        ["Diesel", "cat-6"],
+      ]);
+      expect(result.categoriesCreated).toBe(7);
+    });
+
+    it("never resolves a bare level name to a category on another branch", async () => {
+      // Each level used to be mapped by its bare name, so a top-level
+      // "Interest" read as Housing > Mortgage > Interest, and the step that
+      // creates transaction-only categories filed "Mortgage:Extra" under
+      // Housing > Mortgage.
+      mockedValidateQifContent.mockReturnValue({ valid: true });
+      const parsed = makeFullParseResult({
+        categoryDefs: [
+          {
+            name: "Housing:Mortgage:Interest",
+            description: "",
+            isIncome: false,
+            taxRelated: false,
+            taxSchedule: "",
+          },
+        ],
+      });
+      parsed.accountBlocks[0].categories = ["Interest", "Mortgage:Extra"];
+      parsed.accountBlocks[0].transactions[0].category = "Interest";
+      mockedParseQifFull.mockReturnValue(parsed);
+      mockQueryRunner.manager.findOne.mockImplementation((entity) => {
+        if (entity === Account) {
+          return Promise.resolve({
+            id: "acct-1",
+            userId,
+            name: "Checking",
+            accountType: AccountType.CHEQUING,
+            currencyCode: "CAD",
+          });
+        }
+        return Promise.resolve(null);
+      });
+
+      await service.importQifMultiAccountFile(userId, baseDto);
+
+      const inserts = mockQueryRunner.query.mock.calls
+        .filter(
+          (call: unknown[]) =>
+            typeof call[0] === "string" &&
+            call[0].includes("INSERT INTO categories"),
+        )
+        .map((call: unknown[]) => (call[1] as unknown[]).slice(1, 3));
+      expect(inserts).toEqual([
+        ["Housing", null],
+        ["Mortgage", "cat-1"],
+        ["Interest", "cat-2"],
+        ["Interest", null],
+        ["Mortgage", null],
+        ["Extra", "cat-5"],
+      ]);
+      const txCreateCall = mockQueryRunner.manager.create.mock.calls.find(
+        (call: unknown[]) => call[0] === Transaction,
+      );
+      expect(txCreateCall[1].categoryId).toBe("cat-4");
+    });
+
     it("creates non-investment accounts with correct type and currency", async () => {
       mockedValidateQifContent.mockReturnValue({ valid: true });
       mockedParseQifFull.mockReturnValue(
@@ -4576,11 +4804,16 @@ describe("ImportService", () => {
 
       await service.importQifMultiAccountFile(userId, baseDto);
 
-      // "_IntExp" should be created as "Interest Expense" (description used)
-      const catCreates = mockQueryRunner.manager.create.mock.calls.filter(
-        (call) => call[0] === Category,
-      );
-      const catNames = catCreates.map((c) => c[1].name);
+      // "_IntExp" should be created as "Interest Expense" (description used).
+      // Categories are inserted with ON CONFLICT DO NOTHING (INV-IMPORT-003),
+      // so the name is the INSERT's second parameter.
+      const catNames = mockQueryRunner.query.mock.calls
+        .filter(
+          (call: unknown[]) =>
+            typeof call[0] === "string" &&
+            call[0].includes("INSERT INTO categories"),
+        )
+        .map((call: unknown[]) => (call[1] as unknown[])[1]);
       expect(catNames).toContain("Interest Expense");
       // "_401k" has no description, so original name is used
       expect(catNames).toContain("_401k");

@@ -23,7 +23,10 @@ import { CreateAccountDto } from "./dto/create-account.dto";
 import { UpdateAccountDto } from "./dto/update-account.dto";
 import { ScheduledTransactionsService } from "../scheduled-transactions/scheduled-transactions.service";
 import { NetWorthService } from "../net-worth/net-worth.service";
-import { PortfolioService } from "../securities/portfolio.service";
+import {
+  AccountMarketValue,
+  PortfolioService,
+} from "../securities/portfolio.service";
 import { ExchangeRateService } from "../currencies/exchange-rate.service";
 import { resolveUserDefaultCurrency } from "../common/default-currency.util";
 import { memoizedRateResolver } from "../common/converting-total";
@@ -60,15 +63,16 @@ import { withSystemContext } from "../common/db/with-context";
 import { withScopedDb } from "../common/db/scoped-db";
 import { lockAccountsForBalanceWrite } from "../common/db/locks";
 import { affectedRowCount } from "../common/db/query-result";
-import { LEDGER_MOVEMENT_PREDICATE } from "../common/ledger-balance.sql";
+import {
+  LEDGER_MOVEMENT_PREDICATE,
+  ledgerMovementPredicate,
+} from "../common/ledger-balance.sql";
 import {
   MortgageType,
   PrepaymentMode,
-  mortgageTypeColumns,
   mortgageTypeOf,
   prepaymentModeColumn,
   prepaymentModeOf,
-  requestedMortgageType,
   storesConstantPayment,
 } from "./mortgage-type.util";
 import { assertMortgageMethodTerms } from "./mortgage-installment.util";
@@ -90,6 +94,32 @@ import {
 import { ScheduledOccurrenceService } from "../scheduled-transactions/scheduled-occurrence.service";
 
 /**
+ * Assets, liabilities and net worth as the summary and the LLM shape state them.
+ *
+ * A subtotal is not a total (`docs/financial-calculation-contract.md` section
+ * 1): each `total*` / `netWorth` is `null` unless every component converted into
+ * the reporting currency AND every held position was priced, and the sum of what
+ * did is in its own `known*` field. `valuationComplete` is `fxComplete &&
+ * pricesComplete`; read each flag as `=== false`.
+ */
+export interface NetWorthTotals {
+  totalAssets: number | null;
+  totalLiabilities: number | null;
+  netWorth: number | null;
+  knownAssetsSubtotal: number;
+  knownLiabilitiesSubtotal: number;
+  knownNetWorthSubtotal: number;
+  fxComplete: boolean;
+  pricesComplete: boolean;
+  valuationComplete: boolean;
+  /** `"CAD->USD"` for each pair with no rate; empty when `fxComplete`. */
+  missingRatePairs: string[];
+  /** The securities behind `pricesComplete: false`. */
+  unpricedSecurityIds: string[];
+  unpricedSymbols: string[];
+}
+
+/**
  * One account as the AI Assistant and the MCP server describe it.
  */
 export interface LlmAccountRow {
@@ -97,7 +127,17 @@ export interface LlmAccountRow {
   name: string;
   type: AccountType;
   subType: string | null;
-  balance: number;
+  /**
+   * The account's balance in its own currency. `null` for a brokerage account
+   * whose holdings are not all priced and converted (`valuationComplete`
+   * false): its market value is unknown, not zero, and the sum of what was
+   * valued is `knownBalanceSubtotal`.
+   */
+  balance: number | null;
+  /** Equal to `balance` when `valuationComplete`; otherwise the partial sum. */
+  knownBalanceSubtotal: number;
+  /** False when a held position had no price or no rate into the account's currency. */
+  valuationComplete: boolean;
   currentBalance: number;
   creditLimit: number | null;
   interestRate: number | null;
@@ -126,8 +166,7 @@ export interface LlmAccountRow {
   originalPrincipal: number | null;
   /**
    * How a mortgage's rate compounds and its principal amortizes
-   * (`mortgage-type.util.ts`), the column or else the type its two legacy
-   * flags denote; null on every other account type.
+   * (`mortgage-type.util.ts`); null on every other account type.
    */
   mortgageType: MortgageType | null;
   /** A LINEAR mortgage's prepayment mode; null on every other account. */
@@ -304,14 +343,14 @@ export class AccountsService {
       delete accountData.statementSettlementDay;
     }
 
-    // Only a mortgage has a type, written with the flags it maps to; a request
-    // naming neither is the default type. LINEAR and INTEREST_ONLY are refused
-    // without the terms their method prices from (spec section 8), store no
-    // constant payment (decision 11), and only LINEAR keeps a prepayment mode
-    // (decision 10).
+    // Only a mortgage takes a requested type; a request naming none is the
+    // default type, as is every other account type's row (the column
+    // default). LINEAR and INTEREST_ONLY are refused without the terms their
+    // method prices from (spec section 8), store no constant payment
+    // (decision 11), and only LINEAR keeps a prepayment mode (decision 10).
     const mortgageType =
       accountData.accountType === AccountType.MORTGAGE
-        ? (requestedMortgageType(accountData) ?? "ANNUITY")
+        ? (accountData.mortgageType ?? "ANNUITY")
         : null;
     const prepaymentMode = mortgageType
       ? prepaymentModeColumn(mortgageType, accountData.prepaymentMode)
@@ -328,7 +367,7 @@ export class AccountsService {
       (derivesInstallment ? accountData.mortgagePaymentFrequency : undefined);
     const mortgageColumns = mortgageType
       ? {
-          ...mortgageTypeColumns(mortgageType),
+          mortgageType,
           prepaymentMode,
           ...(derivesInstallment ? { paymentFrequency } : {}),
         }
@@ -1062,23 +1101,17 @@ export class AccountsService {
             : null;
         if (updateAccountDto.linkedLoanAccountId !== undefined)
           account.linkedLoanAccountId = updateAccountDto.linkedLoanAccountId;
-        // Mortgage-specific fields. A mortgage writes its type and the flags
-        // it maps to together, so a previous-release pod reading the flags
-        // prices the row as this one does. Any other account type has no type
-        // (cleared when an edit moves a mortgage to another type, as the
-        // backfill leaves non-mortgage rows null) and keeps the flags as sent.
-        const requestedType =
-          effectiveType === AccountType.MORTGAGE
-            ? requestedMortgageType(updateAccountDto, account)
-            : undefined;
-        if (requestedType !== undefined) {
-          Object.assign(account, mortgageTypeColumns(requestedType));
-        } else if (effectiveType !== AccountType.MORTGAGE) {
-          account.mortgageType = null;
-          if (updateAccountDto.isCanadianMortgage !== undefined)
-            account.isCanadianMortgage = updateAccountDto.isCanadianMortgage;
-          if (updateAccountDto.isVariableRate !== undefined)
-            account.isVariableRate = updateAccountDto.isVariableRate;
+        // Mortgage-specific fields. Only a mortgage takes a requested type;
+        // any other account type carries the column's default (reset when an
+        // edit moves a mortgage to another type, as every non-mortgage row
+        // holds it).
+        if (effectiveType === AccountType.MORTGAGE) {
+          // `@IsOptional()` admits null; like an absent field it leaves the
+          // stored type alone, never a null the NOT NULL column refuses.
+          if (updateAccountDto.mortgageType != null)
+            account.mortgageType = updateAccountDto.mortgageType;
+        } else {
+          account.mortgageType = "ANNUITY";
         }
         if (updateAccountDto.termMonths !== undefined) {
           account.termMonths = updateAccountDto.termMonths || null;
@@ -1197,7 +1230,16 @@ export class AccountsService {
             linkedChanged = true;
           }
           if (linkedChanged) {
-            await m.save(linkedAccount);
+            // The changed columns only. The other half was read without a lock,
+            // and `save` writes every column that differs from a fresh read --
+            // its snapshot `current_balance` among them, so a posting that
+            // landed in between was erased: cash half 1,010.00 back to 1,000.00
+            // beside a 1,010.00 ledger (A26-M13).
+            await m.update(Account, linkedAccount.id, {
+              name: linkedAccount.name,
+              currencyCode: linkedAccount.currencyCode,
+              institutionId: linkedAccount.institutionId,
+            });
           }
         }
 
@@ -1231,6 +1273,40 @@ export class AccountsService {
     }
 
     return savedAccount;
+  }
+
+  /** Refuses the delete of an account that holds any ledger row. */
+  private async assertAccountEmpty(
+    m: EntityManager,
+    accountId: string,
+  ): Promise<void> {
+    const transactionCount = await m.getRepository(Transaction).count({
+      where: { accountId },
+    });
+    if (transactionCount > 0) {
+      throw new BadRequestException(
+        tr(
+          "errors.accounts.deleteWithTransactions",
+          `Cannot delete account with ${transactionCount} transaction(s). Close the account instead.`,
+          { transactionCount },
+        ),
+      );
+    }
+
+    // includes VOID rows: records read -- a VOID row is still a row the
+    // delete would destroy.
+    const investmentTransactionCount = await m
+      .getRepository(InvestmentTransaction)
+      .count({ where: { accountId } });
+    if (investmentTransactionCount > 0) {
+      throw new BadRequestException(
+        tr(
+          "errors.accounts.deleteWithInvestmentTransactions",
+          `Cannot delete account with ${investmentTransactionCount} investment transaction(s). Close the account instead.`,
+          { investmentTransactionCount },
+        ),
+      );
+    }
   }
 
   /**
@@ -1307,6 +1383,31 @@ export class AccountsService {
             ),
           );
         }
+      }
+
+      // A row dated after today is not in `current_balance` yet, so "zero now"
+      // is not "zero including what is already booked": an empty account with
+      // a -25.00 row dated next week closed, and on that date the due-balance
+      // pass moved the closed account to -25.00, a balance the user cannot
+      // touch without reopening it (A26-M12). Checked under the row lock
+      // above, over both halves of a pair; a VOID row moves nothing.
+      const [pending]: { n: number }[] = await m.query(
+        `SELECT count(*)::int AS n
+           FROM transactions
+          WHERE account_id = ANY($1)
+            AND user_id = $2
+            AND ${ledgerMovementPredicate("")}
+            AND transaction_date > $3`,
+        [halves.map((half) => half.id), userId, todayYMD()],
+      );
+      if (pending.n > 0) {
+        throw new BadRequestException(
+          tr(
+            "errors.accounts.closeWithFutureTransactions",
+            `Cannot close an account with future-dated transactions. It has ${pending.n} transaction(s) dated after today; delete or void them first.`,
+            { count: pending.n },
+          ),
+        );
       }
 
       // A brokerage's `current_balance` is deliberately kept at 0 and its worth
@@ -1573,16 +1674,85 @@ export class AccountsService {
   }
 
   /**
+   * The latest month's assets, liabilities and net worth as totals only where
+   * they are known (`NetWorthTotals`). Shared by `getSummary` and
+   * `getLlmAccounts` so the two surfaces state the same figure.
+   *
+   * The monthly snapshot stores one converted figure per account and month, so
+   * it cannot see an unpriced position or a gap between a security's currency
+   * and its account's: those arrive as the per-account `AccountMarketValue`s of
+   * the accounts that count towards net worth and are unioned in here.
+   */
+  private async latestNetWorthTotals(
+    userId: string,
+    accounts: Account[],
+    marketValues: Map<string, AccountMarketValue>,
+  ): Promise<NetWorthTotals> {
+    const latest = await this.netWorthService.getLatestNetWorth(userId);
+    // No snapshot at all means the user has no balance history to sum: a known
+    // zero, which the market-value flags below can still qualify.
+    const month = latest ?? {
+      assets: 0,
+      liabilities: 0,
+      netWorth: 0,
+      fxComplete: true,
+      missingRatePairs: [],
+      assetsFxComplete: true,
+      liabilitiesFxComplete: true,
+    };
+
+    const pairs = new Set(month.missingRatePairs);
+    const unpriced = new Map<string, string>();
+    let pricesComplete = true;
+    let accountsFxComplete = true;
+    for (const account of accounts) {
+      if (account.excludeFromNetWorth) continue;
+      const value = marketValues.get(account.id);
+      // Absent means the account holds no position: zero, not unknown.
+      if (!value) continue;
+      if (!value.pricesComplete) pricesComplete = false;
+      if (!value.fxComplete) accountsFxComplete = false;
+      for (const pair of value.missingRatePairs) pairs.add(pair);
+      value.unpricedSecurityIds.forEach((id, i) =>
+        unpriced.set(id, value.unpricedSymbols[i] ?? id),
+      );
+    }
+
+    const assetsComplete =
+      month.assetsFxComplete && accountsFxComplete && pricesComplete;
+    const liabilitiesComplete = month.liabilitiesFxComplete;
+    const fxComplete = month.fxComplete && accountsFxComplete;
+    const knownAssetsSubtotal = roundMoney(month.assets);
+    const knownLiabilitiesSubtotal = roundMoney(month.liabilities);
+    const knownNetWorthSubtotal = roundMoney(month.netWorth);
+
+    return {
+      totalAssets: assetsComplete ? knownAssetsSubtotal : null,
+      totalLiabilities: liabilitiesComplete ? knownLiabilitiesSubtotal : null,
+      netWorth:
+        assetsComplete && liabilitiesComplete ? knownNetWorthSubtotal : null,
+      knownAssetsSubtotal,
+      knownLiabilitiesSubtotal,
+      knownNetWorthSubtotal,
+      fxComplete,
+      pricesComplete,
+      valuationComplete: fxComplete && pricesComplete,
+      missingRatePairs: [...pairs].sort(),
+      unpricedSecurityIds: [...unpriced.keys()].sort(),
+      unpricedSymbols: [...unpriced.values()].sort(),
+    };
+  }
+
+  /**
    * Get account summary statistics for a user
    */
-  async getSummary(userId: string): Promise<{
-    totalAccounts: number;
-    totalBalance: number;
-    totalAssets: number;
-    totalLiabilities: number;
-    netWorth: number;
-  }> {
-    const accounts = await this.findAll(userId, false);
+  async getSummary(
+    userId: string,
+  ): Promise<{ totalAccounts: number; totalBalance: number } & NetWorthTotals> {
+    // Closed accounts are not counted or summed below, but their snapshots
+    // still count towards net worth, so their positions qualify it too.
+    const allAccounts = await this.findAll(userId, true);
+    const accounts = allAccounts.filter((account) => !account.isClosed);
 
     // totalBalance is the raw book-balance sum across accounts. Assets,
     // liabilities and net worth are derived from the same canonical source as
@@ -1595,14 +1765,18 @@ export class AccountsService {
       accounts.map((account) => Number(account.currentBalance)),
     );
 
-    const latest = await this.netWorthService.getLatestNetWorth(userId);
+    const marketValues =
+      await this.portfolioService.getAccountMarketValues(userId);
+    const totals = await this.latestNetWorthTotals(
+      userId,
+      allAccounts,
+      marketValues,
+    );
 
     return {
       totalAccounts: accounts.length,
       totalBalance,
-      totalAssets: roundMoney(latest?.assets ?? 0),
-      totalLiabilities: roundMoney(latest?.liabilities ?? 0),
-      netWorth: roundMoney(latest?.netWorth ?? 0),
+      ...totals,
     };
   }
 
@@ -1627,6 +1801,11 @@ export class AccountsService {
    * snapshot, the same source as the dashboard Net Worth widget -- so every
    * surface agrees regardless of the filters applied. totalAccounts is the
    * number of accounts returned AFTER filtering.
+   *
+   * The totals are `NetWorthTotals`: null unless complete, with the subtotal in
+   * a `known*` field. A brokerage row's `balance` is null while one of its
+   * positions is unpriced or unconverted. `missingRatePairs` is the union of
+   * the per-row pairs and the totals' pairs.
    */
   async getLlmAccounts(
     userId: string,
@@ -1637,20 +1816,17 @@ export class AccountsService {
       status?: "open" | "closed" | "all";
       accountTypes?: AccountType[];
     },
-  ): Promise<{
-    accounts: LlmAccountRow[];
-    totalAssets: number;
-    totalLiabilities: number;
-    netWorth: number;
-    /**
-     * The user's reporting currency: what the three totals above and every
-     * `*InDefaultCurrency` figure are denominated in.
-     */
-    defaultCurrency: string;
-    /** `"CAD->USD"` per account currency with no rate into `defaultCurrency`. */
-    missingRatePairs: string[];
-    totalAccounts: number;
-  }> {
+  ): Promise<
+    NetWorthTotals & {
+      accounts: LlmAccountRow[];
+      /**
+       * The user's reporting currency: what the three totals and every
+       * `*InDefaultCurrency` figure are denominated in.
+       */
+      defaultCurrency: string;
+      totalAccounts: number;
+    }
+  > {
     const {
       accountNames,
       accountIds,
@@ -1743,25 +1919,46 @@ export class AccountsService {
       return roundMoney(amount * rate);
     };
 
-    const balanceOf = (a: (typeof accounts)[number]): number =>
+    // A brokerage's figure is its market value. An account absent from the map
+    // holds no position, which is zero rather than an unpriced holding; one
+    // present with a null `marketValue` is unknown, and its balance is null.
+    const marketValueOf = (
+      a: (typeof accounts)[number],
+    ): AccountMarketValue | undefined =>
+      a.accountSubType === AccountSubType.INVESTMENT_BROKERAGE
+        ? marketValues.get(a.id)
+        : undefined;
+    const isBrokerage = (a: (typeof accounts)[number]): boolean =>
+      a.accountSubType === AccountSubType.INVESTMENT_BROKERAGE;
+    const ledgerBalance = (a: (typeof accounts)[number]): number =>
       roundMoney(
-        a.accountSubType === AccountSubType.INVESTMENT_BROKERAGE
-          ? (marketValues.get(a.id) ?? 0)
-          : Number(a.currentBalance) + Number(a.futureTransactionsSum ?? 0),
+        Number(a.currentBalance) + Number(a.futureTransactionsSum ?? 0),
       );
+    const balanceOf = (a: (typeof accounts)[number]): number | null => {
+      if (!isBrokerage(a)) return ledgerBalance(a);
+      const value = marketValueOf(a);
+      if (!value) return 0;
+      return value.marketValue === null ? null : roundMoney(value.marketValue);
+    };
+    const knownBalanceOf = (a: (typeof accounts)[number]): number => {
+      if (!isBrokerage(a)) return ledgerBalance(a);
+      return roundMoney(marketValueOf(a)?.knownMarketValueSubtotal ?? 0);
+    };
     // LINEAR and INTEREST_ONLY mortgages carry a dated installment in place of
-    // the payment they do not store (spec section 5.6).
+    // the payment they do not store (spec section 5.6). Only loan balances feed
+    // it, and a loan is never a brokerage, so the known value is the balance.
     const installmentFacts = await derivedInstallmentFacts(
       this.dataSource,
       this.scheduledOccurrenceService,
       userId,
       accounts,
-      new Map(accounts.map((a) => [a.id, -balanceOf(a)])),
+      new Map(accounts.map((a) => [a.id, -knownBalanceOf(a)])),
     );
 
     const accountList: LlmAccountRow[] = [];
     for (const a of accounts) {
       const balance = balanceOf(a);
+      const knownBalanceSubtotal = knownBalanceOf(a);
       const currentBalance = roundMoney(Number(a.currentBalance));
       // Same currency is 1:1 by definition and asks the rate table nothing.
       const exchangeRate =
@@ -1772,15 +1969,18 @@ export class AccountsService {
         type: a.accountType,
         subType: a.accountSubType ?? null,
         balance,
+        knownBalanceSubtotal,
+        valuationComplete: marketValueOf(a)?.valuationComplete ?? true,
         currentBalance,
         creditLimit: a.creditLimit ?? null,
         interestRate: a.interestRate ?? null,
         currency: a.currencyCode,
-        balanceInDefaultCurrency: inDefaultCurrency(
-          balance,
-          exchangeRate,
-          a.currencyCode,
-        ),
+        // An unknown balance has no converted figure either, and names no
+        // pair: the gap is a missing price, not a missing rate.
+        balanceInDefaultCurrency:
+          balance === null
+            ? null
+            : inDefaultCurrency(balance, exchangeRate, a.currencyCode),
         currentBalanceInDefaultCurrency: inDefaultCurrency(
           currentBalance,
           exchangeRate,
@@ -1814,15 +2014,20 @@ export class AccountsService {
       });
     }
 
-    const latest = await this.netWorthService.getLatestNetWorth(userId);
+    // The totals are global: every account counts, whatever the filters kept.
+    const totals = await this.latestNetWorthTotals(
+      userId,
+      allAccounts,
+      marketValues,
+    );
 
     return {
       accounts: accountList,
-      totalAssets: roundMoney(latest?.assets ?? 0),
-      totalLiabilities: roundMoney(latest?.liabilities ?? 0),
-      netWorth: roundMoney(latest?.netWorth ?? 0),
+      ...totals,
       defaultCurrency,
-      missingRatePairs: [...missingPairs].sort(),
+      missingRatePairs: [
+        ...new Set([...missingPairs, ...totals.missingRatePairs]),
+      ].sort(),
       totalAccounts: accountList.length,
     };
   }
@@ -1868,43 +2073,10 @@ export class AccountsService {
   async delete(userId: string, id: string): Promise<void> {
     const account = await this.findOne(userId, id);
 
-    // Check for regular transactions
-    const transactionCount = await withScopedDb(this.dataSource, (m) =>
-      m.getRepository(Transaction).count({
-        where: { accountId: id },
-      }),
-    );
-
-    if (transactionCount > 0) {
-      throw new BadRequestException(
-        tr(
-          "errors.accounts.deleteWithTransactions",
-          `Cannot delete account with ${transactionCount} transaction(s). Close the account instead.`,
-          { transactionCount },
-        ),
-      );
-    }
-
-    // Check for investment transactions
-    const investmentTransactionCount = await withScopedDb(
-      this.dataSource,
-      (m) =>
-        // includes VOID rows: records read -- a VOID row is still a row the
-        // delete would destroy.
-        m.getRepository(InvestmentTransaction).count({
-          where: { accountId: id },
-        }),
-    );
-
-    if (investmentTransactionCount > 0) {
-      throw new BadRequestException(
-        tr(
-          "errors.accounts.deleteWithInvestmentTransactions",
-          `Cannot delete account with ${investmentTransactionCount} investment transaction(s). Close the account instead.`,
-          { investmentTransactionCount },
-        ),
-      );
-    }
+    // Answered once up front, so a refusal comes before the loan schedule
+    // below is removed; asked again, under the account lock, in the deleting
+    // transaction itself.
+    await withScopedDb(this.dataSource, (m) => this.assertAccountEmpty(m, id));
 
     // If this is a loan or mortgage account with an associated scheduled
     // transaction, delete it first. This runs in the scheduled-transactions
@@ -1933,14 +2105,24 @@ export class AccountsService {
     // Unlink the paired account and remove this account atomically, so a
     // failure cannot leave a dangling link pointing at a deleted account.
     await withScopedDb(this.dataSource, async (m) => {
+      // The check above ran in another transaction, so a bank sync or import
+      // that wrote into the account since was cascaded away with it, leaving
+      // its transfer legs in other accounts one-sided (A26-M19). The account
+      // row lock is the one every writer of its balance takes, and a row
+      // insert's foreign-key lock conflicts with it, so after it no row can
+      // land before the removal: a writer either committed (and the count
+      // sees it) or waits for this delete.
+      await lockAccountsForBalanceWrite(m, [id], userId);
+      await this.assertAccountEmpty(m, id);
+
       if (account.linkedAccountId) {
-        const linkedAccount = await m.findOne(Account, {
-          where: { id: account.linkedAccountId },
-        });
-        if (linkedAccount) {
-          linkedAccount.linkedAccountId = null;
-          await m.save(linkedAccount);
-        }
+        // One column, by a targeted update: a `save` of the unlocked read
+        // wrote its snapshot balance back as well (A26-M13).
+        await m.update(
+          Account,
+          { id: account.linkedAccountId, userId },
+          { linkedAccountId: null },
+        );
       }
 
       await m.remove(account);
@@ -2297,4 +2479,39 @@ export class AccountsService {
       m.query(sql, [...accountIds, userId]),
     );
   }
+}
+
+/**
+ * Set an account's opening balance and move `current_balance` by exactly the
+ * change, inside the caller's transaction.
+ *
+ * The opening balance is part of the balance, so a new one moves it by
+ * `new - old`, both read under the balance-write lock, as one atomic delta.
+ * The import path used to compute an absolute `current_balance` from an
+ * account row read in an earlier transaction, rounded to 2dp: a posting that
+ * committed in between was overwritten, and a file's 100.1234 was stored as
+ * 100.12 (A26-M13). The import calls this; it lives here because this file is
+ * the sanctioned writer of `current_balance`.
+ */
+export async function applyOpeningBalanceChange(
+  m: EntityManager,
+  userId: string,
+  accountId: string,
+  openingBalance: number,
+): Promise<void> {
+  await lockAccountsForBalanceWrite(m, [accountId], userId);
+  const rows: { opening_balance: string | null }[] = await m.query(
+    `SELECT opening_balance FROM accounts WHERE id = $1 AND user_id = $2`,
+    [accountId, userId],
+  );
+  if (rows.length === 0) return;
+  const newOpening = roundMoney(openingBalance);
+  const delta = roundMoney(newOpening - Number(rows[0].opening_balance ?? 0));
+  await m.query(
+    `UPDATE accounts
+        SET opening_balance = $3,
+            current_balance = ROUND(CAST(current_balance AS numeric) + $4, 4)
+      WHERE id = $1 AND user_id = $2`,
+    [accountId, userId, newOpening, delta],
+  );
 }

@@ -258,6 +258,112 @@ describe("SpendingReportsService", () => {
       expect(sql).not.toContain("account_id = ANY");
     });
 
+    describe("tag key and value filter", () => {
+      it("is today's query, byte for byte, without a tag filter", async () => {
+        scopedManager.query.mockResolvedValue([]);
+        categoriesRepository.find.mockResolvedValue([]);
+
+        await service.getSpendingByCategory(
+          mockUserId,
+          "2025-01-01",
+          "2025-12-31",
+        );
+        await service.getSpendingByCategory(
+          mockUserId,
+          "2025-01-01",
+          "2025-12-31",
+          { tagKey: undefined, tagValue: undefined },
+        );
+
+        const [plainSql, plainParams] = scopedManager.query.mock.calls[0];
+        const [sameSql, sameParams] = scopedManager.query.mock.calls[1];
+        expect(plainSql).not.toContain("transaction_tags");
+        expect(plainSql).not.toContain("transaction_split_tags");
+        expect(plainParams).toEqual([mockUserId, "2025-12-31", "2025-01-01"]);
+        expect(sameSql).toBe(plainSql);
+        expect(sameParams).toEqual(plainParams);
+      });
+
+      it("keeps rows whose own tag values include the value, with bound parameters", async () => {
+        scopedManager.query.mockResolvedValue([]);
+        categoriesRepository.find.mockResolvedValue([]);
+
+        await service.getSpendingByCategory(
+          mockUserId,
+          "2025-01-01",
+          "2025-12-31",
+          { accountIds: ["acct-1"], tagKey: "scope", tagValue: "household" },
+        );
+
+        const [sql, params] = scopedManager.query.mock.calls[0];
+        // After the account filter ($4): key $5, value $6; never interpolated.
+        expect(params).toEqual([
+          mockUserId,
+          "2025-12-31",
+          "2025-01-01",
+          ["acct-1"],
+          "scope",
+          "household",
+        ]);
+        expect(sql).toContain("$6::text = ANY(");
+        expect(sql).toContain("LOWER($5)");
+        expect(sql).not.toContain("household");
+        // Reads BOTH levels: the transaction's tags and this split's tags.
+        expect(sql).toContain("FROM transaction_tags");
+        expect(sql).toContain("FROM transaction_split_tags");
+        // The filter narrows; every exclusion of the base query still holds.
+        expect(sql).toContain("t.is_transfer = false");
+        expect(sql).toContain("status != 'VOID'");
+        expect(sql).toContain("t.parent_transaction_id IS NULL");
+        expect(sql).toContain(
+          "GROUP BY COALESCE(ts.category_id, t.category_id)",
+        );
+      });
+
+      it("numbers the tag parameters around an absent start date and accounts", async () => {
+        scopedManager.query.mockResolvedValue([]);
+        categoriesRepository.find.mockResolvedValue([]);
+
+        await service.getSpendingByCategory(
+          mockUserId,
+          undefined,
+          "2025-12-31",
+          {
+            tagKey: "scope",
+            tagValue: "household",
+          },
+        );
+
+        const [sql, params] = scopedManager.query.mock.calls[0];
+        expect(params).toEqual([
+          mockUserId,
+          "2025-12-31",
+          "scope",
+          "household",
+        ]);
+        expect(sql).toContain("$4::text = ANY(");
+        expect(sql).toContain("LOWER($3)");
+      });
+
+      it("filters on nothing when only one half is given", async () => {
+        scopedManager.query.mockResolvedValue([]);
+        categoriesRepository.find.mockResolvedValue([]);
+
+        await service.getSpendingByCategory(
+          mockUserId,
+          undefined,
+          "2025-12-31",
+          {
+            tagKey: "scope",
+          },
+        );
+
+        const [sql, params] = scopedManager.query.mock.calls[0];
+        expect(sql).not.toContain("transaction_tags");
+        expect(params).toEqual([mockUserId, "2025-12-31"]);
+      });
+    });
+
     it("handles uncategorized transactions (null category_id)", async () => {
       scopedManager.query.mockResolvedValue([
         { category_id: null, currency_code: "USD", total: "75.50" },
@@ -1158,6 +1264,115 @@ describe("SpendingReportsService", () => {
       expect(sql).toMatch(
         /ax\.asset_category_id\s*=\s*COALESCE\(ts\.category_id,\s*t\.category_id\)/,
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // A missing exchange rate is unknown, never 1:1 (INV-FX-001)
+  // ---------------------------------------------------------------------------
+  describe("a currency that has no rate", () => {
+    beforeEach(() => {
+      exchangeRateService.getLatestRates.mockResolvedValue([]);
+    });
+
+    it("getSpendingByPayee withholds the total and drops the unconverted payee row", async () => {
+      scopedManager.query.mockResolvedValue([
+        {
+          payee_id: "payee-1",
+          payee_name: "Starbucks",
+          currency_code: "USD",
+          total: "50.00",
+        },
+        {
+          payee_id: "payee-2",
+          payee_name: "Tokyo Shop",
+          currency_code: "JPY",
+          total: "100000",
+        },
+      ]);
+      payeesRepository.findByIds.mockResolvedValue([
+        { id: "payee-1", name: "Starbucks" },
+      ]);
+
+      const result = await service.getSpendingByPayee(
+        mockUserId,
+        "2025-01-01",
+        "2025-12-31",
+      );
+
+      expect(result.totalSpending).toBeNull();
+      expect(result.knownSpending).toBe(50);
+      expect(result.currency).toBe("USD");
+      expect(result.missingCurrencies).toEqual(["JPY"]);
+      expect(result.excludedCount).toBe(1);
+      expect(result.data).toHaveLength(1);
+      expect(JSON.stringify(result)).not.toContain("100000");
+    });
+
+    it("getSpendingByPayee answers zero, not null, for no rows", async () => {
+      scopedManager.query.mockResolvedValue([]);
+
+      const result = await service.getSpendingByPayee(
+        mockUserId,
+        "2025-01-01",
+        "2025-12-31",
+      );
+
+      expect(result.totalSpending).toBe(0);
+      expect(result.knownSpending).toBe(0);
+      expect(result.missingCurrencies).toEqual([]);
+      expect(result.excludedCount).toBe(0);
+    });
+
+    it("getMonthlySpendingTrend leaves the unconverted row out of every month", async () => {
+      scopedManager.query.mockResolvedValue([
+        {
+          month: "2025-01",
+          category_id: "cat-parent",
+          currency_code: "USD",
+          total: "50.00",
+        },
+        {
+          month: "2025-01",
+          category_id: "cat-parent",
+          currency_code: "JPY",
+          total: "100000",
+        },
+        {
+          month: "2025-02",
+          category_id: "cat-parent",
+          currency_code: "JPY",
+          total: "100000",
+        },
+      ]);
+      categoriesRepository.find.mockResolvedValue([mockParentCategory]);
+
+      const result = await service.getMonthlySpendingTrend(
+        mockUserId,
+        "2025-01-01",
+        "2025-12-31",
+      );
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].month).toBe("2025-01");
+      expect(result.data[0].totalSpending).toBe(50);
+      expect(result.currency).toBe("USD");
+      expect(result.missingCurrencies).toEqual(["JPY"]);
+      expect(result.excludedCount).toBe(2);
+      expect(JSON.stringify(result)).not.toContain("100000");
+    });
+
+    it("getMonthlySpendingTrend reports no gaps when everything converted", async () => {
+      scopedManager.query.mockResolvedValue([]);
+
+      const result = await service.getMonthlySpendingTrend(
+        mockUserId,
+        "2025-01-01",
+        "2025-12-31",
+      );
+
+      expect(result.missingCurrencies).toEqual([]);
+      expect(result.excludedCount).toBe(0);
     });
   });
 });

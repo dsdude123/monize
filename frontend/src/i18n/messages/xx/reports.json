@@ -316,6 +316,7 @@
     "totalInflows": "[XX-Total Inflows-XX]",
     "totalOutflows": "[XX-Total Outflows-XX]",
     "netCashFlow": "[XX-Net Cash Flow-XX]",
+    "notAvailable": "[XX-N/A-XX]",
     "monthlyCashFlow": "[XX-Monthly Cash Flow-XX]",
     "inflowsByCategory": "[XX-Inflows by Category-XX]",
     "outflowsByCategory": "[XX-Outflows by Category-XX]",
@@ -330,7 +331,31 @@
     "untagged": "[XX-Untagged-XX]",
     "inflows": "[XX-Tagged inflows-XX]",
     "outflows": "[XX-Tagged outflows-XX]",
-    "sharesExceedNote": "[XX-A row tagged with more than one value under this key counts toward each of them, so per-value shares can add up to more than 100%.-XX]"
+    "inflowsSeries": "[XX-Tagged inflows: {value}-XX]",
+    "outflowsSeries": "[XX-Tagged outflows: {value}-XX]",
+    "includeTransfers": "[XX-Include tagged transfers-XX]",
+    "balance": "[XX-Balance-XX]",
+    "balancePercent": "[XX-Balance %-XX]",
+    "balancePercentTooltip": "[XX-Balance %: {rate}-XX]",
+    "sharesExceedNote": "[XX-A row tagged with more than one value under this key counts toward each of them, so per-value shares can add up to more than 100%.-XX]",
+    "valueLabel": "[XX-Tag value-XX]",
+    "allValues": "[XX-All values-XX]",
+    "selectValue": "[XX-Select a value-XX]",
+    "fundsIncome": "[XX-Income-XX]",
+    "fundsTagged": "[XX-Tagged transfers: {value}-XX]",
+    "fundsAvailable": "[XX-Available funds-XX]",
+    "fundsSpent": "[XX-Spent-XX]",
+    "fundsLoadFailed": "[XX-The tagged transfer figures could not be loaded.-XX]",
+    "notIncome": "[XX-Not income-XX]",
+    "noNetTagged": "[XX-No net tagged inflow for this value in this period.-XX]",
+    "monthlySummaryTitle": "[XX-Balance by month, including tagged transfers: {value}-XX]",
+    "fundsExpenses": "[XX-Expenses-XX]",
+    "fundsPartialNote": "[XX-Some amounts could not be converted (no exchange rate for {currencies}), so Balance is a subtotal and Balance % is not shown.-XX]",
+    "fundsPartialNoteGeneric": "[XX-Some amounts could not be included, so Balance is a subtotal and Balance % is not shown.-XX]",
+    "actualVsAvailable": "[XX-Actual vs available-XX]",
+    "budgetFundsPartialNote": "[XX-Some amounts could not be converted (no exchange rate for {currencies}), so Available funds is a subtotal.-XX]",
+    "budgetFundsPartialNoteGeneric": "[XX-Some amounts could not be included, so Available funds is a subtotal.-XX]",
+    "fundsSeriesName": "[XX-Available funds ({value})-XX]"
   },
   "categoryPerformance": {
     "noBudgets": "[XX-No budgets found. Create a budget to see category performance.-XX]",
@@ -764,6 +789,7 @@
     "totalValue": "[XX-Total Value-XX]",
     "costBasis": "[XX-Cost Basis-XX]",
     "totalGainLoss": "[XX-Total Gain/Loss-XX]",
+    "gainPartialCaption": "[XX-Over priced holdings only-XX]",
     "return": "[XX-Return-XX]",
     "viewHoldings": "[XX-Holdings-XX]",
     "viewAllocation": "[XX-Allocation-XX]",
@@ -821,6 +847,7 @@
     "actionCapitalGainShort": "[XX-Short-Term Capital Gain-XX]",
     "actionCapitalGainLong": "[XX-Long-Term Capital Gain-XX]",
     "actionRedeem": "[XX-Redeem CD/Bond-XX]",
+    "actionReturnOfCapital": "[XX-Return of Capital-XX]",
     "colCommission": "[XX-Commission-XX]",
     "colPriceCurrency": "[XX-Price Currency-XX]",
     "colAmountCurrency": "[XX-Amount Currency-XX]",
@@ -1146,6 +1173,11 @@
     "vsMonth": "[XX-vs {month}-XX]",
     "inMonth": "[XX-{amount} in {month}-XX]",
     "netWorthTotal": "[XX-Total: {amount}-XX]",
+    "netWorthSummaryPartial": "[XX-Your net worth in {currentMonth} was <strong>{netWorth}</strong>. The change compared to {previousMonth} cannot be worked out because no exchange rate is available for {pairs}; add one on the Currencies page.-XX]",
+    "pdfPartialSuffix": "[XX-{amount} (partial)-XX]",
+    "pdfNote": "[XX-Note-XX]",
+    "pdfNotAvailable": "[XX-N/A-XX]",
+    "pdfPartialNote": "[XX-Partial total: no exchange rate for {pairs}.-XX]",
     "netWorthSummary": "[XX-Your net worth in {currentMonth} was <strong>{netWorth}</strong>, which was <delta>{changeAmount}</delta> compared to {previousMonth}.-XX]",
     "pdfTitle": "[XX-Monthly Comparison-XX]",
     "pdfSubtitle": "[XX-{current} vs {previous}-XX]",
@@ -1193,7 +1225,12 @@
     "colNetWorth": "[XX-Net Worth-XX]",
     "barStyle": "[XX-Bar style-XX]",
     "barStyleNetWorth": "[XX-Net worth-XX]",
-    "barStyleAccountType": "[XX-By account type-XX]"
+    "barStyleAccountType": "[XX-By account type-XX]",
+    "notAvailable": "[XX-N/A-XX]",
+    "colNote": "[XX-Note-XX]",
+    "partialMonthNote": "[XX-Partial: no exchange rate for {pairs}-XX]",
+    "pdfPartialNote": "[XX-Partial total: no exchange rate for {pairs}. Add one on the Currencies page.-XX]",
+    "partialMonth": "[XX-Not shown: some amounts in this month could not be converted, so its net worth is unknown.-XX]"
   },
   "portfolioValue": {
     "highestValue": "[XX-Highest Value-XX]",
@@ -1279,6 +1316,7 @@
     "colDate": "[XX-Date-XX]",
     "colShares": "[XX-Shares-XX]",
     "colPrice": "[XX-Price-XX]",
+    "returnOfCapitalRow": "[XX-Return of capital beyond cost basis-XX]",
     "pdfTitle": "[XX-Realized Gains Report-XX]",
     "pdfSubtitle": "[XX-{count} securities | Net gain: {gain}-XX]",
     "csvColSecurity": "[XX-Security-XX]",
@@ -1288,7 +1326,11 @@
     "csvColCostBasis": "[XX-Cost Basis-XX]",
     "csvColGainLoss": "[XX-Gain/Loss-XX]",
     "csvColReturn": "[XX-Return %-XX]",
-    "csvNoRate": "[XX-No rate-XX]"
+    "csvNoRate": "[XX-No rate-XX]",
+    "csvUnknownCost": "[XX-Unknown-XX]",
+    "unknownBasisReason": "[XX-This gain cannot be worked out: the position holds shares that were added with no cost, so what the sold shares cost is unknown. Open the transaction that added them and enter their price.-XX]",
+    "knownPart": "[XX-Known part: {amount}-XX]",
+    "unknownCostNotice": "[XX-{count, plural, one {# sale has} other {# sales have}} an unknown cost, because shares were added with no price. No gain is given for {count, plural, one {it} other {them}}, so the gain totals show only the known part.-XX]"
   },
   "recurringExpenses": {
     "recurringExpenses": "[XX-Recurring Expenses-XX]",
@@ -1851,6 +1893,13 @@
   "foreignCurrencyFees": {
     "noEligibleAccounts": "[XX-No accounts have a foreign-transaction fee configured. Set a fee percentage on an account to track its foreign currency fees here.-XX]"
   },
+  "partialData": {
+    "notice": "[XX-Some figures are partial: {count, plural, one {# amount could not be converted into {displayCurrency} and is} other {# amounts could not be converted into {displayCurrency} and are}} left out. No rate is available for {currencies}; add one on the Currencies page.-XX]",
+    "noticeExcluded": "[XX-Some figures are partial: {count, plural, one {# amount could not be worked out and is} other {# amounts could not be worked out and are}} left out.-XX]",
+    "pdfNote": "[XX-Partial total: no exchange rate for {currencies}-XX]",
+    "pdfNoteExcluded": "[XX-Partial total: {count, plural, one {# amount} other {# amounts}} left out-XX]",
+    "pdfSuffix": "[XX-(partial)-XX]"
+  },
   "sankey": {
     "help": "[XX-Money that came in flows through the middle into what it was spent on, what was saved or invested, and what paid down debt. By default the report covers your open chequing, savings, cash, credit card and line of credit accounts, and a transfer between two of them is not shown. Leave a savings account out of the account filter to see what you moved into it. A credit card payment is never a debt payment: the purchases it settles are already counted as expenses.-XX]",
     "depthLabel": "[XX-Detail-XX]",
@@ -1897,5 +1946,8 @@
       "residualDeficit": "[XX-Drawn from balances-XX]",
       "unlinkedAccount": "[XX-(unlinked account)-XX]"
     }
+  },
+  "pdfExport": {
+    "generatedAt": "[XX-Generated: {timestamp}-XX]"
   }
 }

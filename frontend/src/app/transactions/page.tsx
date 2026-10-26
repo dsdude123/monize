@@ -46,6 +46,7 @@ import { useTransactionFilters } from '@/hooks/useTransactionFilters';
 import { useSortableTable } from '@/hooks/useSortableTable';
 import {
   DEFAULT_TRANSACTION_SORT,
+  PHONE_CARD_OMITTED_SORT_FIELDS,
   TRANSACTION_SORT_STORAGE_KEY,
   nextTransactionSort,
   resolveRegisterSort,
@@ -53,6 +54,7 @@ import {
   type TransactionSortField,
 } from '@/lib/transaction-sort';
 import { useHiddenColumns } from '@/hooks/useHiddenColumns';
+import { useRegisterPhoneCard } from '@/hooks/useRegisterPhoneCard';
 import { BulkSelectionBanner } from '@/components/transactions/BulkSelectionBanner';
 import { Account, isLiabilityAccountType } from '@/types/account';
 import { Institution } from '@/types/institution';
@@ -64,6 +66,7 @@ import { useTransactionsPanelCollapsed } from '@/hooks/useTransactionsPanelColla
 import { ChartCollapseButton, CollapsedChartStrip } from '@/components/transactions/ChartCollapseControls';
 import { useDateFormat } from '@/hooks/useDateFormat';
 import { usePreferencesStore } from '@/store/preferencesStore';
+import { useAuthStore } from '@/store/authStore';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
 import { useFormModal } from '@/hooks/useFormModal';
 import { useSwipeToPaginate } from '@/hooks/useSwipeToPaginate';
@@ -85,6 +88,7 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { createLogger } from '@/lib/logger';
 import { showErrorToast } from '@/lib/errors';
 import { exportToCsv } from '@/lib/csv-export';
+import { afterModalHistoryPop } from '@/lib/after-modal-history-pop';
 import { PAGE_SIZE } from '@/lib/constants';
 import { budgetsApi } from '@/lib/budgets';
 import { CategoryBudgetStatus } from '@/types/budget';
@@ -125,6 +129,9 @@ function TransactionsContent() {
     usePreferencesStore((s) => s.preferences?.defaultCurrency),
   );
   const { convertToDefault } = useExchangeRates();
+  // An acting delegate never adds a warranty: every warranty write is the
+  // owner's.
+  const actingAsDelegate = useAuthStore((s) => s.actingAsUserId) !== null;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   // Joint accounts: effective write permissions per shared account, used to
@@ -284,12 +291,22 @@ function TransactionsContent() {
   // remembered account sort would order the register by a header nobody can
   // reach. Storage is left alone: widening the filter brings it back. A column
   // the reader has hidden is the same shape (the register reads the same
-  // stored set), and showing it again brings that sort back.
+  // stored set), and showing it again brings that sort back. A description or
+  // ref # sort is the same while the phone card is drawn: the card shows
+  // neither, and its sort strip offers no chip for them.
   const { hidden: hiddenColumns } = useHiddenColumns('transactions');
+  const phoneCard = useRegisterPhoneCard('transactions', false);
   const registerSort = useMemo(
-    () => resolveRegisterSort(storedSort, isSingleAccountView, hiddenColumns),
-    [storedSort, isSingleAccountView, hiddenColumns],
+    () => resolveRegisterSort(storedSort, isSingleAccountView, hiddenColumns, phoneCard),
+    [storedSort, isSingleAccountView, hiddenColumns, phoneCard],
   );
+  // Whether the phone card is what holds the remembered sort back. A layout
+  // switch (a phone's density, a window crossing `sm`) changes the resolved
+  // sort with no click and so no tick, so the reload effect watches this too
+  // and reads a switch as a new order, from page 1.
+  const phoneCardHoldsSortBack =
+    phoneCard && PHONE_CARD_OMITTED_SORT_FIELDS.has(storedSort.field);
+  const phoneCardHoldsSortBackRef = useRef(phoneCardHoldsSortBack);
   // The loader reads the sort from here rather than closing over it, so
   // remembering a deep link's fallback order does not re-run the reload effect
   // and fire a second read for the same click. Every other thing the effect
@@ -574,7 +591,12 @@ function TransactionsContent() {
 
   // Update URL and load transactions when page or filters change
   useEffect(() => {
+    // Tracked even before the filters are ready, so only a switch after the
+    // first load counts as a new order.
+    const sortLayoutChanged = phoneCardHoldsSortBackRef.current !== phoneCardHoldsSortBack;
+    phoneCardHoldsSortBackRef.current = phoneCardHoldsSortBack;
     if (!filters.filtersInitialized) return;
+    if (sortLayoutChanged) isFilterChangeRef.current = true;
 
     // Reload static data if invalidated (e.g. after undo/redo)
     loadStaticData();
@@ -616,7 +638,7 @@ function TransactionsContent() {
     } else {
       loadTransactions(page);
     }
-  }, [filters.currentPage, filters.filterAccountIds, filters.filterCategoryIds, filters.filterPayeeIds, filters.filterTagIds, filters.filterStartDate, filters.filterEndDate, filters.filterSearch, filters.filterAmountFrom, filters.filterAmountTo, filters.filterStatuses, filters.filterOriginalCurrencyCodes, filters.filterTagKey, filters.filterTagKeyOp, filters.filterTagKeyValue, filters.filterHasAttachments, filters.updateUrl, loadTransactions, filters.filtersInitialized, undoRedoTick, sortRequestTick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters.currentPage, filters.filterAccountIds, filters.filterCategoryIds, filters.filterPayeeIds, filters.filterTagIds, filters.filterStartDate, filters.filterEndDate, filters.filterSearch, filters.filterAmountFrom, filters.filterAmountTo, filters.filterStatuses, filters.filterOriginalCurrencyCodes, filters.filterTagKey, filters.filterTagKeyOp, filters.filterTagKeyValue, filters.filterHasAttachments, filters.updateUrl, loadTransactions, filters.filtersInitialized, undoRedoTick, sortRequestTick, phoneCardHoldsSortBack]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Once the deep-linked transaction is actually on the page, let the flash
   // linger briefly then clear it, so the highlight does not stick around on
@@ -657,7 +679,9 @@ function TransactionsContent() {
     if (transaction.isTransfer || transaction.isSplit) {
       try {
         const fullTransaction = await transactionsApi.getById(transaction.id);
-        openEdit(fullTransaction);
+        // The register row's warranty count is a list-only field; the form's
+        // Warranties line reads it to decide whether to fetch the list.
+        openEdit({ ...fullTransaction, warrantyCount: transaction.warrantyCount });
       } catch (error) {
         logger.error('Failed to load transaction details:', error);
         openEdit(transaction);
@@ -699,6 +723,50 @@ function TransactionsContent() {
     setShowScheduleForm(true);
   };
 
+  // Add warranty, or a linked warranty, from inside the edit window leaves the
+  // page, so it goes through the window's own close: a dirty form asks first
+  // (Save, Discard or keep editing) and the navigation waits on the answer. It
+  // also waits for the closed Modal's history entry to be popped, which would
+  // otherwise undo the push; a fixed delay lost that race on a slow render. A
+  // bare link in the window is undone the same way, which is why the
+  // Warranties line hands its links here too.
+  const pendingFormNavigation = useRef<string | null>(null);
+  const navigateAfterFormCloses = (href: string) => {
+    afterModalHistoryPop(() => router.push(href));
+  };
+
+  const navigateFromForm = (href: string) => {
+    if (modalProps.onBeforeClose() === false) {
+      pendingFormNavigation.current = href;
+      return;
+    }
+    handleClose();
+    navigateAfterFormCloses(href);
+  };
+
+  const handleAddWarrantyFromForm = (transaction: Transaction) => {
+    navigateFromForm(`/warranties?new=1&transactionId=${transaction.id}`);
+  };
+
+  // A new transaction's Add arrives once the form has saved it, so there is
+  // nothing unsaved to ask about, and no register to refresh behind a page
+  // that is about to be left: close and go on to the warranty.
+  const handleAddWarrantyAfterCreate = (created: Transaction) => {
+    handleClose();
+    navigateAfterFormCloses(`/warranties?new=1&transactionId=${created.id}`);
+  };
+
+  const handleOpenWarrantyFromForm = (warrantyId: string) => {
+    navigateFromForm(`/warranties/${warrantyId}`);
+  };
+
+  /** The navigation a dirty form's dialog was holding, now that it may go. */
+  const releaseFormNavigation = () => {
+    const href = pendingFormNavigation.current;
+    pendingFormNavigation.current = null;
+    if (href !== null) navigateAfterFormCloses(href);
+  };
+
   const handleScheduleFormSuccess = () => {
     setSchedulingFrom(undefined);
     setShowScheduleForm(false);
@@ -711,6 +779,7 @@ function TransactionsContent() {
   };
 
   const handleClose = () => {
+    pendingFormNavigation.current = null;
     setDuplicatingFrom(undefined);
     close();
   };
@@ -722,6 +791,9 @@ function TransactionsContent() {
     close();
     setFormKey(prev => prev + 1);
     loadData();
+    // Save from the unsaved-changes dialog: the edits are kept, and the
+    // navigation that asked for the close goes ahead.
+    releaseFormNavigation();
   };
 
   // "Create & New" keeps the window open and the form resets itself, so the
@@ -1449,11 +1521,15 @@ function TransactionsContent() {
             onCancel={handleClose}
             onDirtyChange={setFormDirty}
             submitRef={formSubmitRef}
+            onAddWarranty={actingAsDelegate ? undefined : handleAddWarrantyFromForm}
+            onAddWarrantyAfterCreate={actingAsDelegate ? undefined : handleAddWarrantyAfterCreate}
+            onOpenWarranty={handleOpenWarrantyFromForm}
           />
         </Modal>
         <UnsavedChangesDialog
           {...unsavedChangesDialog}
-          onDiscard={() => { setDuplicatingFrom(undefined); unsavedChangesDialog.onDiscard(); }}
+          onDiscard={() => { setDuplicatingFrom(undefined); unsavedChangesDialog.onDiscard(); releaseFormNavigation(); }}
+          onCancel={() => { pendingFormNavigation.current = null; unsavedChangesDialog.onCancel(); }}
         />
 
         {/* Schedule as Recurring Modal */}

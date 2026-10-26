@@ -135,6 +135,7 @@
       "toggleTitle": "日期中不顯示年份，為收款人留出更多空間"
     },
     "attachmentsCount": "{count, plural, other {# 個附件}}",
+    "warrantiesCount": "{count, plural, other {# 項保固}}",
     "today": "今天",
     "export": {
       "button": "匯出",
@@ -431,6 +432,7 @@
       "destinationRequired": "請選擇目的科目",
       "sameAccount": "來源科目與目的科目不能相同",
       "negativeTransfer": "轉帳金額不得為負數",
+      "convertToTransferUnsupported": "無法在此將現有交易轉換為轉帳。請刪除該交易，然後改為建立轉帳。",
       "payeeCreated": "收款人「{name}」已建立",
       "payeeCreateFailed": "建立收款人失敗",
       "payeeReactivated": "收款人「{name}」已重新啟用",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "包含 {percent}% 境外交易手續費（{fee}）。"
     },
-    "jointSplitDisabled": "共享帳戶中的分割交易只能由擁有者管理"
+    "jointSplitDisabled": "共享帳戶中的分割交易只能由擁有者管理",
+    "warranties": {
+      "title": "保固",
+      "add": "新增保固",
+      "expires": "{date} 到期",
+      "loading": "正在載入保固",
+      "loadError": "無法載入此交易的保固。",
+      "empty": "尚無保固"
+    }
   },
   "splitEditor": {
     "header": "分割詳情",
@@ -626,7 +636,8 @@
       "amountRange": "金額 50 至 100",
       "datePeriod": "2026 年 3 月的任何一天",
       "isSplit": "分割交易",
-      "hasAttachment": "有附件"
+      "hasAttachment": "有附件",
+      "hasWarranty": "有保固"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "有附件",
+        "warranty": "有保固",
         "ref": "有參考號碼",
         "memo": "有備註",
         "tag": "有標籤"

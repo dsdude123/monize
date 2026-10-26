@@ -25,7 +25,6 @@
     "manual": "[XX-Manual-XX]",
     "manualTitle": "[XX-Requires manual posting-XX]",
     "negativeBalanceWarning": "[XX-This transaction will cause the account balance to go below zero-XX]",
-    "viewAll": "[XX-View all bills & deposits-XX]",
     "moreItems": "[XX-+{count} more-XX]",
     "overdue": "[XX-Overdue-XX]",
     "today": "[XX-Today-XX]",
@@ -90,8 +89,12 @@
     "title": "[XX-Spending Insights-XX]",
     "empty": "[XX-No insights available. Visit the Insights page to generate your first analysis.-XX]",
     "goToInsights": "[XX-Go to Insights-XX]",
-    "viewAll": "[XX-View all insights-XX]",
     "activeCount": "[XX-{count} active-XX]"
+  },
+  "warrantiesExpiring": {
+    "title": "[XX-Warranties expiring soon-XX]",
+    "empty": "[XX-Nothing expires in the next 30 days-XX]",
+    "loadFailed": "[XX-Couldn't load your expiring warranties. Reload the dashboard to try again.-XX]"
   },
   "topMovers": {
     "title": "[XX-Top Movers-XX]",
@@ -125,8 +128,7 @@
     "dailyChange": "[XX-Daily change-XX]",
     "dailyChangeOn": "[XX-Daily change · {date}-XX]",
     "openPriceHistory": "[XX-Price history for {symbol}-XX]",
-    "refreshPrices": "[XX-Refresh prices-XX]",
-    "manage": "[XX-Manage securities-XX]"
+    "refreshPrices": "[XX-Refresh prices-XX]"
   },
   "netWorth": {
     "title": "[XX-Net Worth-XX]",
@@ -143,6 +145,7 @@
     "netWorthLabel": "[XX-Net Worth-XX]",
     "assets": "[XX-Assets-XX]",
     "liabilities": "[XX-Liabilities-XX]",
+    "partialName": "[XX-{name} (partial)-XX]",
     "viewCallouts": "[XX-Labels-XX]",
     "viewLegend": "[XX-Legend-XX]"
   },

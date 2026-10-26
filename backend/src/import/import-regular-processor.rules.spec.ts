@@ -1,4 +1,5 @@
 import { ImportRegularProcessorService } from "./import-regular-processor.service";
+import { ExchangeRateService } from "../currencies/exchange-rate.service";
 import { ImportContext } from "./import-context";
 import { ImportResultDto } from "./dto/import.dto";
 import { AccountType } from "../accounts/entities/account.entity";
@@ -77,6 +78,7 @@ describe("ImportRegularProcessorService import rules", () => {
     importResult: {
       imported: 0,
       skipped: 0,
+      skippedRows: [],
       errors: 0,
       errorMessages: [],
       categoriesCreated: 0,
@@ -85,6 +87,7 @@ describe("ImportRegularProcessorService import rules", () => {
       securitiesCreated: 0,
     } as ImportResultDto,
     transferDupCounts: new Map(),
+    heldExternalIds: new Map(),
     importRules: rules,
     ...over,
   });
@@ -115,6 +118,7 @@ describe("ImportRegularProcessorService import rules", () => {
     };
     service = new ImportRegularProcessorService(
       applier as unknown as TransactionRulesApplierService,
+      {} as ExchangeRateService,
     );
   });
 

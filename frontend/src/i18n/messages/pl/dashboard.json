@@ -25,7 +25,6 @@
     "manual": "Ręczne",
     "manualTitle": "Wymaga ręcznego zaksięgowania",
     "negativeBalanceWarning": "Ta transakcja spowoduje, że saldo konta spadnie poniżej zera",
-    "viewAll": "Zobacz wszystkie rachunki i wpłaty",
     "moreItems": "+{count} więcej",
     "overdue": "Zaległe",
     "today": "Dzisiaj",
@@ -90,8 +89,12 @@
     "title": "Analiza wydatków",
     "empty": "Brak dostępnych analiz. Odwiedź stronę analiz, aby wygenerować pierwszą analizę.",
     "goToInsights": "Przejdź do analiz",
-    "viewAll": "Zobacz wszystkie analizy",
     "activeCount": "aktywne: {count}"
+  },
+  "warrantiesExpiring": {
+    "title": "Gwarancje wkrótce wygasające",
+    "empty": "W ciągu najbliższych 30 dni nic nie wygasa",
+    "loadFailed": "Nie udało się wczytać wygasających gwarancji. Odśwież pulpit, aby spróbować ponownie."
   },
   "topMovers": {
     "title": "Największe zmiany",
@@ -125,8 +128,7 @@
     "dailyChange": "Zmiana dzienna",
     "dailyChangeOn": "Zmiana dzienna · {date}",
     "openPriceHistory": "Historia ceny: {symbol}",
-    "refreshPrices": "Odśwież ceny",
-    "manage": "Zarządzaj papierami wartościowymi"
+    "refreshPrices": "Odśwież ceny"
   },
   "netWorth": {
     "title": "Wartość netto",
@@ -143,6 +145,7 @@
     "netWorthLabel": "Wartość netto",
     "assets": "Aktywa",
     "liabilities": "Zobowiązania",
+    "partialName": "{name} (częściowe)",
     "viewCallouts": "Etykiety",
     "viewLegend": "Legenda"
   },

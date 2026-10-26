@@ -316,6 +316,7 @@
     "totalInflows": "Total des entrées",
     "totalOutflows": "Total des sorties",
     "netCashFlow": "Flux de trésorerie net",
+    "notAvailable": "N/A",
     "monthlyCashFlow": "Flux de trésorerie mensuels",
     "inflowsByCategory": "Entrées par catégorie",
     "outflowsByCategory": "Sorties par catégorie",
@@ -330,7 +331,31 @@
     "untagged": "Sans étiquette",
     "inflows": "Entrées étiquetées",
     "outflows": "Sorties étiquetées",
-    "sharesExceedNote": "Une ligne étiquetée avec plusieurs valeurs pour cette clé compte pour chacune d'elles ; la somme des parts par valeur peut donc dépasser 100 %."
+    "inflowsSeries": "Entrées étiquetées : {value}",
+    "outflowsSeries": "Sorties étiquetées : {value}",
+    "includeTransfers": "Inclure les virements étiquetés",
+    "balance": "Solde",
+    "balancePercent": "Solde %",
+    "balancePercentTooltip": "Solde % : {rate}",
+    "sharesExceedNote": "Une ligne étiquetée avec plusieurs valeurs pour cette clé compte pour chacune d'elles ; la somme des parts par valeur peut donc dépasser 100 %.",
+    "valueLabel": "Valeur d'étiquette",
+    "allValues": "Toutes les valeurs",
+    "selectValue": "Sélectionnez une valeur",
+    "fundsIncome": "Revenus",
+    "fundsTagged": "Virements étiquetés : {value}",
+    "fundsAvailable": "Fonds disponibles",
+    "fundsSpent": "Dépensé",
+    "fundsLoadFailed": "Les chiffres des virements étiquetés n'ont pas pu être chargés.",
+    "notIncome": "Pas un revenu",
+    "noNetTagged": "Aucune entrée nette étiquetée pour cette valeur sur cette période.",
+    "monthlySummaryTitle": "Solde par mois, virements étiquetés inclus : {value}",
+    "fundsExpenses": "Dépenses",
+    "fundsPartialNote": "Certains montants n'ont pas pu être convertis (pas de taux de change pour {currencies}) : le solde est donc un sous-total et Solde % n'est pas affiché.",
+    "fundsPartialNoteGeneric": "Certains montants n'ont pas pu être inclus : le solde est donc un sous-total et Solde % n'est pas affiché.",
+    "actualVsAvailable": "Réel par rapport au disponible",
+    "budgetFundsPartialNote": "Certains montants n'ont pas pu être convertis (pas de taux de change pour {currencies}) : les fonds disponibles sont donc un sous-total.",
+    "budgetFundsPartialNoteGeneric": "Certains montants n'ont pas pu être inclus : les fonds disponibles sont donc un sous-total.",
+    "fundsSeriesName": "Fonds disponibles ({value})"
   },
   "categoryPerformance": {
     "noBudgets": "Aucun budget trouvé. Créez un budget pour voir la performance par catégorie.",
@@ -764,6 +789,7 @@
     "totalValue": "Valeur totale",
     "costBasis": "Coût de revient",
     "totalGainLoss": "Gain/perte total",
+    "gainPartialCaption": "Uniquement sur les positions cotées",
     "return": "Rendement",
     "viewHoldings": "Positions",
     "viewAllocation": "Répartition",
@@ -821,6 +847,7 @@
     "actionCapitalGainShort": "Plus-value à court terme",
     "actionCapitalGainLong": "Plus-value à long terme",
     "actionRedeem": "Remboursement CD/obligation",
+    "actionReturnOfCapital": "Remboursement de capital",
     "colCommission": "Commission",
     "colPriceCurrency": "Devise du prix",
     "colAmountCurrency": "Devise du montant",
@@ -1146,6 +1173,11 @@
     "vsMonth": "vs {month}",
     "inMonth": "{amount} en {month}",
     "netWorthTotal": "Total : {amount}",
+    "netWorthSummaryPartial": "Votre valeur nette en {currentMonth} était de <strong>{netWorth}</strong>. La variation par rapport à {previousMonth} ne peut pas être calculée, car aucun taux de change n'est disponible pour {pairs} ; ajoutez-en un sur la page Devises.",
+    "pdfPartialSuffix": "{amount} (partiel)",
+    "pdfNote": "Remarque",
+    "pdfNotAvailable": "N/A",
+    "pdfPartialNote": "Total partiel : aucun taux de change pour {pairs}.",
     "netWorthSummary": "Votre valeur nette en {currentMonth} était de <strong>{netWorth}</strong>, soit <delta>{changeAmount}</delta> par rapport à {previousMonth}.",
     "pdfTitle": "Comparaison mensuelle",
     "pdfSubtitle": "{current} vs {previous}",
@@ -1193,7 +1225,12 @@
     "colNetWorth": "Valeur nette",
     "barStyle": "Style des barres",
     "barStyleNetWorth": "Valeur nette",
-    "barStyleAccountType": "Par type de compte"
+    "barStyleAccountType": "Par type de compte",
+    "notAvailable": "N/A",
+    "colNote": "Remarque",
+    "partialMonthNote": "Partiel : aucun taux de change pour {pairs}",
+    "pdfPartialNote": "Total partiel : aucun taux de change pour {pairs}. Ajoutez-en un sur la page Devises.",
+    "partialMonth": "Non affiché : certains montants de ce mois n'ont pas pu être convertis, sa valeur nette est donc inconnue."
   },
   "portfolioValue": {
     "highestValue": "Valeur la plus haute",
@@ -1279,6 +1316,7 @@
     "colDate": "Date",
     "colShares": "Parts",
     "colPrice": "Prix",
+    "returnOfCapitalRow": "Remboursement de capital au-delà du prix de revient",
     "pdfTitle": "Rapport des gains réalisés",
     "pdfSubtitle": "{count} titres | Gain net : {gain}",
     "csvColSecurity": "Titre",
@@ -1288,7 +1326,11 @@
     "csvColCostBasis": "Coût de revient",
     "csvColGainLoss": "Gain/perte",
     "csvColReturn": "Rendement %",
-    "csvNoRate": "Pas de taux"
+    "csvNoRate": "Pas de taux",
+    "csvUnknownCost": "Inconnu",
+    "unknownBasisReason": "Ce gain ne peut pas être calculé : la position contient des titres ajoutés sans coût, le coût de revient des titres vendus est donc inconnu. Ouvrez la transaction qui les a ajoutés et saisissez leur prix.",
+    "knownPart": "Partie connue : {amount}",
+    "unknownCostNotice": "{count, plural, one {# vente a} other {# ventes ont}} un coût inconnu, car des titres ont été ajoutés sans prix. Aucun gain n'est indiqué pour {count, plural, one {elle} other {elles}}, les totaux des gains n'affichent donc que la partie connue."
   },
   "recurringExpenses": {
     "recurringExpenses": "Dépenses récurrentes",
@@ -1851,6 +1893,13 @@
   "foreignCurrencyFees": {
     "noEligibleAccounts": "Aucun compte n'a de frais de transaction à l'étranger configurés. Définissez un pourcentage de frais sur un compte pour suivre ici ses frais de transaction à l'étranger."
   },
+  "partialData": {
+    "notice": "Certains montants sont partiels : {count, plural, one {# montant n'a pas pu être converti en {displayCurrency} et est} other {# montants n'ont pas pu être convertis en {displayCurrency} et sont}} exclus. Aucun taux n'est disponible pour {currencies} ; ajoutez-en un sur la page Devises.",
+    "noticeExcluded": "Certains montants sont partiels : {count, plural, one {# montant n'a pas pu être calculé et est} other {# montants n'ont pas pu être calculés et sont}} exclus.",
+    "pdfNote": "Total partiel : aucun taux de change pour {currencies}",
+    "pdfNoteExcluded": "Total partiel : {count, plural, one {# montant exclu} other {# montants exclus}}",
+    "pdfSuffix": "(partiel)"
+  },
   "sankey": {
     "help": "L’argent reçu passe par le centre vers ce à quoi il a été dépensé, ce qui a été épargné ou placé et ce qui a remboursé des dettes. Par défaut, le rapport couvre vos comptes chèques, d’épargne, d’espèces, de carte de crédit et de marge de crédit ouverts, et un virement entre deux d’entre eux n’est pas affiché. Retirez un compte d’épargne du filtre de comptes pour voir ce que vous y avez transféré. Un paiement de carte de crédit n’est jamais un remboursement de dette : les achats qu’il règle sont déjà comptés comme dépenses.",
     "depthLabel": "Niveau de détail",
@@ -1897,5 +1946,8 @@
       "residualDeficit": "Puisé dans les soldes",
       "unlinkedAccount": "(compte non lié)"
     }
+  },
+  "pdfExport": {
+    "generatedAt": "Généré : {timestamp}"
   }
 }

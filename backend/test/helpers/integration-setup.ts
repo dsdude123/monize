@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { Global, Module } from "@nestjs/common";
-import type { Provider } from "@nestjs/common";
+import type { Provider, Type } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { ConfigModule } from "@nestjs/config";
 import { I18nService } from "nestjs-i18n";
@@ -13,14 +13,6 @@ import { withScopedDb } from "@/common/db/scoped-db";
 import { withSystemContext } from "@/common/db/with-context";
 import { User } from "@/users/entities/user.entity";
 import { NetWorthService } from "@/net-worth/net-worth.service";
-import { ScheduledTransactionsModule } from "@/scheduled-transactions/scheduled-transactions.module";
-import { ScheduledTransaction } from "@/scheduled-transactions/entities/scheduled-transaction.entity";
-import { ScheduledTransactionSplit } from "@/scheduled-transactions/entities/scheduled-transaction-split.entity";
-import { ScheduledTransactionOverride } from "@/scheduled-transactions/entities/scheduled-transaction-override.entity";
-import { Account } from "@/accounts/entities/account.entity";
-import { ScheduledTransactionsService } from "@/scheduled-transactions/scheduled-transactions.service";
-import { ScheduledTransactionOverrideService } from "@/scheduled-transactions/scheduled-transaction-override.service";
-import { ScheduledTransactionLoanService } from "@/scheduled-transactions/scheduled-transaction-loan.service";
 import type { TypeOrmModuleOptions } from "@nestjs/typeorm";
 import * as bcrypt from "bcryptjs";
 import {
@@ -30,7 +22,9 @@ import {
 } from "./rls-setup";
 import { settlePendingPriceWrites } from "@/securities/security-price.service";
 import { settlePendingHistoryWrites } from "@/action-history/action-history.service";
+import { settlePendingAccountRecalcs } from "@/net-worth/net-worth.service";
 import { DatabaseStorageProvider } from "@/attachments/storage/database-storage.provider";
+import type { AttachmentStorageProvider } from "@/attachments/storage/attachment-storage.interface";
 import { ATTACHMENT_STORAGE_PROVIDER } from "@/attachments/storage/attachment-storage.interface";
 import { AttachmentStorageRegistry } from "@/attachments/storage/attachment-storage.registry";
 import { CLUSTER_MODE } from "@/common/cluster/cluster-mode";
@@ -115,35 +109,17 @@ class TestI18nModule {}
 class TestClusterModule {}
 
 /**
- * What the real `ScheduledTransactionsModule` lets other modules inject, read
- * off its own metadata rather than restated here.
- *
- * The stub below stands in for that module, so its export list is a claim about
- * the real one -- and a hand-written copy of a list only fails when a consumer
- * appears. Issue #1247 added `ScheduledEffectiveAmountService` and
- * `ScheduledOccurrenceService` to those exports and gave
- * `NotificationsModule`/`BudgetsModule` a dependency on them; the stub went on
- * compiling until those consumers were reached, and then eighteen suites failed
- * with "argument ScheduledOccurrenceService at index [5] is available in the
- * NotificationsModule module". Derived, a new export is stubbed the day it
- * exists.
- */
-const SCHEDULED_TRANSACTIONS_EXPORTS: unknown[] =
-  Reflect.getMetadata("exports", ScheduledTransactionsModule) ?? [];
-
-/** Stubbed but deliberately not exported: internal collaborators the real module keeps to itself. */
-const SCHEDULED_TRANSACTIONS_INTERNALS: unknown[] = [
-  ScheduledTransactionOverrideService,
-  ScheduledTransactionLoanService,
-];
-
-/**
  * Creates a NestJS TestingModule wired to a real PostgreSQL database.
  * Uses `synchronize: true` and `dropSchema: true` so each test suite
  * starts with a clean schema derived from entity metadata.
  *
- * Replaces ScheduledTransactionsModule with a stub to break the
- * circular dependency (Transactions -> Accounts -> ScheduledTransactions -> Transactions).
+ * The module graph is the production one: `ScheduledTransactionsModule` is the
+ * real module wherever a suite's imports reach it, resolved through the same
+ * `forwardRef` edges the app uses (Transactions -> Accounts ->
+ * ScheduledTransactions -> Transactions). It used to be replaced by a stub
+ * whose services were empty objects, so the real `post()`, the auto-post cron
+ * and every consumer of the occurrence services could not run in any suite
+ * (A26-M42).
  *
  * NetWorthService.triggerDebouncedRecalc is mocked to a no-op to prevent
  * timer leaks in tests.
@@ -169,15 +145,7 @@ export async function createIntegrationModule(
   modules: any[],
   { typeOrmOptions = {}, applyRls = true }: IntegrationModuleOptions = {},
 ): Promise<TestingModule> {
-  if (!SCHEDULED_TRANSACTIONS_EXPORTS.includes(ScheduledTransactionsService)) {
-    // A floor on the derivation: an empty or unrecognisable metadata read would
-    // otherwise produce a stub that exports nothing and blame every consumer.
-    throw new Error(
-      "could not read ScheduledTransactionsModule's exports -- the integration stub would export nothing",
-    );
-  }
-
-  const moduleBuilder = Test.createTestingModule({
+  const module = await Test.createTestingModule({
     imports: [
       ConfigModule.forRoot({ isGlobal: true }),
       TestI18nModule,
@@ -188,31 +156,7 @@ export async function createIntegrationModule(
       } as never),
       ...modules,
     ],
-  })
-    // Replace ScheduledTransactionsModule to break circular dependency.
-    // AccountsModule imports ScheduledTransactionsModule (forwardRef),
-    // which imports TransactionsModule (forwardRef), causing undefined
-    // in the circular chain. We stub it with just the entity registrations
-    // and mock services.
-    .overrideModule(ScheduledTransactionsModule)
-    .useModule({
-      module: class StubScheduledTransactionsModule {},
-      imports: [
-        TypeOrmModule.forFeature([
-          ScheduledTransaction,
-          ScheduledTransactionSplit,
-          ScheduledTransactionOverride,
-          Account,
-        ]),
-      ],
-      providers: [
-        ...SCHEDULED_TRANSACTIONS_EXPORTS,
-        ...SCHEDULED_TRANSACTIONS_INTERNALS,
-      ].map((token) => ({ provide: token as never, useValue: {} })),
-      exports: SCHEDULED_TRANSACTIONS_EXPORTS as never[],
-    });
-
-  const module = await moduleBuilder.compile();
+  }).compile();
 
   // Bring the synchronize-built schema up to the real database's shape: runtime
   // role + grants, RLS helper functions and policies, updated_at triggers (T1).
@@ -268,6 +212,10 @@ export async function cleanTables(
   // callers, so a history INSERT can be in flight against the `users` row
   // this truncate is about to remove.
   await settlePendingHistoryWrites();
+  // And for account recomputes: the post-import pass starts one per account
+  // without awaiting it, and its reads of `transactions` deadlocked against
+  // this truncate (ofx-import-fitid, "deadlock detected" in cleanTables).
+  await settlePendingAccountRecalcs();
   const tables = tableNames.join(", ");
   await dataSource.query(`TRUNCATE ${tables} CASCADE`);
 }
@@ -499,18 +447,24 @@ function restoreRlsMode(previous: string | undefined): void {
  * class over that one provider, so a row naming any other backend resolves to
  * `null` here exactly as it would in a deployment that has not configured it.
  */
-export function attachmentStorageProviders(): Provider[] {
+export function attachmentStorageProviders(
+  options: { provider?: Type<AttachmentStorageProvider> } = {},
+): Provider[] {
+  // A suite whose subject is an external provider (`local` over a real
+  // directory) names the class here, so the token and the registry still come
+  // from this one list rather than a second copy in the suite.
+  const bound = options.provider ?? DatabaseStorageProvider;
   return [
-    DatabaseStorageProvider,
+    bound,
     {
       provide: ATTACHMENT_STORAGE_PROVIDER,
-      useExisting: DatabaseStorageProvider,
+      useExisting: bound,
     },
     {
       provide: AttachmentStorageRegistry,
-      useFactory: (database: DatabaseStorageProvider) =>
-        new AttachmentStorageRegistry(database, [database]),
-      inject: [DatabaseStorageProvider],
+      useFactory: (provider: AttachmentStorageProvider) =>
+        new AttachmentStorageRegistry(provider, [provider]),
+      inject: [bound],
     },
   ];
 }
