@@ -9,6 +9,7 @@ import { ModuleRef } from "@nestjs/core";
 import { DataSource, EntityManager } from "typeorm";
 import { Cron } from "@nestjs/schedule";
 import { BondPriceService } from "../bonds/bond-price.service";
+import type { HoldingsService } from "../securities/holdings.service";
 import {
   clearForeignSeries,
   restoredSeries,
@@ -27,18 +28,14 @@ import {
 } from "../transactions/remove-transaction-leg";
 import { Transaction } from "../transactions/entities/transaction.entity";
 import { TransactionSplit } from "../transactions/entities/transaction-split.entity";
+import { SplitKind } from "../transactions/entities/split-kind.enum";
 import { assertReconciledRowsMutable } from "../transactions/reconciled-lock.util";
 import { Account } from "../accounts/entities/account.entity";
+import { withResolvedMortgageTypeProperty } from "../accounts/legacy-mortgage-type.util";
 import { Category } from "../categories/entities/category.entity";
 import { Payee } from "../payees/entities/payee.entity";
 import { Tag } from "../tags/entities/tag.entity";
 import { InvestmentTransaction } from "../securities/entities/investment-transaction.entity";
-import {
-  acquisitionCost,
-  applyActionToQuantity,
-  isQuantityOnlyAction,
-  INVESTMENT_REPLAY_ORDER_SQL,
-} from "../securities/investment-replay.util";
 import { Security } from "../securities/entities/security.entity";
 import { ScheduledTransaction } from "../scheduled-transactions/entities/scheduled-transaction.entity";
 import { Budget } from "../budgets/entities/budget.entity";
@@ -50,7 +47,6 @@ import { repriceSettledLoanTemplates } from "../loan-installments/reprice-templa
 import {
   LockedTransactionRow,
   lockAccountsForBalanceWrite,
-  lockHoldingScope,
   lockTransactionRows,
 } from "../common/db/locks";
 import { LEDGER_MOVEMENT_PREDICATE } from "../common/ledger-balance.sql";
@@ -78,6 +74,167 @@ function assertTransactionCreateRedoable(action: ActionHistory): void {
       "This transaction created entries in other accounts, so it cannot be redone. Create it again instead",
     ),
     errorCode: "REDO_CREATE_WITH_LEGS",
+  });
+}
+
+/**
+ * Account columns an undo or redo never writes back from a snapshot.
+ *
+ * `current_balance` is derived from the ledger: restoring the edit-time figure
+ * erased every movement no action recorded since (the due-balance cron, a
+ * bank sync, a grantee's posting), leaving chequing at 5,000.00 beside a
+ * ledger of 4,800.00 (A26-H06). The rest are lifecycle and pairing state the
+ * account edit does not change; close, reopen and pairing have their own
+ * paths with their own checks.
+ */
+const ACCOUNT_UNDO_DERIVED_FIELDS = [
+  "currentBalance",
+  "isClosed",
+  "closedDate",
+  "linkedAccountId",
+] as const;
+
+/**
+ * A loan's columns that `AccountsService.update` couples to its payment
+ * template: a change to any of them reprices the template or relinks its
+ * interest line in the same transaction (INV-LOAN-007, INV-LOAN-010). A
+ * snapshot restore replays the column and not the coupling, so the bill kept
+ * the other method's installment, or the template stopped being managed.
+ */
+const LOAN_TEMPLATE_FIELDS = [
+  "mortgageType",
+  "prepaymentMode",
+  "amortizationMonths",
+  "originalPrincipal",
+  "paymentAmount",
+  "paymentFrequency",
+  "interestCategoryId",
+  "sourceAccountId",
+  "scheduledTransactionId",
+  "paymentMatchingRuleId",
+] as const;
+
+/**
+ * Refuses, before anything is written, the undo or redo of an account edit
+ * that changed a template-coupled column of a loan with a schedule: the user
+ * edits the loan back, which runs the reprice and relink.
+ */
+function assertAccountEditUndoable(action: ActionHistory): void {
+  const before = action.beforeData ?? {};
+  const after = action.afterData ?? {};
+  if (!(before.scheduledTransactionId ?? after.scheduledTransactionId)) return;
+  const changed = LOAN_TEMPLATE_FIELDS.some(
+    (field) =>
+      JSON.stringify(before[field] ?? null) !==
+      JSON.stringify(after[field] ?? null),
+  );
+  if (!changed) return;
+  throw new ConflictException({
+    message: tr(
+      "errors.actionHistory.loanEditNotUndoable",
+      "This loan change cannot be undone automatically. Edit the loan to change it back.",
+    ),
+    errorCode: "LOAN_EDIT_NOT_UNDOABLE",
+  });
+}
+
+interface SplitSnapshot {
+  kind?: string | null;
+  categoryId?: string | null;
+  transferAccountId?: string | null;
+  linkedTransactionId?: string | null;
+  amount?: number | string | null;
+  memo?: string | null;
+}
+
+function splitKindOf(split: SplitSnapshot): SplitKind {
+  return (
+    (split.kind as SplitKind | null | undefined) ??
+    (split.transferAccountId ? SplitKind.TRANSFER : SplitKind.CATEGORY)
+  );
+}
+
+/** A split line that moves money outside its own row (a leg in another account). */
+function isLegSplit(split: SplitSnapshot): boolean {
+  return (
+    !!split.transferAccountId ||
+    !!split.linkedTransactionId ||
+    splitKindOf(split) !== SplitKind.CATEGORY
+  );
+}
+
+/**
+ * Whether two split snapshots hold the same lines by value, order aside. Ids
+ * and linked leg ids are left out: an edit that resends the splits re-creates
+ * both, and that is not a change the user made.
+ */
+function splitsEqualByValue(a: unknown, b: unknown): boolean {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  const keys = (list: SplitSnapshot[]) =>
+    list
+      .map((s) =>
+        JSON.stringify([
+          splitKindOf(s),
+          s.categoryId ?? null,
+          s.transferAccountId ?? null,
+          Math.round(Number(s.amount) * 10000),
+          s.memo || null,
+        ]),
+      )
+      .sort();
+  return JSON.stringify(keys(a)) === JSON.stringify(keys(b));
+}
+
+/**
+ * Refuses, before anything is written, the undo or redo of an edit that
+ * changed split lines which move money to other accounts: the edit deleted
+ * and re-created the counterpart legs, so the recorded lines name rows that
+ * are gone. The user edits the transaction back instead.
+ */
+function assertSplitLegsUndoable(
+  beforeSplits: unknown,
+  afterSplits: unknown,
+): void {
+  const lists = [beforeSplits, afterSplits].map((list) =>
+    Array.isArray(list) ? (list as SplitSnapshot[]) : [],
+  );
+  if (!lists.some((list) => list.some(isLegSplit))) return;
+  throw new ConflictException({
+    message: tr(
+      "errors.actionHistory.undoSplitLegsChanged",
+      "This edit changed split lines that move money to other accounts, so it cannot be undone automatically. Edit the transaction to change it back.",
+    ),
+    errorCode: "UNDO_SPLIT_LEGS_CHANGED",
+  });
+}
+
+/**
+ * Refuses, before anything is written, the undo or redo of a status edit that
+ * voided or restored a row with legs: the edit propagated VOID to the
+ * counterparts in other accounts, but history holds only the edited row, so a
+ * replay would move one side of the pair. The user changes the status back.
+ */
+function assertVoidChangeUndoable(
+  before: Record<string, any>,
+  after: Record<string, any>,
+): void {
+  if ((before.status === "VOID") === (after.status === "VOID")) return;
+  const hasLegs = [before, after].some(
+    (snap) =>
+      (snap.isTransfer === true && !!snap.linkedTransactionId) ||
+      (Array.isArray(snap.splits) &&
+        (snap.splits as SplitSnapshot[]).some(
+          (split) => !!split.linkedTransactionId || !!split.transferAccountId,
+        )),
+  );
+  if (!hasLegs) return;
+  throw new ConflictException({
+    message: tr(
+      "errors.actionHistory.undoVoidWithLegs",
+      "This change voided or restored entries in other accounts, so it cannot be undone automatically. Change the status back instead.",
+    ),
+    errorCode: "UNDO_VOID_WITH_LEGS",
   });
 }
 
@@ -198,8 +355,6 @@ const ALLOWED_COLUMNS: Record<string, Set<string>> = {
     "interest_category_id",
     "asset_category_id",
     "date_acquired",
-    "is_canadian_mortgage",
-    "is_variable_rate",
     "mortgage_type",
     "prepayment_mode",
     "term_months",
@@ -373,6 +528,20 @@ export class ActionHistoryService {
 
   private bondPrices(): BondPriceService {
     return this.moduleRef.get(BondPriceService, { strict: false });
+  }
+
+  /**
+   * Resolved lazily, like `bondPrices`, and its class loaded at the call: the
+   * securities layer reaches this file back through its imports, so a
+   * top-level value import of `HoldingsService` is a load-time cycle that
+   * leaves a provider undefined when SecuritiesModule is built.
+   */
+  private holdings(): HoldingsService {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const loaded = require("../securities/holdings.service") as {
+      HoldingsService: typeof HoldingsService;
+    };
+    return this.moduleRef.get(loaded.HoldingsService, { strict: false });
   }
 
   /**
@@ -575,7 +744,7 @@ export class ActionHistoryService {
         await this.undoSimpleEntity(action, manager, Tag, "tags");
         break;
       case "account":
-        await this.undoSimpleEntity(action, manager, Account, "accounts");
+        await this.undoAccount(action, manager);
         break;
       case "scheduled_transaction":
         await this.undoSimpleEntity(
@@ -819,6 +988,17 @@ export class ActionHistoryService {
     await assertReconciledRowsMutable(manager, action.userId, [transaction]);
 
     const before = action.beforeData;
+    assertVoidChangeUndoable(before, action.afterData ?? {});
+
+    // A change is a value difference: a form resends every split, so equal
+    // lines leave the rows (and the legs they link) alone. Changed lines that
+    // carry a leg cannot be replayed from the snapshot; refuse before a write.
+    const restoreSplits =
+      before.splits !== undefined &&
+      !splitsEqualByValue(before.splits, action.afterData?.splits);
+    if (restoreSplits) {
+      assertSplitLegsUndoable(before.splits, action.afterData?.splits);
+    }
 
     // Restore transaction fields
     const updateFields: Partial<Transaction> = {};
@@ -846,8 +1026,8 @@ export class ActionHistoryService {
       await manager.update(Transaction, action.entityId, updateFields);
     }
 
-    // Restore splits if they were captured
-    if (before.splits !== undefined) {
+    // Restore splits if they were captured and the edit changed them
+    if (restoreSplits) {
       await manager.delete(TransactionSplit, {
         transactionId: action.entityId,
       });
@@ -857,6 +1037,7 @@ export class ActionHistoryService {
           const split = manager.create(TransactionSplit, {
             id: splitData.id,
             transactionId: action.entityId,
+            kind: splitKindOf(splitData),
             categoryId: splitData.categoryId,
             transferAccountId: splitData.transferAccountId || null,
             linkedTransactionId: splitData.linkedTransactionId || null,
@@ -1495,6 +1676,19 @@ export class ActionHistoryService {
     if (!action.beforeData || !Array.isArray(action.beforeData.transactions))
       return;
 
+    // INV-RECONCILE-001: the restore rewrites every row's status and fields
+    // (redo reaches here too, via `executeRedo`), so a reconciled locked row
+    // refuses the whole batch, as the single-row undo does. Locked first, and
+    // checked before the first write.
+    const locked = await lockTransactionRows(
+      manager,
+      action.beforeData.transactions.map((txData: { id: string }) => txData.id),
+      action.userId,
+    );
+    await assertReconciledRowsMutable(manager, action.userId, [
+      ...locked.values(),
+    ]);
+
     const accountIds = new Set<string>();
 
     for (const txData of action.beforeData.transactions) {
@@ -1722,6 +1916,38 @@ export class ActionHistoryService {
     }
   }
 
+  /**
+   * An account edit's undo or redo restores what the user edited and never
+   * what is derived (A26-H06): the derived and lifecycle columns are left out,
+   * a restored opening balance recomputes `current_balance` from the ledger
+   * under the balance-write lock, and a loan's template-coupled change is
+   * refused rather than restored without its reprice and relink.
+   */
+  private async undoAccount(
+    action: ActionHistory,
+    manager: EntityManager,
+  ): Promise<void> {
+    if (action.action !== "update") {
+      await this.undoSimpleEntity(action, manager, Account, "accounts");
+      return;
+    }
+    assertAccountEditUndoable(action);
+    const beforeData = { ...(action.beforeData ?? {}) };
+    for (const field of ACCOUNT_UNDO_DERIVED_FIELDS) delete beforeData[field];
+    await this.undoSimpleEntity(
+      { ...action, beforeData },
+      manager,
+      Account,
+      "accounts",
+    );
+    const openingRestored =
+      JSON.stringify(action.beforeData?.openingBalance ?? null) !==
+      JSON.stringify(action.afterData?.openingBalance ?? null);
+    if (action.entityId && openingRestored) {
+      await this.recalculateBalance(action.userId, action.entityId, manager);
+    }
+  }
+
   // --- Simple entity undo (categories, payees, tags, accounts) ---
 
   private async undoSimpleEntity(
@@ -1740,7 +1966,10 @@ export class ActionHistoryService {
         break;
       case "update":
         if (action.entityId && action.beforeData) {
-          const updateFields = { ...action.beforeData };
+          const updateFields = this.replayableSnapshot(
+            tableName,
+            action.beforeData,
+          );
           // Remove fields that shouldn't be directly updated
           delete updateFields.id;
           delete updateFields.userId;
@@ -1766,7 +1995,7 @@ export class ActionHistoryService {
         break;
       case "delete":
         if (action.beforeData) {
-          const data = { ...action.beforeData };
+          const data = this.replayableSnapshot(tableName, action.beforeData);
           // Ensure userId is set from the action
           data.userId = action.userId;
           await this.reinsertEntity(manager, tableName, data);
@@ -1784,6 +2013,21 @@ export class ActionHistoryService {
   }
 
   // --- Utility methods ---
+
+  /**
+   * A copy of a snapshot in today's column shape. An account snapshot recorded
+   * before the mortgage type was required carries the legacy flags, which no
+   * code reads now, and a null or missing type; it is replayed with the type
+   * the default migration would have given it.
+   */
+  private replayableSnapshot(
+    tableName: string,
+    snapshot: Record<string, any>,
+  ): Record<string, any> {
+    return tableName === "accounts"
+      ? withResolvedMortgageTypeProperty(snapshot)
+      : { ...snapshot };
+  }
 
   /**
    * The two balance operations `removeLockedTransactionLeg` needs, on the
@@ -1853,110 +2097,25 @@ export class ActionHistoryService {
     }
   }
 
+  /**
+   * Re-derive an account's holdings from its ledger after an undo or redo
+   * moved an investment row, through the one fold every other ledger write
+   * uses (`HoldingsService.rebuildAccountsFromTransactions`, inside this
+   * transaction, under the same holdings lock).
+   *
+   * This used to be a second fold over every non-VOID row: a DIVIDEND entered
+   * with a quantity added its total to the basis, and the average was stored at
+   * 6 decimals where the canonical writers store 10, so the boot drift report
+   * flagged what an undo had just written (A26-L21, INV-HOLDING-001).
+   */
   private async rebuildHoldings(
     userId: string,
     accountId: string,
     manager: EntityManager,
   ): Promise<void> {
-    // Same lock namespace every holdings writer takes, before the ledger is
-    // read. A rebuild replays investment_transactions and replaces the holdings
-    // derived from them, so what it must not lose is a *trade* -- an insert no
-    // holdings row locks (audit P4-006).
-    await lockHoldingScope(manager, [accountId]);
-
-    // Delete existing holdings for this account
-    await manager.query(`DELETE FROM holdings WHERE account_id = $1`, [
-      accountId,
-    ]);
-
-    // Rebuild from investment transactions
-    const invTransactions = await manager.query(
-      `SELECT * FROM investment_transactions
-       WHERE account_id = $1 AND user_id = $2 AND transaction_date <= CURRENT_DATE
-         AND status != 'VOID'
-       ORDER BY ${INVESTMENT_REPLAY_ORDER_SQL}`,
-      [accountId, userId],
-    );
-
-    const holdings = new Map<string, { quantity: number; totalCost: number }>();
-
-    for (const tx of invTransactions) {
-      const securityId = tx.security_id;
-      if (!securityId) continue;
-
-      const current = holdings.get(securityId) || {
-        quantity: 0,
-        totalCost: 0,
-      };
-      const qty = Number(tx.quantity || 0);
-
-      // Quantity folds through the shared reducer so an undo cannot rebuild a
-      // different position than the canonical holdings rebuild would. This copy
-      // multiplied by a SPLIT ratio without the `> 0` guard, so a ratio of 0
-      // silently destroyed the position; and it left the acquisition commission
-      // out of the basis, so undoing an action could also change the cost basis
-      // the holdings page reports.
-      // Basis treatment mirrors `computeHoldingsMap` exactly, over-sells
-      // included: the canonical fold carries an over-sold position as
-      // NEGATIVE (its own comment calls an over-sell "history"), so a clamp
-      // here made an undo rebuild a different position than the next
-      // canonical rebuild restores -- BUY 10, SELL 15, BUY 10 stores 5 shares
-      // canonically and stored 10 through this fold.
-      const quantityChange =
-        applyActionToQuantity(0, tx.action, qty) < 0 ? -qty : qty;
-      if (tx.action === "SPLIT") {
-        // Total basis is preserved across a split.
-      } else if (isQuantityOnlyAction(tx.action)) {
-        // ADD_SHARES / REMOVE_SHARES: quantity only, no cost basis change.
-      } else if (quantityChange > 0) {
-        // Raw select: commission comes back as a string, and the row is
-        // denominated in the security's currency like the rest of this fold.
-        const cost = acquisitionCost({
-          quantity: tx.quantity,
-          price: tx.price,
-          commission: tx.commission,
-          // Snake_case: this is the raw row, not the entity.
-          totalAmount: tx.total_amount,
-        });
-        if (cost !== null) current.totalCost += cost;
-      } else if (current.quantity > 0) {
-        const avgCost = current.totalCost / current.quantity;
-        const relieved = Math.min(Math.abs(quantityChange), current.quantity);
-        current.totalCost -= relieved * avgCost;
-      }
-
-      current.quantity = applyActionToQuantity(
-        current.quantity,
-        tx.action,
-        qty,
-      );
-
-      // Snap near-zero to exactly zero, as the canonical fold does.
-      if (Math.abs(current.quantity) < 0.0001) {
-        current.quantity = 0;
-        current.totalCost = 0;
-      }
-
-      holdings.set(securityId, current);
-    }
-
-    // Insert rebuilt holdings. Negative (over-sold) positions are written as
-    // the canonical rebuild writes them; only a genuinely empty position is
-    // skipped.
-    for (const [securityId, data] of holdings) {
-      if (Math.abs(data.quantity) < 0.00000001) continue;
-      const avgCost =
-        data.quantity > 0
-          ? Math.round((data.totalCost / data.quantity) * 1000000) / 1000000
-          : 0;
-
-      await manager.query(
-        `INSERT INTO holdings (id, account_id, security_id, quantity, average_cost)
-         VALUES (uuid_generate_v4(), $1, $2, $3, $4)
-         ON CONFLICT (account_id, security_id) DO UPDATE SET quantity = $3, average_cost = $4`,
-        [accountId, securityId, data.quantity, avgCost],
-      );
-    }
+    await (
+      await this.holdings()
+    ).rebuildAccountsFromTransactions(userId, [accountId], manager);
   }
 
   private async reinsertEntity(

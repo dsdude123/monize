@@ -33,6 +33,8 @@ import { writeBills } from "./writers/write-bills";
 import { writeLoans } from "./writers/write-loans";
 import { HoldingsService } from "../../securities/holdings.service";
 import { TransactionRulesApplierService } from "../../transaction-rules/transaction-rules-applier.service";
+import { TagsService } from "../../tags/tags.service";
+import { writeTags } from "./writers/write-tags";
 
 jest.mock("../../common/db/scoped-db", () => ({
   withScopedDb: jest.fn(),
@@ -74,6 +76,10 @@ jest.mock("./writers/write-loans", () => ({
   writeLoans: jest.fn(),
 }));
 
+jest.mock("./writers/write-tags", () => ({
+  writeTags: jest.fn(),
+}));
+
 const mockedScopedDb = withScopedDb as jest.MockedFunction<typeof withScopedDb>;
 const mockedWriteAccounts = writeAccounts as jest.MockedFunction<
   typeof writeAccounts
@@ -107,6 +113,7 @@ const mockedWriteRates = writeExchangeRates as jest.MockedFunction<
 >;
 const mockedWriteBills = writeBills as jest.MockedFunction<typeof writeBills>;
 const mockedWriteLoans = writeLoans as jest.MockedFunction<typeof writeLoans>;
+const mockedWriteTags = writeTags as jest.MockedFunction<typeof writeTags>;
 
 /**
  * The orchestration around the writers: what runs before the job row exists,
@@ -150,6 +157,8 @@ function parsedFile(overrides: Partial<MnyParsedFile> = {}): MnyParsedFile {
       transactions: [],
       referencedPayees: new Set(),
       referencedCategories: new Set(),
+      referencedTags: new Set([552]),
+      tradeCashLegTagHandles: new Map(),
       transfersLinked: 4,
       skipped: 1,
       deferredInvestments: 2,
@@ -185,6 +194,15 @@ function parsedFile(overrides: Partial<MnyParsedFile> = {}): MnyParsedFile {
       payees: [{ handle: 5, name: "Loblaws" }],
       nameByHandle: new Map([[5, "Loblaws"]]),
       skipped: 0,
+      warnings: [],
+    },
+    tags: {
+      tags: [{ handle: 552, name: "Properties:20 Spring Apartment" }],
+      byHandle: new Map([
+        [552, { handle: 552, name: "Properties:20 Spring Apartment" }],
+      ]),
+      inFile: 2,
+      skipped: 1,
       warnings: [],
     },
     securities: {
@@ -253,6 +271,7 @@ describe("MnyImportService", () => {
   let currencies: Record<string, jest.Mock>;
   let holdingsService: Record<string, jest.Mock>;
   let rulesApplier: Record<string, jest.Mock>;
+  let tagsService: Record<string, jest.Mock>;
   let accountRepo: Record<string, jest.Mock>;
   let preferenceRepo: Record<string, jest.Mock>;
   let service: MnyImportService;
@@ -271,13 +290,14 @@ describe("MnyImportService", () => {
     staging = {
       findInfo: jest.fn().mockResolvedValue({ id: "staged-1" }),
       loadBytes: jest.fn().mockResolvedValue(Buffer.from("bytes")),
-      remove: jest.fn().mockResolvedValue(true),
+      removeConsumed: jest.fn().mockResolvedValue(undefined),
     };
     parser = { parse: jest.fn().mockReturnValue(parsedFile()) };
     jobs = {
       hasActiveJob: jest.fn().mockResolvedValue(false),
       create: jest.fn().mockResolvedValue({ id: "job-1" }),
       discard: jest.fn().mockResolvedValue(undefined),
+      releaseCommittedContent: jest.fn().mockResolvedValue(undefined),
       runClaimed: jest.fn().mockResolvedValue(true),
       fail: jest.fn().mockResolvedValue(undefined),
       // Written INSIDE the import transaction, so it commits with the rows it
@@ -291,7 +311,7 @@ describe("MnyImportService", () => {
     postProcessing = { run: jest.fn().mockResolvedValue(undefined) };
     usersService = { deleteData: jest.fn().mockResolvedValue(undefined) };
     currencies = {
-      ensureSystemCurrency: jest.fn().mockResolvedValue(undefined),
+      ensureCurrencyForUser: jest.fn().mockResolvedValue(undefined),
     };
 
     accountRepo = {
@@ -327,9 +347,14 @@ describe("MnyImportService", () => {
       transactionsCreated: 7,
       splitsCreated: 2,
       linksApplied: 4,
+      tagLinksApplied: 0,
       affectedAccountIds: new Set(["account-1"]),
       writtenTransactionIds: new Set<string>(),
       writtenSplitIds: new Set<string>(),
+    });
+    mockedWriteTags.mockResolvedValue({
+      idByHandle: new Map([[552, "tag-1"]]),
+      created: 1,
     });
     mockedWriteBalances.mockResolvedValue(1);
     mockedClosures.mockResolvedValue(0);
@@ -342,6 +367,7 @@ describe("MnyImportService", () => {
       investmentTransactionsCreated: 3,
       cashTransactionsCreated: 2,
       linksApplied: 1,
+      tagLinksApplied: 1,
       bondRowsWithoutSeries: 0,
       affectedAccountIds: new Set(["account-1"]),
       brokerageAccountIds: new Set(["account-1"]),
@@ -359,6 +385,10 @@ describe("MnyImportService", () => {
       loadRulesFor: jest.fn().mockResolvedValue([]),
       applyToNew: jest.fn().mockResolvedValue([]),
     };
+    tagsService = {
+      findByNames: jest.fn().mockResolvedValue([]),
+      findOrCreateByNames: jest.fn().mockResolvedValue([]),
+    };
 
     service = new MnyImportService(
       {} as DataSource,
@@ -370,6 +400,7 @@ describe("MnyImportService", () => {
       currencies as unknown as CurrenciesService,
       holdingsService as unknown as HoldingsService,
       rulesApplier as unknown as TransactionRulesApplierService,
+      tagsService as unknown as TagsService,
     );
     jest.spyOn(service["logger"], "log").mockImplementation(() => undefined);
     jest.spyOn(service["logger"], "error").mockImplementation(() => undefined);
@@ -485,6 +516,29 @@ describe("MnyImportService", () => {
       expect(usersService.deleteData.mock.invocationCallOrder[0]).toBeLessThan(
         jobs.runClaimed.mock.invocationCallOrder[0],
       );
+      // The wipe removed the rows an earlier import's content key vouched
+      // for, so the key is released -- after the wipe, never before (A26-H08).
+      expect(jobs.releaseCommittedContent).toHaveBeenCalledWith("user-1");
+      expect(usersService.deleteData.mock.invocationCallOrder[0]).toBeLessThan(
+        jobs.releaseCommittedContent.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("keeps the content keys when the wipe is refused", async () => {
+      usersService.deleteData.mockRejectedValue(new Error("bad password"));
+
+      await expect(
+        service.start("user-1", {
+          stagedFileId: "staged-1",
+          options: { wipeExistingData: true },
+        }),
+      ).rejects.toThrow("bad password");
+      expect(jobs.releaseCommittedContent).not.toHaveBeenCalled();
+    });
+
+    it("does not release the content keys for an import that keeps existing data", async () => {
+      await service.start("user-1", { stagedFileId: "staged-1" });
+      expect(jobs.releaseCommittedContent).not.toHaveBeenCalled();
     });
 
     it("fails the request, not a background job, when re-authentication fails", async () => {
@@ -675,8 +729,14 @@ describe("MnyImportService", () => {
 
       await run();
 
-      expect(currencies.ensureSystemCurrency).toHaveBeenCalledWith("CAD");
-      expect(currencies.ensureSystemCurrency).toHaveBeenCalledWith("USD");
+      expect(currencies.ensureCurrencyForUser).toHaveBeenCalledWith(
+        context.userId,
+        "CAD",
+      );
+      expect(currencies.ensureCurrencyForUser).toHaveBeenCalledWith(
+        context.userId,
+        "USD",
+      );
     });
 
     it("writes reference data, then transactions, then balances, then closures", async () => {
@@ -747,7 +807,7 @@ describe("MnyImportService", () => {
     it("deletes the staged bytes once the import succeeds", async () => {
       await run();
 
-      expect(staging.remove).toHaveBeenCalledWith("user-1", "staged-1");
+      expect(staging.removeConsumed).toHaveBeenCalledWith("user-1", "staged-1");
     });
 
     it("checkpoints data_committed on the write transaction's own manager, under this attempt's token", async () => {
@@ -811,9 +871,39 @@ describe("MnyImportService", () => {
         exchangeRatesImported: 5,
         // Phase 3 fills this; reported as zero so the shape does not change.
         billsCreated: 0,
+        tagsCreated: 1,
+        // The transaction writer's links plus the investment writer's.
+        tagLinksApplied: 1,
         existingDataRemoved: false,
-        skipped: { accounts: 0, payees: 0, categories: 0, transactions: 1 },
+        skipped: {
+          accounts: 0,
+          payees: 0,
+          categories: 0,
+          tags: 1,
+          transactions: 1,
+        },
       });
+    });
+
+    it("writes the classification tags once and hands their ids to every writer that links them", async () => {
+      await run();
+
+      expect(mockedWriteTags).toHaveBeenCalledWith(
+        mockedWriteAccounts.mock.calls[0][0],
+        tagsService,
+        "user-1",
+        [{ handle: 552, name: "Properties:20 Spring Apartment" }],
+      );
+      const idByHandle = new Map([[552, "tag-1"]]);
+      expect(mockedWriteTransactions.mock.calls[0][2].tagIdByHandle).toEqual(
+        idByHandle,
+      );
+      expect(mockedWriteBills.mock.calls[0][2].tagIdByHandle).toEqual(
+        idByHandle,
+      );
+      expect(mockedWriteInvestments.mock.calls[0][2].tagIdByHandle).toEqual(
+        idByHandle,
+      );
     });
 
     it("verifies each account's balance against the file", async () => {
@@ -973,6 +1063,7 @@ describe("MnyImportService", () => {
         transactionsCreated: 4,
         splitsCreated: 0,
         linksApplied: 0,
+        tagLinksApplied: 0,
         affectedAccountIds: new Set(["account-1"]),
         writtenTransactionIds: new Set([
           "tx-1",
@@ -1031,6 +1122,7 @@ describe("MnyImportService", () => {
         transactionsCreated: 1,
         splitsCreated: 0,
         linksApplied: 0,
+        tagLinksApplied: 0,
         affectedAccountIds: new Set(["account-1"]),
         writtenTransactionIds: new Set(["tx-1"]),
         writtenSplitIds: new Set<string>(),
@@ -1117,6 +1209,7 @@ describe("MnyImportService", () => {
         investmentTransactionsCreated: 0,
         cashTransactionsCreated: 0,
         linksApplied: 0,
+        tagLinksApplied: 0,
         bondRowsWithoutSeries: 0,
         affectedAccountIds: new Set<string>(),
         brokerageAccountIds: new Set<string>(),
@@ -1292,6 +1385,7 @@ describe("MnyImportService", () => {
         transferAccountKey: null,
         investment: null,
         splits: [],
+        tagHandles: [],
       });
 
       parser.parse.mockReturnValue(

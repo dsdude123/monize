@@ -16,6 +16,13 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { builtInReportsApi } from '@/lib/built-in-reports';
+import { ReportAccountMultiSelect } from '@/components/reports/ReportAccountMultiSelect';
+import { TaggedFundsControls } from '@/components/reports/TaggedFundsControls';
+import { TaggedFundsStrip, type FundsFigure } from '@/components/reports/TaggedFundsStrip';
+import { useReportAccountScope, nonInvestmentAccounts } from '@/hooks/useReportAccountScope';
+import { useTaggedFundsFilter } from '@/hooks/useTaggedFundsFilter';
+import { useTaggedFunding } from '@/hooks/useTaggedFunding';
+import { incomeFundsEntry } from '@/lib/income-by-source-funds';
 import { IncomeSourceItem } from '@/types/built-in-reports';
 import { useNumberFormat } from '@/hooks/useNumberFormat';
 import { useDateRange } from '@/hooks/useDateRange';
@@ -35,6 +42,8 @@ import type {
 import { INTERACTIVE_ROW_FOCUS_CLASS, activateOnKey } from '@/components/ui/interactive-row';
 import { ChartTooltipPanel } from '@/components/reports/ChartTooltip';
 import { ReportError } from '@/components/reports/ReportError';
+import { PartialTotal } from '@/components/ui/PartialTotal';
+import { isComplete, reportTotal } from '@/lib/currency-total';
 import { CHART_COLOURS_INCOME } from '@/lib/chart-colours';
 import { chartColors } from '@/lib/chart-colors';
 import { exportToCsv } from '@/lib/csv-export';
@@ -43,7 +52,15 @@ import { useTranslations } from 'next-intl';
 
 type IncomeSourceSortField = 'name' | 'value' | 'percentage';
 
-type ChartDataItem = ChartDatum & { id: string; colour: string };
+type ChartDataItem = ChartDatum & {
+  id: string;
+  colour: string;
+  /** The funding entry: a transfer figure, never an income source (spec 11.3). */
+  isTagged?: boolean;
+};
+
+const ACCOUNTS_STORAGE_KEY = 'monize-reports-income-by-source-accounts';
+const INCLUDE_TRANSFERS_STORAGE_KEY = 'monize-reports-income-by-source-include-transfers';
 
 /**
  * One column of the data table, and the record the two header rows are built
@@ -100,13 +117,22 @@ const IDENTITY_CELL =
 
 interface IncomeSourceTooltipProps {
   active?: boolean;
-  payload?: Array<{ payload: { id: string; name: string; value: number } }>;
+  payload?: Array<{ payload: { id: string; name: string; value: number; isTagged?: boolean } }>;
   totalIncome: number;
   formatCurrency: (value: number) => string;
   formatPercent: (value: number, decimals?: number) => string;
+  /** The tagged-transfer entry's caption in place of a share: it is not income (spec 11.3). */
+  notIncomeLabel: string;
 }
 
-function IncomeSourceTooltip({ active, payload, totalIncome, formatCurrency, formatPercent }: IncomeSourceTooltipProps) {
+function IncomeSourceTooltip({
+  active,
+  payload,
+  totalIncome,
+  formatCurrency,
+  formatPercent,
+  notIncomeLabel,
+}: IncomeSourceTooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const data = payload[0].payload;
   const percentage = totalIncome > 0 ? (data.value / totalIncome) * 100 : 0;
@@ -114,7 +140,9 @@ function IncomeSourceTooltip({ active, payload, totalIncome, formatCurrency, for
     <ChartTooltipPanel>
       <p className="font-medium text-gray-900 dark:text-gray-100">{data.name}</p>
       <p className="text-gray-600 dark:text-gray-400">
-        {formatCurrency(data.value)} ({formatPercent(percentage, 1)})
+        {data.isTagged === true
+          ? `${formatCurrency(data.value)} (${notIncomeLabel})`
+          : `${formatCurrency(data.value)} (${formatPercent(percentage, 1)})`}
       </p>
     </ChartTooltipPanel>
   );
@@ -124,7 +152,8 @@ export function IncomeBySourceReport() {
   const t = useTranslations('reports');
   const router = useRouter();
   const chartRef = useRef<HTMLDivElement>(null);
-  const { formatCurrencyCompact: formatCurrency, formatPercent } = useNumberFormat();
+  const { formatCurrencyCompact: formatCurrency, formatPercent, defaultCurrency } = useNumberFormat();
+  const tCommon = useTranslations('common');
   const { dateRange, setDateRange, startDate, setStartDate, endDate, setEndDate, resolvedRange, isValid } = useDateRange({ defaultRange: '1y', alignment: 'day' });
   const [viewType, setViewType] = useState<'pie' | 'bar' | 'table'>('pie');
   const { sortField, sortDirection, handleSort } = useSortableTable<IncomeSourceSortField>(
@@ -134,16 +163,35 @@ export function IncomeBySourceReport() {
 
   const { start: rangeStart, end: rangeEnd } = resolvedRange;
 
+  const scope = useReportAccountScope(ACCOUNTS_STORAGE_KEY);
+  const { selectedAccountIds, accountIdsKey } = scope;
+  const fundsFilter = useTaggedFundsFilter(INCLUDE_TRANSFERS_STORAGE_KEY, {
+    valueRequired: true,
+  });
+
   const { data: response, isLoading, error, reload } = useReportData(
     () =>
       isValid
         ? builtInReportsApi.getIncomeBySource({
             startDate: rangeStart || undefined,
             endDate: rangeEnd,
+            ...(selectedAccountIds.length > 0 ? { accountIds: selectedAccountIds } : {}),
           })
         : Promise.resolve(null),
-    [isValid, rangeStart, rangeEnd],
+    [isValid, rangeStart, rangeEnd, accountIdsKey],
   );
+
+  // The funding fetch of the other reports: the same window and the same
+  // accounts, only while a key, a value and the switch are all set (spec F1).
+  const funding = useTaggedFunding({
+    enabled: isValid && fundsFilter.include,
+    tagKey: fundsFilter.tagKey,
+    tagValue: fundsFilter.tagValue,
+    startDate: rangeStart || undefined,
+    endDate: rangeEnd,
+    accountIds: selectedAccountIds,
+    transferScope: scope.transferScope,
+  });
 
   const chartData = useMemo<ChartDataItem[]>(() => {
     if (!response) return [];
@@ -163,7 +211,45 @@ export function IncomeBySourceReport() {
     });
   }, [response]);
 
-  const totalIncome = response?.totalIncome ?? 0;
+  // The server withholds `totalIncome` when a row could not be converted, so
+  // what is shown is the part that did convert, marked as a subtotal. It is also
+  // the denominator: percentages are shares of what is on screen.
+  const incomeTotal = reportTotal(response?.totalIncome ?? response?.knownIncome ?? 0, response);
+  const totalIncome = incomeTotal.value;
+  const reportingCurrency = response?.currency ?? defaultCurrency;
+
+  // Available funds = total income + the value's net tagged inflow. A transfer
+  // is not income: the entry rides beside the sources and stays out of every
+  // share (INV-REPORT-003, spec 11.3).
+  const fundsEntry = useMemo(
+    () => (funding.window ? incomeFundsEntry(totalIncome, funding.window) : null),
+    [funding.window, totalIncome],
+  );
+  const taggedItem = useMemo<ChartDataItem | null>(
+    () =>
+      fundsEntry
+        ? {
+            id: '',
+            name: t('tagBreakdown.fundsTagged', { value: fundsFilter.tagValue }),
+            value: fundsEntry.netTagged,
+            colour: chartColors.inflow,
+            isTagged: true,
+          }
+        : null,
+    [fundsEntry, fundsFilter.tagValue, t],
+  );
+  // What the charts and legend draw; the table lists the tagged entry itself.
+  const plotData = useMemo(
+    () => (taggedItem ? [...chartData, taggedItem] : chartData),
+    [chartData, taggedItem],
+  );
+  const fundsFigures: FundsFigure[] = fundsEntry
+    ? [
+        { key: 'income', label: t('tagBreakdown.fundsIncome'), value: totalIncome, kind: 'money', tone: 'green' },
+        { key: 'tagged', label: t('tagBreakdown.fundsTagged', { value: fundsFilter.tagValue }), value: fundsEntry.netTagged, kind: 'money', tone: 'indigo', completeness: fundsEntry.entryTotal },
+        { key: 'available', label: t('tagBreakdown.fundsAvailable'), value: fundsEntry.availableFunds, kind: 'money', tone: 'blue', completeness: fundsEntry.availableTotal },
+      ]
+    : [];
 
   const sortedTableData = useMemo(() => {
     const sorted = [...chartData];
@@ -210,7 +296,10 @@ export function IncomeBySourceReport() {
   const handleExportPdf = async () => {
     const { exportToPdf } = await import('@/lib/pdf-export');
 
-    const legendItems = chartData.map((item) => {
+    const legendItems = plotData.map((item) => {
+      if (item.isTagged) {
+        return { color: item.colour, label: `${item.name} - ${formatCurrency(item.value)}` };
+      }
       const percentage = totalIncome > 0 ? (item.value / totalIncome) * 100 : 0;
       return {
         color: item.colour,
@@ -221,7 +310,17 @@ export function IncomeBySourceReport() {
     await exportToPdf({
       title: t('page.names.income-by-source' as Parameters<typeof t>[0]),
       summaryCards: [
-        { label: t('incomeBySource.totalIncome'), value: formatCurrency(totalIncome), color: '#16a34a' },
+        {
+          // A figure in a file has no tooltip, so the label carries the marker.
+          label: isComplete(incomeTotal)
+            ? t('incomeBySource.totalIncome')
+            : `${t('incomeBySource.totalIncome')} ${tCommon('partialTotal.srSuffix')}`,
+          value: formatCurrency(totalIncome),
+          color: '#16a34a',
+        },
+        ...(fundsEntry
+          ? [{ label: t('tagBreakdown.fundsAvailable'), value: formatCurrency(fundsEntry.availableFunds), color: '#2563eb' }]
+          : []),
       ],
       chartContainer: chartRef.current,
       chartLegend: legendItems.length > 0 ? legendItems : undefined,
@@ -235,7 +334,14 @@ export function IncomeBySourceReport() {
       const percentage = totalIncome > 0 ? (item.value / totalIncome) * 100 : 0;
       return [item.name, item.value, formatPercent(percentage, 2)];
     });
-    exportToCsv('income-by-source', headers, rows);
+    // The funding rows follow the sources with an empty share: they are not income.
+    const fundsRows = fundsEntry
+      ? [
+          [t('tagBreakdown.fundsTagged', { value: fundsFilter.tagValue }), fundsEntry.netTagged, ''],
+          [t('tagBreakdown.fundsAvailable'), fundsEntry.availableFunds, ''],
+        ]
+      : [];
+    exportToCsv('income-by-source', headers, [...rows, ...fundsRows]);
   };
 
   const handleCategoryClick = (categoryId: string) => {
@@ -250,6 +356,12 @@ export function IncomeBySourceReport() {
       {/* Controls -- always rendered so focus inside DateInput survives reloads */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-4">
         <div className="flex flex-wrap gap-4 items-center justify-between">
+          <ReportAccountMultiSelect
+            accounts={scope.offeredAccounts}
+            value={selectedAccountIds}
+            onChange={scope.setSelectedAccountIds}
+            filter={nonInvestmentAccounts}
+          />
           <DateRangeSelector
             ranges={['1m', '3m', '6m', '1y', 'ytd']}
             value={dateRange}
@@ -260,6 +372,7 @@ export function IncomeBySourceReport() {
             customEndDate={endDate}
             onCustomEndDateChange={setEndDate}
           />
+          <TaggedFundsControls filter={fundsFilter} />
           <div className="flex items-center gap-4">
             <ChartViewToggle
               value={viewType}
@@ -270,10 +383,21 @@ export function IncomeBySourceReport() {
           <ReportToolbarActions
             onExportPdf={handleExportPdf}
             onExportCsv={handleExportCsv}
-            disabled={chartData.length === 0}
+            disabled={isLoading || !!error || chartData.length === 0}
           />
         </div>
       </div>
+
+      {fundsFilter.include && (
+        <TaggedFundsStrip
+          status={funding.status === 'off' ? 'loading' : funding.status}
+          figures={fundsFigures}
+          currency={funding.response?.currency ?? ''}
+          note={
+            funding.status === 'ready' && !fundsEntry ? t('tagBreakdown.noNetTagged') : undefined
+          }
+        />
+      )}
 
       {/* Chart -- loading and error render here rather than in place of the
           whole report, so the controls above (and the date field being typed
@@ -408,6 +532,28 @@ export function IncomeBySourceReport() {
                       </tr>
                     );
                   })}
+                  {taggedItem && (
+                    <tr role="row" className="grid grid-cols-2 items-start gap-x-3 gap-y-1.5 px-4 py-3 sm:table-row sm:p-0">
+                      <td role="cell" className={`${IDENTITY_CELL} font-medium text-indigo-700 dark:text-indigo-300`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: taggedItem.colour }} />
+                          <span className="min-w-0 break-words sm:break-normal" title={taggedItem.name}>{taggedItem.name}</span>
+                        </div>
+                      </td>
+                      <td role="cell" className={`${CELL_PLACEMENT.value} text-indigo-600 dark:text-indigo-400 ${FIGURE_CELL}`}>
+                        <CellLabel className={CAPTION_CLASS}>{columns.value.label}</CellLabel>
+                        {fundsEntry && (
+                          <PartialTotal total={fundsEntry.entryTotal} displayCurrency={funding.response?.currency ?? ''}>
+                            {formatCurrency(taggedItem.value)}
+                          </PartialTotal>
+                        )}
+                      </td>
+                      <td role="cell" className={`${CELL_PLACEMENT.percentage} text-gray-500 dark:text-gray-400 ${FIGURE_CELL}`}>
+                        <CellLabel className={CAPTION_CLASS}>{columns.percentage.label}</CellLabel>
+                        {t('tagBreakdown.notIncome')}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
                 <tfoot role="rowgroup" className="block bg-gray-50 dark:bg-gray-900/50 sm:table-footer-group">
                   {/* The totals are the largest figures on the table, so this
@@ -422,7 +568,9 @@ export function IncomeBySourceReport() {
                     </td>
                     <td role="cell" className={`${CELL_PLACEMENT.value} font-bold text-green-600 dark:text-green-400 ${FIGURE_CELL}`}>
                       <CellLabel className={CAPTION_CLASS}>{columns.value.label}</CellLabel>
-                      {formatCurrency(totalIncome)}
+                      <PartialTotal total={incomeTotal} displayCurrency={reportingCurrency}>
+                        {formatCurrency(totalIncome)}
+                      </PartialTotal>
                     </td>
                     <td role="cell" className={`${CELL_PLACEMENT.percentage} font-bold text-gray-900 dark:text-gray-100 ${FIGURE_CELL}`}>
                       <CellLabel className={CAPTION_CLASS}>{columns.percentage.label}</CellLabel>
@@ -440,7 +588,7 @@ export function IncomeBySourceReport() {
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart>
                     <Pie
-                      data={chartData}
+                      data={plotData}
                       cx="50%"
                       cy="50%"
                       innerRadius={80}
@@ -453,11 +601,11 @@ export function IncomeBySourceReport() {
                         if (id) handleCategoryClick(id);
                       }}
                     >
-                      {chartData.map((entry, index) => (
+                      {plotData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.colour} />
                       ))}
                     </Pie>
-                    <Tooltip content={<IncomeSourceTooltip totalIncome={totalIncome} formatCurrency={formatCurrency} formatPercent={formatPercent} />} />
+                    <Tooltip content={<IncomeSourceTooltip totalIncome={totalIncome} formatCurrency={formatCurrency} formatPercent={formatPercent} notIncomeLabel={t('tagBreakdown.notIncome')} />} />
                   </PieChart>
                 </ResponsiveContainer>
                 {/* The aggregate belongs in the donut's hole. */}
@@ -465,7 +613,9 @@ export function IncomeBySourceReport() {
                   label={t('incomeBySource.totalIncome')}
                   value={
                     <span className="text-green-600 dark:text-green-400">
-                      {formatCurrency(totalIncome)}
+                      <PartialTotal total={incomeTotal} displayCurrency={reportingCurrency}>
+                        {formatCurrency(totalIncome)}
+                      </PartialTotal>
                     </span>
                   }
                 />
@@ -473,17 +623,17 @@ export function IncomeBySourceReport() {
             ) : (
               <div className="h-96">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={chartData} layout="vertical" margin={{ left: 10 }}>
+                  <BarChart data={plotData} layout="vertical" margin={{ left: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
                     <XAxis type="number" tickFormatter={(value) => formatCurrency(value)} />
                     <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={80} />
-                    <Tooltip content={<IncomeSourceTooltip totalIncome={totalIncome} formatCurrency={formatCurrency} formatPercent={formatPercent} />} />
+                    <Tooltip content={<IncomeSourceTooltip totalIncome={totalIncome} formatCurrency={formatCurrency} formatPercent={formatPercent} notIncomeLabel={t('tagBreakdown.notIncome')} />} />
                     <Bar
                       dataKey="value"
                       cursor="pointer"
                       onClick={(data) => data.id && handleCategoryClick(data.id)}
                     >
-                      {chartData.map((entry, index) => (
+                      {plotData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.colour} />
                       ))}
                     </Bar>
@@ -496,13 +646,15 @@ export function IncomeBySourceReport() {
             <ChartLegend
               className="mt-6"
               columnsClassName="sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
-              items={chartData.map((item, index) => {
+              items={plotData.map((item, index) => {
                 const percentage = totalIncome > 0 ? (item.value / totalIncome) * 100 : 0;
                 return {
                   key: String(index),
                   name: item.name,
                   color: item.colour,
-                  detail: `${formatCurrency(item.value)} (${formatPercent(percentage, 1)})`,
+                  detail: item.isTagged
+                    ? `${formatCurrency(item.value)} (${t('tagBreakdown.notIncome')})`
+                    : `${formatCurrency(item.value)} (${formatPercent(percentage, 1)})`,
                   onClick: () => handleCategoryClick(item.id),
                   disabled: !item.id,
                 };
@@ -515,7 +667,9 @@ export function IncomeBySourceReport() {
               <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 text-center">
                 <div className="text-sm text-gray-500 dark:text-gray-400">{t('incomeBySource.totalIncome')}</div>
                 <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {formatCurrency(totalIncome)}
+                  <PartialTotal total={incomeTotal} displayCurrency={reportingCurrency}>
+                    {formatCurrency(totalIncome)}
+                  </PartialTotal>
                 </div>
               </div>
             )}

@@ -316,6 +316,7 @@
     "totalInflows": "总流入",
     "totalOutflows": "总流出",
     "netCashFlow": "净现金流",
+    "notAvailable": "不适用",
     "monthlyCashFlow": "月度现金流",
     "inflowsByCategory": "按分类流入",
     "outflowsByCategory": "按分类流出",
@@ -330,7 +331,31 @@
     "untagged": "未标记",
     "inflows": "已标记的流入",
     "outflows": "已标记的流出",
-    "sharesExceedNote": "如果一行在该键下被标记了多个值，则会计入每个值，因此各值的占比之和可能超过 100%。"
+    "inflowsSeries": "已标记的流入：{value}",
+    "outflowsSeries": "已标记的流出：{value}",
+    "includeTransfers": "包含带标签的转账",
+    "balance": "结余",
+    "balancePercent": "结余 %",
+    "balancePercentTooltip": "结余 %：{rate}",
+    "sharesExceedNote": "如果一行在该键下被标记了多个值，则会计入每个值，因此各值的占比之和可能超过 100%。",
+    "valueLabel": "标签值",
+    "allValues": "所有值",
+    "selectValue": "选择一个值",
+    "fundsIncome": "收入",
+    "fundsTagged": "带标签的转账：{value}",
+    "fundsAvailable": "可用资金",
+    "fundsSpent": "已支出",
+    "fundsLoadFailed": "无法加载带标签转账的数据。",
+    "notIncome": "非收入",
+    "noNetTagged": "此期间该值没有带标签的净流入。",
+    "monthlySummaryTitle": "按月结余（含带标签的转账）：{value}",
+    "fundsExpenses": "支出",
+    "fundsPartialNote": "部分金额无法换算（缺少 {currencies} 的汇率），因此结余为小计，且不显示结余 %。",
+    "fundsPartialNoteGeneric": "部分金额无法计入，因此结余为小计，且不显示结余 %。",
+    "actualVsAvailable": "实际与可用资金对比",
+    "budgetFundsPartialNote": "部分金额无法换算（缺少 {currencies} 的汇率），因此可用资金为小计。",
+    "budgetFundsPartialNoteGeneric": "部分金额无法计入，因此可用资金为小计。",
+    "fundsSeriesName": "可用资金 ({value})"
   },
   "categoryPerformance": {
     "noBudgets": "未找到预算。创建预算以查看分类表现。",
@@ -764,6 +789,7 @@
     "totalValue": "总价值",
     "costBasis": "成本基础",
     "totalGainLoss": "总盈亏",
+    "gainPartialCaption": "仅限有价格的持仓",
     "return": "回报率",
     "viewHoldings": "持仓",
     "viewAllocation": "配置",
@@ -821,6 +847,7 @@
     "actionCapitalGainShort": "短期资本收益",
     "actionCapitalGainLong": "长期资本收益",
     "actionRedeem": "赎回存单/债券",
+    "actionReturnOfCapital": "资本返还",
     "colCommission": "佣金",
     "colPriceCurrency": "价格货币",
     "colAmountCurrency": "金额货币",
@@ -1146,6 +1173,11 @@
     "vsMonth": "对比 {month}",
     "inMonth": "{month} 中的 {amount}",
     "netWorthTotal": "合计：{amount}",
+    "netWorthSummaryPartial": "您在 {currentMonth} 的资产净值为 <strong>{netWorth}</strong>。由于 {pairs} 没有汇率，无法计算与 {previousMonth} 相比的变化；请在货币页面添加。",
+    "pdfPartialSuffix": "{amount}（不完整）",
+    "pdfNote": "备注",
+    "pdfNotAvailable": "不适用",
+    "pdfPartialNote": "不完整的总额：{pairs} 没有汇率。",
     "netWorthSummary": "您在 {currentMonth} 的资产净值为 <strong>{netWorth}</strong>，与 {previousMonth} 相比变化了 <delta>{changeAmount}</delta>。",
     "pdfTitle": "月度对比",
     "pdfSubtitle": "{current} 对比 {previous}",
@@ -1193,7 +1225,12 @@
     "colNetWorth": "资产净值",
     "barStyle": "柱形样式",
     "barStyleNetWorth": "资产净值",
-    "barStyleAccountType": "按账户类型"
+    "barStyleAccountType": "按账户类型",
+    "notAvailable": "不适用",
+    "colNote": "备注",
+    "partialMonthNote": "不完整：{pairs} 没有汇率",
+    "pdfPartialNote": "不完整的总额：{pairs} 没有汇率。请在货币页面添加。",
+    "partialMonth": "未显示：本月部分金额无法换算，因此资产净值未知。"
   },
   "portfolioValue": {
     "highestValue": "最高价值",
@@ -1279,6 +1316,7 @@
     "colDate": "日期",
     "colShares": "股数",
     "colPrice": "价格",
+    "returnOfCapitalRow": "超出成本基础的资本返还",
     "pdfTitle": "已实现收益报告",
     "pdfSubtitle": "{count} 个证券 | 净收益：{gain}",
     "csvColSecurity": "证券",
@@ -1288,7 +1326,11 @@
     "csvColCostBasis": "成本基础",
     "csvColGainLoss": "盈亏",
     "csvColReturn": "回报率 %",
-    "csvNoRate": "无汇率"
+    "csvNoRate": "无汇率",
+    "csvUnknownCost": "未知",
+    "unknownBasisReason": "无法计算此收益：该持仓包含未记录成本而添加的股份，因此已卖出股份的成本未知。请打开添加这些股份的交易并输入其价格。",
+    "knownPart": "已知部分：{amount}",
+    "unknownCostNotice": "{count, plural, one {# 笔卖出} other {# 笔卖出}}的成本未知，因为添加股份时没有价格。{count, plural, one {该笔} other {这些}}不给出收益，因此收益合计只显示已知部分。"
   },
   "recurringExpenses": {
     "recurringExpenses": "定期支出",
@@ -1851,6 +1893,13 @@
   "foreignCurrencyFees": {
     "noEligibleAccounts": "没有账户配置了境外交易手续费。在账户上设置手续费百分比，即可在此追踪其外币手续费。"
   },
+  "partialData": {
+    "notice": "部分数字不完整：{count, plural, other {# 笔金额}}无法换算为 {displayCurrency}，已被排除。{currencies} 没有汇率；请在货币页面添加。",
+    "noticeExcluded": "部分数字不完整：{count, plural, other {# 笔金额}}无法计算，已被排除。",
+    "pdfNote": "不完整的总额：{currencies} 没有汇率",
+    "pdfNoteExcluded": "不完整的总额：已排除 {count, plural, other {# 笔金额}}",
+    "pdfSuffix": "（不完整）"
+  },
   "sankey": {
     "help": "流入的资金经过中间，流向其被花费的去处、被储蓄或投资的部分以及用于偿还债务的部分。默认情况下，报告涵盖您未关闭的支票、储蓄、现金、信用卡和信用额度账户，这些账户之间的转账不会显示。将某个储蓄账户从账户筛选中移除，即可看到您转入其中的金额。信用卡还款从不算作债务还款：它结清的消费已计为支出。",
     "depthLabel": "细节",
@@ -1897,5 +1946,8 @@
       "residualDeficit": "动用余额",
       "unlinkedAccount": "（未关联账户）"
     }
+  },
+  "pdfExport": {
+    "generatedAt": "生成时间：{timestamp}"
   }
 }

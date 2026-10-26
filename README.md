@@ -71,6 +71,7 @@ Highlights of the recent releases. Every version has full notes in [`docs/releas
 
 | Version | Highlights |
 |---------|------------|
+| 1.19 | Government bonds valued from their terms of issue, starting with Polish retail treasury bonds. Email receipts read brokerage trade confirmations and join buy-now-pay-later purchases to their repayments. Advanced transaction search. Hideable table columns and account-wide default views. Cash Flow Forecast dashboard widget, with overdue bills counted. OFX re-imports skip rows already imported. Exchange rates from the ECB via Frankfurter |
 | 1.18 | Bank sync through Open Banking (Enable Banking). Email receipts: order confirmations read from a mailbox and matched to transactions. Mortgage types: annuity, Canadian fixed, linear and interest-only. A bank debit settles a loan installment directly. Rules can split a row or convert it to a transfer. Cash Flow Sankey report |
 | 1.17 | Calendar view for transactions and investments, with day notes. Transaction rules (Tools > Rules) and an AI review inbox. Sort the register by any column. London Stock Exchange and Deutsche Börse price sources. Automatic backups copied off the machine (S3 and email). Several backend replicas with `CLUSTER_MODE=multi` |
 | 1.16 | Notifications: a type-by-channel matrix, browser push with no third party, UnifiedPush, balance thresholds. Scan paper documents into attachments and preview them in the app. Share files into Monize. Phone layout: tables become cards, swipe between views. Payee address, phone and email, with optional lookup. Numbers in your own convention |
@@ -111,11 +112,12 @@ Highlights of the recent releases. Every version has full notes in [`docs/releas
 - Payee brand icons and category icons that subcategories inherit
 - A page for each payee (statistics, recurrence, seasonality, address, phone and email) and for each category (subcategories, top payees, seasonality). Payee details can be looked up through Google Places or your AI provider, and are shown for confirmation before they are saved
 - Multi-currency transactions with automatic exchange rate tracking
-- Import from CSV (including brokerage exports), OFX/QFX, and QIF (Quicken and Microsoft Money) with smart column auto-matching
+- Import from CSV (including brokerage exports), OFX/QFX, and QIF (Quicken, including Quicken for Mac .qmtf transfer files, and Microsoft Money) with smart column auto-matching and categories nested to any depth
 - Microsoft Money full-file import: read a `.mny` file directly -- accounts, transfers, splits, investments, price history, exchange rates and scheduled bills -- and reconcile every balance against the file afterwards ([guide](docs/import-ms-money.md))
 - Quicken full-file import: import all accounts, categories, and tags from a single QIF export
 - Bank sync (Settings -> Bank sync): import booked transactions from your bank through Open Banking (Enable Banking), with a preview before the first import, your `import` rules applied, and a daily or on-demand sync
 - Email receipts (Settings -> Email receipts): Monize reads order confirmations from a dedicated mailbox (Google, Microsoft 365 or IMAP), matches each one to the transaction that paid for it, and proposes a description, a payee and a split by line item for your approval. Built-in parsers for Amazon, Allegro, PayU and Google Play, a parser editor, and parsers drafted by AI
+- Warranties (Tools > Warranties): what you bought, when its warranty ends (or that it never does), the receipt, manual and photos, serial and model numbers, and the claims you made. Add one from a transaction in the register, get a reminder 30 and 7 days before it ends and on the day, see what is expiring on a dashboard widget, and import or export the Warracker CSV format
 - Data reset: wipe financial data and re-import without losing your user account or settings
 - Share into the app: with Monize installed as a PWA (Android and desktop Chromium), share a receipt photo, a PDF or a statement export (CSV, OFX, QFX, QIF) to it from another app and land on a review screen that offers to attach it to a new transaction, open the import wizard or send it to the AI Assistant. Nothing is imported or attached until you choose it, and shared files are kept on the device for an hour
 

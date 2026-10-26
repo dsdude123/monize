@@ -51,7 +51,15 @@ import {
   CsvHeadersResponseDto,
   ColumnMappingResponseDto,
 } from "./dto/import.dto";
-import { ImportContext, updateAccountBalance } from "./import-context";
+import {
+  ImportContext,
+  recordSkippedRow,
+  restoreRowCounters,
+  snapshotRowCounters,
+  updateAccountBalance,
+} from "./import-context";
+import { loadHeldExternalIds } from "./ofx-external-id";
+import { isExternalIdConflict } from "../transactions/transaction-external-id";
 import { ImportEntityCreatorService } from "./import-entity-creator.service";
 import { ImportPostProcessingService } from "./import-post-processing.service";
 import { ImportInvestmentProcessorService } from "./import-investment-processor.service";
@@ -68,6 +76,8 @@ import { deletionBalanceEffect } from "../common/deletion-balance.util";
 import { TransactionSplit } from "../transactions/entities/transaction-split.entity";
 import { tr } from "../i18n/translate";
 import { TransactionRulesApplierService } from "../transaction-rules/transaction-rules-applier.service";
+import { insertCategoryIfAbsent } from "./insert-category-if-absent";
+import { splitCategoryPath } from "./category-path.util";
 
 @Injectable()
 export class ImportService {
@@ -265,6 +275,7 @@ export class ImportService {
     const importResult: ImportResultDto = {
       imported: 0,
       skipped: 0,
+      skippedRows: [],
       errors: 0,
       errorMessages: [],
       categoriesCreated: 0,
@@ -294,13 +305,17 @@ export class ImportService {
           "import",
         );
 
-        // Step 1: Create categories from !Type:Cat definitions
+        // Step 1: Create categories from !Type:Cat definitions. `categoryMap`
+        // is keyed by the full path a transaction names; `processedCategories`
+        // by one level ("name|parentId"), shared so step 1b reuses step 1's.
         const categoryMap = new Map<string, string | null>();
+        const processedCategories = new Map<string, string>();
         await this.createCategoriesFromDefs(
           manager,
           userId,
           result.categoryDefs,
           categoryMap,
+          processedCategories,
           importResult,
         );
 
@@ -311,6 +326,7 @@ export class ImportService {
           userId,
           result.accountBlocks,
           categoryMap,
+          processedCategories,
           importResult,
         );
 
@@ -447,6 +463,8 @@ export class ImportService {
             settledScheduleIds,
             importResult,
             transferDupCounts: new Map(),
+            // A QIF file carries no bank ids.
+            heldExternalIds: new Map(),
             importRules,
           };
 
@@ -471,6 +489,7 @@ export class ImportService {
             try {
               const savepointName = `tx_import_${txIndex}`;
               await manager.query(`SAVEPOINT ${savepointName}`);
+              const counters = snapshotRowCounters(importResult);
               try {
                 if (isInvestment) {
                   await this.investmentProcessor.processTransaction(ctx, qifTx);
@@ -480,6 +499,7 @@ export class ImportService {
                 await manager.query(`RELEASE SAVEPOINT ${savepointName}`);
               } catch (error) {
                 await manager.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
+                restoreRowCounters(importResult, counters);
                 importResult.errors++;
                 importResult.errorMessages.push(
                   `Error importing transaction ${txIndex}/${block.transactions.length} in "${block.accountName}" on ${qifTx.date}: ${error.message}`,
@@ -548,7 +568,8 @@ export class ImportService {
 
   /**
    * Create categories from !Type:Cat definitions.
-   * Handles parent:child hierarchy (e.g., "Utilities:Electricity").
+   * Every colon is a level (e.g., "Housing:Mortgage:Interest" is three
+   * categories, each the parent of the next); see `splitCategoryPath`.
    * Sets isIncome based on QIF I/E flags.
    */
   private async createCategoriesFromDefs(
@@ -556,73 +577,65 @@ export class ImportService {
     userId: string,
     categoryDefs: QifFullParseResult["categoryDefs"],
     categoryMap: Map<string, string | null>,
+    processedCategories: Map<string, string>,
     importResult: ImportResultDto,
   ): Promise<void> {
-    // Cache to avoid duplicate creation: "name|parentId" -> categoryId
-    const processedCategories = new Map<string, string>();
-
     for (const def of categoryDefs) {
       // For Quicken categories starting with underscore, use description as name
       const effectiveName =
         def.name.startsWith("_") && def.description
           ? def.description
           : def.name;
-      const parts = effectiveName.split(":");
-      const isSubcategory = parts.length > 1;
 
-      if (isSubcategory) {
-        const parentName = parts[0].trim();
-        const childName = parts.slice(1).join(":").trim();
+      const leafId = await this.findOrCreateCategoryPath(
+        manager,
+        userId,
+        splitCategoryPath(effectiveName),
+        def.isIncome,
+        processedCategories,
+        importResult,
+      );
+      if (leafId === null) continue;
 
-        // Find or create parent
-        const parentId = await this.findOrCreateCategoryDef(
-          manager,
-          userId,
-          parentName,
-          null,
-          def.isIncome,
-          processedCategories,
-          categoryMap,
-          importResult,
-        );
-
-        // Find or create child
-        await this.findOrCreateCategoryDef(
-          manager,
-          userId,
-          childName,
-          parentId,
-          def.isIncome,
-          processedCategories,
-          categoryMap,
-          importResult,
-        );
-
-        // Map the full effective name for transaction category resolution
-        const childId = processedCategories.get(`${childName}|${parentId}`)!;
-        categoryMap.set(effectiveName, childId);
-        // Also map the original QIF name if it differs (underscore substitution)
-        if (def.name !== effectiveName) {
-          categoryMap.set(def.name, childId);
-        }
-      } else {
-        // Top-level category
-        const catId = await this.findOrCreateCategoryDef(
-          manager,
-          userId,
-          effectiveName,
-          null,
-          def.isIncome,
-          processedCategories,
-          categoryMap,
-          importResult,
-        );
-        // Also map the original QIF name if it differs (underscore substitution)
-        if (def.name !== effectiveName) {
-          categoryMap.set(def.name, catId);
-        }
+      // Map the full effective name for transaction category resolution
+      categoryMap.set(effectiveName, leafId);
+      // Also map the original QIF name if it differs (underscore substitution)
+      if (def.name !== effectiveName) {
+        categoryMap.set(def.name, leafId);
       }
     }
+  }
+
+  /**
+   * Find or create every level of a category path, root first, and return the
+   * id of the last one; null for a path with no segments.
+   *
+   * The caller maps the id to the full path. No level is mapped by its bare
+   * name: "Interest" under "Housing:Mortgage" is not the top-level "Interest",
+   * and a bare-name entry would file transactions and later paths under the
+   * wrong branch.
+   */
+  private async findOrCreateCategoryPath(
+    manager: EntityManager,
+    userId: string,
+    segments: readonly string[],
+    isIncome: boolean,
+    processedCategories: Map<string, string>,
+    importResult: ImportResultDto,
+  ): Promise<string | null> {
+    let parentId: string | null = null;
+    for (const segment of segments) {
+      parentId = await this.findOrCreateCategoryDef(
+        manager,
+        userId,
+        segment,
+        parentId,
+        isIncome,
+        processedCategories,
+        importResult,
+      );
+    }
+    return parentId;
   }
 
   private async findOrCreateCategoryDef(
@@ -632,7 +645,6 @@ export class ImportService {
     parentId: string | null,
     isIncome: boolean,
     processedCategories: Map<string, string>,
-    categoryMap: Map<string, string | null>,
     importResult: ImportResultDto,
   ): Promise<string> {
     const cacheKey = `${name}|${parentId || "null"}`;
@@ -654,20 +666,21 @@ export class ImportService {
 
     if (existing) {
       processedCategories.set(cacheKey, existing.id);
-      categoryMap.set(name, existing.id);
       return existing.id;
     }
 
-    const newCategory = manager.create(Category, {
+    // Adopts a row another transaction created since the lookup above rather
+    // than aborting the whole import on its unique violation (INV-IMPORT-003).
+    const saved = await insertCategoryIfAbsent(manager, {
       userId,
       name,
       parentId,
       isIncome,
     });
-    const saved = await manager.save(newCategory);
     processedCategories.set(cacheKey, saved.id);
-    categoryMap.set(name, saved.id);
-    importResult.categoriesCreated++;
+    if (saved.inserted) {
+      importResult.categoriesCreated++;
+    }
     return saved.id;
   }
 
@@ -682,17 +695,9 @@ export class ImportService {
     userId: string,
     blocks: QifFullParseResult["accountBlocks"],
     categoryMap: Map<string, string | null>,
+    processedCategories: Map<string, string>,
     importResult: ImportResultDto,
   ): Promise<void> {
-    const processedCategories = new Map<string, string>();
-
-    // Copy existing categoryMap entries into processedCategories for dedup
-    for (const [name, id] of categoryMap) {
-      if (id) {
-        processedCategories.set(`${name}|null`, id);
-      }
-    }
-
     // Collect all unique category names from all blocks
     const allCategories = new Set<string>();
     for (const block of blocks) {
@@ -704,48 +709,16 @@ export class ImportService {
     }
 
     for (const categoryName of allCategories) {
-      const parts = categoryName.split(":");
-      const isSubcategory = parts.length > 1;
-
-      if (isSubcategory) {
-        const parentName = parts[0].trim();
-        const childName = parts.slice(1).join(":").trim();
-
-        const parentId = await this.findOrCreateCategoryDef(
-          manager,
-          userId,
-          parentName,
-          null,
-          false,
-          processedCategories,
-          categoryMap,
-          importResult,
-        );
-
-        await this.findOrCreateCategoryDef(
-          manager,
-          userId,
-          childName,
-          parentId,
-          false,
-          processedCategories,
-          categoryMap,
-          importResult,
-        );
-
-        const childId = processedCategories.get(`${childName}|${parentId}`)!;
-        categoryMap.set(categoryName, childId);
-      } else {
-        await this.findOrCreateCategoryDef(
-          manager,
-          userId,
-          categoryName,
-          null,
-          false,
-          processedCategories,
-          categoryMap,
-          importResult,
-        );
+      const leafId = await this.findOrCreateCategoryPath(
+        manager,
+        userId,
+        splitCategoryPath(categoryName),
+        false,
+        processedCategories,
+        importResult,
+      );
+      if (leafId !== null) {
+        categoryMap.set(categoryName, leafId);
       }
     }
   }
@@ -1300,6 +1273,7 @@ export class ImportService {
     const importResult: ImportResultDto = {
       imported: 0,
       skipped: 0,
+      skippedRows: [],
       errors: 0,
       errorMessages: [],
       categoriesCreated: 0,
@@ -1338,6 +1312,14 @@ export class ImportService {
           settledScheduleIds,
           importResult,
           transferDupCounts: new Map<string, number>(),
+          // One lookup for every bank id the file carries, not one per row.
+          heldExternalIds: isInvestment
+            ? new Map()
+            : await loadHeldExternalIds(
+                manager,
+                accountId,
+                result.transactions,
+              ),
           // The user's import-trigger rules, once for the whole file (design
           // 6.3). An investment file has no regular rows to evaluate.
           importRules: isInvestment
@@ -1403,6 +1385,7 @@ export class ImportService {
           try {
             const savepointName = `tx_import_${txIndex}`;
             await manager.query(`SAVEPOINT ${savepointName}`);
+            const counters = snapshotRowCounters(importResult);
             try {
               if (isInvestment) {
                 await this.investmentProcessor.processTransaction(ctx, qifTx);
@@ -1412,13 +1395,28 @@ export class ImportService {
               await manager.query(`RELEASE SAVEPOINT ${savepointName}`);
             } catch (error) {
               await manager.query(`ROLLBACK TO SAVEPOINT ${savepointName}`);
-              importResult.errors++;
-              importResult.errorMessages.push(
-                `Error importing transaction ${txIndex}/${totalTransactions} on ${qifTx.date}: ${error.message}`,
-              );
-              this.logger.warn(
-                `Error importing transaction ${txIndex}/${totalTransactions}: ${error.message}`,
-              );
+              // The payee the row created and the rule change it counted were
+              // rolled back with it, so their counters go back too.
+              restoreRowCounters(importResult, counters);
+              if (isExternalIdConflict(error)) {
+                // Another writer committed a row holding this row's bank id
+                // after the processor's lookup missed it; the unique index
+                // refused this insert, so the row is already in the account.
+                recordSkippedRow(
+                  importResult,
+                  qifTx,
+                  "alreadyImported",
+                  account.currencyCode,
+                );
+              } else {
+                importResult.errors++;
+                importResult.errorMessages.push(
+                  `Error importing transaction ${txIndex}/${totalTransactions} on ${qifTx.date}: ${error.message}`,
+                );
+                this.logger.warn(
+                  `Error importing transaction ${txIndex}/${totalTransactions}: ${error.message}`,
+                );
+              }
             }
           } catch (savepointError) {
             importResult.errors++;

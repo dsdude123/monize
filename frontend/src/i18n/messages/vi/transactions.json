@@ -135,6 +135,7 @@
       "toggleTitle": "Bỏ năm khỏi ngày để hiện được nhiều tên người nhận hơn"
     },
     "attachmentsCount": "{count, plural, other {# tệp đính kèm}}",
+    "warrantiesCount": "{count, plural, other {# bảo hành}}",
     "today": "Hôm nay",
     "export": {
       "button": "Xuất",
@@ -431,6 +432,7 @@
       "destinationRequired": "Vui lòng chọn tài khoản đích",
       "sameAccount": "Tài khoản nguồn và đích phải khác nhau",
       "negativeTransfer": "Số tiền chuyển không được là âm",
+      "convertToTransferUnsupported": "Không thể chuyển một giao dịch hiện có thành chuyển khoản tại đây. Hãy xóa giao dịch đó và tạo chuyển khoản thay thế.",
       "payeeCreated": "Người nhận \"{name}\" đã được tạo",
       "payeeCreateFailed": "Không thể tạo người nhận",
       "payeeReactivated": "Người nhận \"{name}\" đã được kích hoạt lại",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "Bao gồm phí giao dịch nước ngoài {percent}% ({fee})."
     },
-    "jointSplitDisabled": "Chỉ chủ sở hữu mới có thể quản lý giao dịch tách trong tài khoản được chia sẻ"
+    "jointSplitDisabled": "Chỉ chủ sở hữu mới có thể quản lý giao dịch tách trong tài khoản được chia sẻ",
+    "warranties": {
+      "title": "Bảo hành",
+      "add": "Thêm bảo hành",
+      "expires": "Hết hạn {date}",
+      "loading": "Đang tải bảo hành",
+      "loadError": "Không thể tải các bảo hành của giao tác này.",
+      "empty": "Chưa có bảo hành nào"
+    }
   },
   "splitEditor": {
     "header": "Chi tiết phần chia",
@@ -626,7 +636,8 @@
       "amountRange": "Số tiền từ 50 đến 100",
       "datePeriod": "Bất kỳ ngày nào trong tháng 3 năm 2026",
       "isSplit": "Giao dịch tách",
-      "hasAttachment": "Có tệp đính kèm"
+      "hasAttachment": "Có tệp đính kèm",
+      "hasWarranty": "Có bảo hành"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "Có tệp đính kèm",
+        "warranty": "Có bảo hành",
         "ref": "Có số tham chiếu",
         "memo": "Có ghi chú",
         "tag": "Có thẻ"

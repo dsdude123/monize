@@ -135,6 +135,7 @@
       "toggleTitle": "[XX-Drop the year from dates so more of the payee fits-XX]"
     },
     "attachmentsCount": "[XX-{count, plural, one {# attachment} other {# attachments}}-XX]",
+    "warrantiesCount": "[XX-{count, plural, one {# warranty} other {# warranties}}-XX]",
     "today": "[XX-Today-XX]",
     "export": {
       "button": "[XX-Export-XX]",
@@ -431,6 +432,7 @@
       "destinationRequired": "[XX-Please select a destination account-XX]",
       "sameAccount": "[XX-Source and destination accounts must be different-XX]",
       "negativeTransfer": "[XX-Transfer amount must not be negative-XX]",
+      "convertToTransferUnsupported": "[XX-An existing transaction can't be turned into a transfer here. Delete it and create the transfer instead.-XX]",
       "payeeCreated": "[XX-Payee \"{name}\" created-XX]",
       "payeeCreateFailed": "[XX-Failed to create payee-XX]",
       "payeeReactivated": "[XX-Payee \"{name}\" reactivated-XX]",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "[XX-Includes a {percent}% foreign transaction fee ({fee}).-XX]"
     },
-    "jointSplitDisabled": "[XX-Split transactions in a shared account can only be managed by the owner-XX]"
+    "jointSplitDisabled": "[XX-Split transactions in a shared account can only be managed by the owner-XX]",
+    "warranties": {
+      "title": "[XX-Warranties-XX]",
+      "add": "[XX-Add warranty-XX]",
+      "expires": "[XX-Expires {date}-XX]",
+      "loading": "[XX-Loading warranties-XX]",
+      "loadError": "[XX-The warranties for this transaction could not be loaded.-XX]",
+      "empty": "[XX-No warranties yet-XX]"
+    }
   },
   "splitEditor": {
     "header": "[XX-Split Details-XX]",
@@ -626,7 +636,8 @@
       "amountRange": "[XX-Amount from 50 to 100-XX]",
       "datePeriod": "[XX-Any day in March 2026-XX]",
       "isSplit": "[XX-Split transactions-XX]",
-      "hasAttachment": "[XX-Has an attachment-XX]"
+      "hasAttachment": "[XX-Has an attachment-XX]",
+      "hasWarranty": "[XX-Has a warranty-XX]"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "[XX-Has an attachment-XX]",
+        "warranty": "[XX-Has a warranty-XX]",
         "ref": "[XX-Has a reference number-XX]",
         "memo": "[XX-Has a memo-XX]",
         "tag": "[XX-Has a tag-XX]"

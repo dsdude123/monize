@@ -227,9 +227,7 @@ function createExistingAccount(overrides: Partial<Account> = {}): Account {
     assetCategoryId: null,
     dateAcquired: null,
     linkedLoanAccountId: null,
-    mortgageType: null,
-    isCanadianMortgage: false,
-    isVariableRate: false,
+    mortgageType: 'ANNUITY',
     termMonths: null,
     termEndDate: null,
     amortizationMonths: null,
@@ -830,6 +828,44 @@ describe('AccountForm', () => {
     expect(mockOnSubmit).not.toHaveBeenCalled();
   });
 
+  it('saves a stored 0% LOAN rate as 0 instead of treating it as empty', async () => {
+    const loanAccount = createExistingAccount({
+      accountType: 'LOAN',
+      name: 'Interest-free Loan',
+      interestRate: 0,
+      institutionId: 'inst-1',
+      paymentAmount: 200,
+      paymentFrequency: 'MONTHLY',
+      paymentStartDate: '2024-01-01',
+      sourceAccountId: 'chq-1',
+      interestCategoryId: 'cat-1',
+      openingBalance: -5000,
+    });
+
+    render(
+      <AccountForm account={loanAccount} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
+    );
+
+    const rate = (await screen.findByLabelText(/^Interest Rate/)) as HTMLInputElement;
+    expect(Number(rate.value)).toBe(0);
+    expect(rate.value).not.toBe('');
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Account Name'), {
+        target: { value: 'Interest-free Loan 2' },
+      });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /Update Account/i }));
+    });
+
+    await waitFor(() => {
+      expect(mockOnSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ interestRate: 0 }),
+      );
+    });
+  });
+
   it('does not show loan fields when editing existing LOAN account', async () => {
     const loanAccount = createExistingAccount({
       accountType: 'LOAN',
@@ -871,7 +907,6 @@ describe('AccountForm', () => {
       termMonths: 60,
       amortizationMonths: 300,
       mortgageType: 'CANADIAN_FIXED',
-      isCanadianMortgage: true,
     });
 
     render(
@@ -949,7 +984,7 @@ describe('AccountForm', () => {
 
     it('edits a Canadian fixed-rate mortgage as CANADIAN_FIXED and saves the row unchanged', async () => {
       const select = await submitEdit(
-        mortgage({ mortgageType: 'CANADIAN_FIXED', isCanadianMortgage: true, isVariableRate: false }),
+        mortgage({ mortgageType: 'CANADIAN_FIXED' }),
       );
       expect(select.value).toBe('CANADIAN_FIXED');
       expect(
@@ -959,24 +994,13 @@ describe('AccountForm', () => {
       const payload = await clickUpdate();
       expect(payload).toMatchObject({
         mortgageType: 'CANADIAN_FIXED',
-        isCanadianMortgage: true,
-        isVariableRate: false,
         termMonths: 60,
         amortizationMonths: 300,
       });
     });
 
-    it('reads a null type through the legacy flags', async () => {
-      const select = await submitEdit(
-        mortgage({ mortgageType: null, isCanadianMortgage: true, isVariableRate: false }),
-      );
-      expect(select.value).toBe('CANADIAN_FIXED');
-    });
-
-    it('edits a former Canadian variable-rate mortgage as ANNUITY and keeps its term editable', async () => {
-      const select = await submitEdit(
-        mortgage({ mortgageType: 'ANNUITY', isCanadianMortgage: true, isVariableRate: true }),
-      );
+    it('edits an ANNUITY mortgage and keeps its term editable', async () => {
+      const select = await submitEdit(mortgage({ mortgageType: 'ANNUITY' }));
       expect(select.value).toBe('ANNUITY');
       expect(screen.getByText('Rate-Fixed Term')).toBeInTheDocument();
       const termYears = screen.getAllByLabelText('Years')[0];
@@ -989,13 +1013,11 @@ describe('AccountForm', () => {
       const payload = await clickUpdate();
       expect(payload).toMatchObject({
         mortgageType: 'ANNUITY',
-        isCanadianMortgage: false,
-        isVariableRate: false,
         termMonths: 36,
       });
     });
 
-    it('sends the chosen type with the flags it maps to', async () => {
+    it('sends the chosen type', async () => {
       const select = await submitEdit(mortgage({ mortgageType: 'ANNUITY' }));
       await act(async () => {
         fireEvent.change(select, { target: { value: 'CANADIAN_FIXED' } });
@@ -1004,8 +1026,6 @@ describe('AccountForm', () => {
       const payload = await clickUpdate();
       expect(payload).toMatchObject({
         mortgageType: 'CANADIAN_FIXED',
-        isCanadianMortgage: true,
-        isVariableRate: false,
       });
     });
 
@@ -1013,7 +1033,7 @@ describe('AccountForm', () => {
       const onDirtyChange = vi.fn();
       render(
         <AccountForm
-          account={mortgage({ mortgageType: 'ANNUITY', isCanadianMortgage: false, isVariableRate: false })}
+          account={mortgage({ mortgageType: 'ANNUITY' })}
           onSubmit={mockOnSubmit}
           onCancel={mockOnCancel}
           onDirtyChange={onDirtyChange}
@@ -1034,8 +1054,6 @@ describe('AccountForm', () => {
       const payload = await clickUpdate();
       expect(payload).toMatchObject({
         mortgageType: 'CANADIAN_FIXED',
-        isCanadianMortgage: true,
-        isVariableRate: false,
       });
     });
 
@@ -1052,8 +1070,6 @@ describe('AccountForm', () => {
       expect(payload).toMatchObject({
         mortgageType: 'LINEAR',
         prepaymentMode: 'LOWER_INSTALLMENT',
-        isCanadianMortgage: false,
-        isVariableRate: false,
       });
     });
 
@@ -1133,7 +1149,7 @@ describe('AccountForm', () => {
       expect(payload).toMatchObject({ mortgageType: 'INTEREST_ONLY', prepaymentMode: null });
     });
 
-    it('sends no mortgage type or flags for another account type', async () => {
+    it('sends no mortgage type for another account type', async () => {
       render(
         <AccountForm account={createExistingAccount()} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />,
       );
@@ -1144,8 +1160,6 @@ describe('AccountForm', () => {
       const payload = await clickUpdate();
       expect(payload).not.toHaveProperty('mortgageType');
       expect(payload).not.toHaveProperty('prepaymentMode');
-      expect(payload).not.toHaveProperty('isCanadianMortgage');
-      expect(payload).not.toHaveProperty('isVariableRate');
     });
 
     it('starts a new mortgage as ANNUITY', async () => {
@@ -2032,9 +2046,7 @@ describe('AccountForm', () => {
     it('seeds the dialog with the mortgage type the account carries', async () => {
       const mortgageAccount = createExistingAccount({
         accountType: 'MORTGAGE',
-        mortgageType: null,
-        isCanadianMortgage: true,
-        isVariableRate: false,
+        mortgageType: 'CANADIAN_FIXED',
         scheduledTransactionId: null,
       });
       render(<AccountForm account={mortgageAccount} onSubmit={mockOnSubmit} onCancel={mockOnCancel} />);

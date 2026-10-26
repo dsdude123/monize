@@ -386,7 +386,8 @@
         "BANK_SYNC_ACTIVITY": "Resultados da sincronização bancária",
         "EMAIL_RECEIPTS": "Recibos de e-mail",
         "BONDS": "Obrigações",
-        "AI_REVIEW": "Propostas de revisão de IA"
+        "AI_REVIEW": "Propostas de revisão de IA",
+        "WARRANTIES": "Lembretes de garantia"
       },
       "channelNotApplicable": "Não aplicável a este tipo de notificação",
       "emailToggleLabel": "Email (relatório) para {category}",
@@ -984,7 +985,11 @@
     },
     "sections": {
       "description": "Conceda acesso só de leitura a secções inteiras da aplicação. Os dados no âmbito de conta ainda necessitam de acesso por conta.",
-      "aiRequiresFullAccess": "O Assistente de IA lê todas as contas e secções, pelo que só responde a este delegado quando este puder ler todas as suas contas e todas as outras secções."
+      "aiRequiresFullAccess": "O Assistente de IA lê todas as contas e secções, pelo que só responde a este delegado quando este puder ler todas as suas contas e todas as outras secções.",
+      "warranties": {
+        "label": "Garantias",
+        "description": "Garantias, os respetivos documentos e reclamações. Uma compra associada só é mostrada se estiver numa conta que o delegado possa ler."
+      }
     },
     "accounts": {
       "noAccounts": "Sem contas para conceder.",
@@ -1671,7 +1676,8 @@
         "invalid_amount": "{count, plural, one {# com um montante inválido} other {# com um montante inválido}}",
         "unknown_direction": "{count, plural, one {# com um sentido desconhecido} other {# com um sentido desconhecido}}",
         "currency_mismatch": "{count, plural, one {# noutra moeda} other {# noutra moeda}}",
-        "other": "{count, plural, one {# por outro motivo} other {# por outro motivo}}"
+        "other": "{count, plural, one {# por outro motivo} other {# por outro motivo}}",
+        "missing_identity": "Falta o identificador da transação bancária: {count, number}"
       },
       "needsPreview": "Abra a pré-visualização de {accounts} e confirme a primeira importação",
       "withNeedsPreview": "{message}. {needsPreview}"
@@ -1744,7 +1750,8 @@
         "invalid_amount": "Montante inválido",
         "unknown_direction": "Sentido desconhecido",
         "currency_mismatch": "Outra moeda",
-        "other": "Recusada"
+        "other": "Recusada",
+        "missing_identity": "Falta o identificador da transação bancária"
       },
       "columns": {
         "date": "Data",
@@ -1781,7 +1788,47 @@
           "none": "Sem etiqueta de tipo de operação para esta transação.",
           "tag": "Etiqueta do tipo de operação do banco: {tag}"
         }
-      }
+      },
+      "historyBatch": "Lote do histórico: de {from} a {to}.",
+      "historyBatchRemaining": "Lote do histórico: de {from} a {to}. Há mais histórico. Após esta importação, abra a pré-visualização do lote seguinte."
+    },
+    "simplefin": {
+      "provider": "Fornecedor de dados",
+      "description": "Ligue os bancos no <bridge>SimpleFIN Bridge</bridge> e cole aqui um token de configuração de utilização única. O acesso é só de leitura.",
+      "openBridge": "Abrir SimpleFIN Bridge",
+      "setupToken": "Token de configuração",
+      "connect": "Ligar SimpleFIN",
+      "connected": "O SimpleFIN está ligado.",
+      "savedDiscoveryFailed": "Ligado, mas a descoberta de contas requer atenção. Repita sem um novo token.",
+      "refresh": "Atualizar contas",
+      "failed": "Não foi possível concluir o pedido. Verifique o estado da ligação antes de usar um novo token.",
+      "loadFailed": "Não foi possível carregar o estado do SimpleFIN.",
+      "encryptionRequired": "Peça a um administrador para configurar a encriptação antes de ligar o SimpleFIN.",
+      "remove": "Remover SimpleFIN do Monize",
+      "removeTitle": "Remover o acesso a todas as instituições?",
+      "removeBody": "Isto desativa toda a sincronização SimpleFIN no Monize e preserva o histórico. Revogue o token da aplicação no Bridge para terminar o acesso remoto.",
+      "replaceTitle": "Substituir o acesso SimpleFIN?",
+      "replaceBody": "Isto substitui o acesso a todas as instituições. As associações de contas existentes mantêm-se; identidades alteradas exigem revisão.",
+      "quota": "{remaining} pedidos restantes",
+      "nextEligible": "Próxima disponibilidade: {date}",
+      "stopTitle": "Parar a sincronização de {bank}?",
+      "stopBody": "As associações e transações existentes são mantidas.",
+      "stop": "Parar sincronização",
+      "stopped": "Sincronização parada",
+      "title": "SimpleFIN",
+      "enableBanking": "Enable Banking",
+      "errors": {
+        "unauthorized": "Volte a ligar com um novo token de configuração.",
+        "payment_required": "Verifique a subscrição do SimpleFIN Bridge.",
+        "rate_limited": "Limite de pedidos atingido. Aguarde antes de atualizar.",
+        "no_accounts": "Não foram partilhadas contas. Verifique o acesso no Bridge.",
+        "partial_data": "Alguns dados estão incompletos. Verifique o Bridge e atualize.",
+        "identity_review": "As identidades das contas mudaram. Reveja as associações antes de ativar a sincronização.",
+        "invalid_response": "O Bridge devolveu dados não suportados. Atualize mais tarde.",
+        "unavailable": "O SimpleFIN não respondeu. Tente mais tarde."
+      },
+      "resume": "Retomar sincronização",
+      "lastKnownConnected": "O SimpleFIN estava ligado na última verificação bem-sucedida."
     }
   }
 }

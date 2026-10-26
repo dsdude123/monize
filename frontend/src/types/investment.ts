@@ -24,7 +24,11 @@ export type InvestmentAction =
   | 'REINVEST_CAPITAL_GAIN_LONG'
   | 'CAPITAL_GAIN_SHORT'
   | 'CAPITAL_GAIN_LONG'
-  | 'REDEEM';
+  | 'REDEEM'
+  // Return of capital (issue #1800): a base action of its own. Its cash arrives
+  // like a dividend's and no shares move, but it is not income -- it pays back
+  // part of the cost, so the server takes it off the position's cost basis.
+  | 'RETURN_OF_CAPITAL';
 
 export type QuoteProviderName = 'yahoo' | 'msn' | 'lse' | 'deutsche_boerse';
 
@@ -230,8 +234,22 @@ export interface AccountHoldings {
    * so any total built on it is unknown too (see `buildLogicalAccounts`).
    */
   unpricedHoldingsCount: number;
+  /**
+   * Value less cost over the holdings that have a value (`gainCostBasis` is
+   * their cost), so the cost of an unpriced holding is not charged against a
+   * value that never included it. A partial figure while `valuationComplete`
+   * is `false`.
+   */
   totalGainLoss: number;
+  /** Over `gainCostBasis`; 0 when that is 0. */
   totalGainLossPercent: number;
+  /**
+   * Cost of the holdings `totalGainLoss` is over. Optional for the
+   * rolling-deploy reason `fxComplete` gives: absent is no information.
+   */
+  gainCostBasis?: number;
+  /** Cost of the holdings the gain leaves out because they have no value. */
+  unpricedCostBasis?: number;
   netInvested: number;
   /**
    * Whether every component of *this account's* totals is known. The totals above
@@ -307,8 +325,17 @@ export interface PortfolioSummary {
   totalCostBasis: number;
   totalNetInvested: number;
   totalPortfolioValue: number;
+  /**
+   * Value less cost over the holdings that have a value; a partial figure while
+   * `valuationComplete` is `false`, which `PartialTotal` marks.
+   */
   totalGainLoss: number;
+  /** Over `gainCostBasis`; 0 when that is 0. */
   totalGainLossPercent: number;
+  /** Cost of the holdings `totalGainLoss` is over. Optional: absent is no information. */
+  gainCostBasis?: number;
+  /** Cost of the holdings the gain leaves out because they have no value. */
+  unpricedCostBasis?: number;
   /**
    * The invested part's time-weighted return since the portfolio's first
    * transaction, from the same server measure "Portfolio performance" reports
@@ -625,6 +652,14 @@ export interface SecurityDetailActivity {
    * added into a single figure.
    */
   realizedGain: number | null;
+  /**
+   * `false` when a sale drew on shares of unknown cost, which is the other
+   * reason `realizedGain` is null; read as `=== false`, absent means no
+   * information.
+   */
+  realizedGainComplete?: boolean;
+  /** The gains that are known, when `realizedGainComplete` is `false`. */
+  realizedGainKnownSubtotal?: number | null;
   realizedGainCurrency: string | null;
   /** Currencies the security was sold from, for naming them when they differ. */
   realizedGainCurrencies: string[];
@@ -907,12 +942,23 @@ export interface RealizedGainEntry {
   symbol: string | null;
   securityName: string | null;
   securityCurrencyCode: string | null;
+  /**
+   * The row that realized the gain. A RETURN_OF_CAPITAL realizes what it paid
+   * beyond the cost basis with no shares sold, so its `quantity` and `price`
+   * are 0 and mean nothing (issue #1800).
+   */
+  action: InvestmentAction;
   quantity: number;
   price: number;
   commission: number;
   proceeds: number;
-  costBasis: number;
-  realizedGain: number;
+  /**
+   * `null` when the position held shares of unknown cost (added with no price,
+   * or an unpriced acquisition): what was sold cost an unknown amount, so the
+   * gain is unknown too. The proceeds stay known.
+   */
+  costBasis: number | null;
+  realizedGain: number | null;
 }
 
 /**

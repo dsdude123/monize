@@ -278,6 +278,27 @@ describe("TwoFactorService", () => {
       (otplib.verifySync as jest.Mock).mockReturnValue({ valid: true });
     });
 
+    it("refuses over the per-user cap without checking the code, even when the peek saw room", async () => {
+      // A concurrent burst across many temp tokens: each peek read the same
+      // low count, so the bound is the count the reservation committed
+      // (A26-L08). The code here is valid; a check would have signed in.
+      attemptCounters.peek.mockResolvedValue(0);
+      attemptCounters.increment
+        .mockResolvedValueOnce({
+          count: 1,
+          windowExpiresAt: new Date(Date.now() + 60_000),
+        })
+        .mockResolvedValueOnce({
+          count: 11,
+          windowExpiresAt: new Date(Date.now() + 60_000),
+        });
+
+      await expect(service.verify2FA(tempToken, code)).rejects.toThrow(
+        "Too many verification attempts. Your account has been temporarily locked.",
+      );
+      expect(otplib.verifySync).not.toHaveBeenCalled();
+    });
+
     it("should verify a valid TOTP code and return tokens", async () => {
       const result = await service.verify2FA(tempToken, code);
 
@@ -470,6 +491,22 @@ describe("TwoFactorService", () => {
       );
     });
 
+    it("refuses to replace an active authenticator, before the password is checked", async () => {
+      usersRepository.findOne.mockResolvedValue({
+        ...mockUser,
+        twoFactorSecret: encrypt("TESTSECRET", TEST_TOTP_KEY),
+      });
+      preferencesRow.seed({ userId: "user-1", twoFactorEnabled: true });
+      const compare = jest.spyOn(bcrypt, "compare");
+      compare.mockClear();
+
+      await expect(
+        service.setup2FA("user-1", "correct-password"),
+      ).rejects.toThrow(/already enabled/i);
+      expect(compare).not.toHaveBeenCalled();
+      expect(usersRepository.save).not.toHaveBeenCalled();
+    });
+
     it("should reject incorrect current password", async () => {
       usersRepository.findOne.mockResolvedValue({ ...mockUser });
       jest.spyOn(bcrypt, "compare").mockResolvedValueOnce(false as never);
@@ -482,6 +519,21 @@ describe("TwoFactorService", () => {
   });
 
   describe("confirmSetup2FA", () => {
+    it("refuses to confirm over an active authenticator", async () => {
+      usersRepository.findOne.mockResolvedValue({
+        ...mockUser,
+        twoFactorSecret: encrypt("OLDSECRET", TEST_TOTP_KEY),
+        pendingTwoFactorSecret: encrypt("TESTSECRET", TEST_TOTP_KEY),
+      });
+      preferencesRow.seed({ userId: "user-1", twoFactorEnabled: true });
+      (otplib.verifySync as jest.Mock).mockReturnValue({ valid: true });
+
+      await expect(service.confirmSetup2FA("user-1", "123456")).rejects.toThrow(
+        /already enabled/i,
+      );
+      expect(usersRepository.save).not.toHaveBeenCalled();
+    });
+
     it("should promote pending secret to active on valid code", async () => {
       const pendingSecret = encrypt("TESTSECRET", TEST_TOTP_KEY);
       usersRepository.findOne.mockResolvedValue({
@@ -684,7 +736,10 @@ describe("TwoFactorService", () => {
 
       expect(result.message).toContain("disabled successfully");
       expect(otplib.verifySync).not.toHaveBeenCalled();
-      expect(attemptCounters.increment).not.toHaveBeenCalled();
+      // The attempt is reserved before the transaction decides (A26-L08) and
+      // handed back by the reset once the repair succeeded: nothing is left
+      // counted against the user.
+      expect(attemptCounters.reset).toHaveBeenCalledWith("2fa-user", "user-1");
       expect(usersRepository.update).toHaveBeenCalledWith(
         { id: "user-1" },
         { twoFactorSecret: null, backupCodes: null },

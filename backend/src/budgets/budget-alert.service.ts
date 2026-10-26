@@ -299,9 +299,11 @@ export class BudgetAlertService {
     const today = new Date();
     const startDate = new Date(periodStart);
     const endDate = new Date(periodEnd);
-    const totalDays = Math.ceil(
-      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-    );
+    // periodEnd is the inclusive last day, so the period spans one more day.
+    const totalDays =
+      Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      ) + 1;
     const daysElapsed = Math.max(
       1,
       Math.ceil(
@@ -698,11 +700,17 @@ export class BudgetAlertService {
       critical: 2,
     };
 
+    // The same key as `idx_notifications_fingerprint`: a flex-group warning is
+    // budget-wide (no category), so the group in `data` is what tells two of
+    // them apart (audit A26-L39).
+    const flexGroupOf = (data: Record<string, unknown> | null | undefined) =>
+      typeof data?.flexGroup === "string" ? data.flexGroup : "";
     return candidates.filter((candidate) => {
       const match = existing.find(
         (e) =>
           e.type === candidate.type &&
-          e.budgetCategoryId === candidate.budgetCategoryId,
+          e.budgetCategoryId === candidate.budgetCategoryId &&
+          flexGroupOf(e.data) === flexGroupOf(candidate.data),
       );
       if (!match) return true;
       // Allow if candidate severity is higher than existing

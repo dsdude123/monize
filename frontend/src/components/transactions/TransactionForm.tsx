@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef, useCallback, MutableRefObject } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback, MutableRefObject, type BaseSyntheticEvent } from 'react';
 import { useTranslations } from 'next-intl';
 import { useForm, useWatch, Resolver } from 'react-hook-form';
 import '@/lib/zodConfig';
@@ -19,6 +19,7 @@ import { exchangeRatesApi } from '@/lib/exchange-rates';
 import {
   FX_RATE_DISPLAY_DECIMALS,
   getCurrencySymbol,
+  roundMoney,
   roundToCents,
   roundToDecimals,
 } from '@/lib/format';
@@ -58,9 +59,12 @@ import { buildCategoryTree, signAmountByCategory } from '@/lib/categoryUtils';
 import { useNumberFormat } from '@/hooks/useNumberFormat';
 import { useDateFormat } from '@/hooks/useDateFormat';
 import { usePreferencesStore } from '@/store/preferencesStore';
+import { useAuthStore } from '@/store/authStore';
 import { createLogger } from '@/lib/logger';
 import { getErrorMessage } from '@/lib/errors';
 import { AttachmentsSection } from './AttachmentsSection';
+import { TransactionWarrantiesLine } from './TransactionWarrantiesLine';
+import { rowHasWarranties } from './WarrantyBadge';
 import { attachmentsApi } from '@/lib/attachments';
 import type { StagedAttachment } from '@/types/attachment';
 import { optionalUuid, optionalString } from '@/lib/zod-helpers';
@@ -92,26 +96,38 @@ const buildTransactionSchema = (t: (key: string) => string) => z.object({
 type TransactionFormData = z.infer<ReturnType<typeof buildTransactionSchema>>;
 
 /**
+ * The figure a transfer form shows as "Transfer Amount": the FROM (negative)
+ * leg's, whichever leg the form was opened on. The receiving leg holds the
+ * amount in the destination currency, which is the "Amount Received" field,
+ * so loading it here would re-price the transfer on an unedited save.
+ */
+function transferSourceAmount(source: Transaction): number {
+  const linked = source.linkedTransaction;
+  const fromLeg = Number(source.amount) >= 0 && linked ? linked : source;
+  return Math.abs(Number(fromLeg.amount));
+}
+
+/**
  * A reconciled transaction was matched against a statement during
  * reconciliation. Only the date and amount feed that match, so editing other
  * fields (payee, category, notes, reference) leaves the reconciliation intact
  * and should save without a warning. Returns true only when the submitted date
  * or amount differs from the original, in which case the edit is gated behind a
- * confirmation. Amounts are compared in integer cents at the same 2-decimal
- * precision the form loads them with, so float drift never triggers a warning.
+ * confirmation. Amounts are compared at the server's four decimals, the
+ * precision the form loads them with, so float drift never triggers a warning
+ * and a sub-cent change is not missed.
  */
 function reconciledEditAffectsReconciliation(
   original: Transaction,
   data: TransactionFormData,
 ): boolean {
   const dateChanged = data.transactionDate !== original.transactionDate;
-  // Mirror the form's defaultValues normalization: transfers always load an
-  // absolute amount, everything else keeps its sign.
+  // Mirror the form's defaultValues normalization: transfers always load the
+  // source leg's absolute amount, everything else keeps its sign.
   const originalAmount = original.isTransfer
-    ? Math.abs(Math.round(Number(original.amount) * 100) / 100)
-    : Math.round(Number(original.amount) * 100) / 100;
-  const amountChanged =
-    Math.round(Number(data.amount) * 100) !== Math.round(originalAmount * 100);
+    ? transferSourceAmount(original)
+    : Number(original.amount);
+  const amountChanged = roundMoney(Number(data.amount)) !== roundMoney(originalAmount);
   return dateChanged || amountChanged;
 }
 
@@ -148,6 +164,31 @@ interface TransactionFormProps {
    * so each becomes a `StagedAttachment` carrying only `file`.
    */
   initialStagedFiles?: File[];
+  /**
+   * The Warranties line's "Add warranty": the host closes this form through
+   * its own close path (which asks about unsaved edits) and then opens the
+   * Warranties page's form prefilled from the transaction. Edits only; a new
+   * transaction's Add is `onAddWarrantyAfterCreate`. Leave it off and the line
+   * offers no Add, and shows only when the row has warranties to list.
+   */
+  onAddWarranty?: (transaction: Transaction) => void;
+  /**
+   * A new transaction's "Add warranty": the form saves the transaction first,
+   * through the same validation and submit as Save, and calls this in place of
+   * `onSuccess` once the save succeeded, with the row it created. Nothing is
+   * unsaved by then, so the host closes without asking and opens the
+   * Warranties page's form prefilled from that row. Leave it off and a new
+   * transaction shows no Warranties line.
+   */
+  onAddWarrantyAfterCreate?: (created: Transaction) => void;
+  /**
+   * Opens one linked warranty's page from the Warranties line, through the
+   * same close-then-navigate as `onAddWarranty`. A plain link cannot do it:
+   * this form sits in a `pushHistory` Modal, and the Modal's unmount pops its
+   * history entry, which undoes the link's navigation. Leave it off and the
+   * line lists the warranties without links.
+   */
+  onOpenWarranty?: (warrantyId: string) => void;
 }
 
 interface TransactionFormFieldsProps extends TransactionFormProps {
@@ -155,16 +196,26 @@ interface TransactionFormFieldsProps extends TransactionFormProps {
   onCreateAnother?: (accountId: string) => void;
 }
 
+/** What a successful create goes on to do in place of closing the form. */
+type AfterCreate = 'addWarranty';
+
 // Transaction mode type
 type TransactionMode = 'normal' | 'split' | 'transfer';
 
-function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, defaultCategoryId, defaultDate, onSuccess, onCancel, onDirtyChange, submitRef, onCreateAnother, initialStagedFiles }: TransactionFormFieldsProps) {
+function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, defaultCategoryId, defaultDate, onSuccess, onCancel, onDirtyChange, submitRef, onCreateAnother, initialStagedFiles, onAddWarranty, onAddWarrantyAfterCreate, onOpenWarranty }: TransactionFormFieldsProps) {
   const t = useTranslations('transactions');
+  // An acting delegate never sees the Warranties line: a warranty is the
+  // owner's to add, and the same rule makes the Warranties page read-only.
+  const actingAsDelegate = useAuthStore((s) => s.actingAsUserId) !== null;
   const { defaultCurrency, formatCurrency, formatNumber } = useNumberFormat();
   const showCreatedAt = usePreferencesStore((s) => s.preferences?.showCreatedAt ?? false);
   const timeFormat = usePreferencesStore((s) => s.preferences?.timeFormat ?? '24h');
   const timezonePref = usePreferencesStore((s) => s.preferences?.timezone);
   const [isLoading, setIsLoading] = useState(false);
+  // Set on the click, before validation resolves: `isLoading` is set only
+  // once it has, so it cannot stop a second click from creating the row twice.
+  const submitInFlight = useRef(false);
+  const [isSavingForWarranty, setIsSavingForWarranty] = useState(false);
   // What the submit button does once a *new* transaction has been created.
   // Only offered when creating and only when the host can keep the window open;
   // an edit always hands back to the page.
@@ -337,10 +388,11 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
           payeeId: initSource.payeeId || '',
           payeeName: initSource.payeeName || '',
           categoryId: initSource.categoryId || '',
-          // For transfers, always show absolute amount
+          // As stored (four decimals), so an unedited save re-sends it. For
+          // transfers, the source (FROM) leg's absolute amount.
           amount: initSource.isTransfer
-            ? Math.abs(Math.round(Number(initSource.amount) * 100) / 100)
-            : Math.round(Number(initSource.amount) * 100) / 100,
+            ? roundMoney(transferSourceAmount(initSource))
+            : roundMoney(Number(initSource.amount)),
           currencyCode: initSource.currencyCode,
           description: initSource.description || '',
           referenceNumber: initSource.referenceNumber || '',
@@ -1174,7 +1226,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         // Both halves of a scan pair go in ONE request: the server writes them
         // in one transaction, so uploading the original separately would leave
         // a window where the pair is half stored.
-        await attachmentsApi.upload(newTransactionId, file, original);
+        await attachmentsApi.upload({ transactionId: newTransactionId }, file, original);
       } catch (error) {
         failed += 1;
         logger.error('Failed to upload staged attachment:', error);
@@ -1207,7 +1259,11 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
    * with this account and the date just used) and the modal stays open;
    * otherwise this is the ordinary `onSuccess` that closes it.
    */
-  const finishAfterCreate = (accountId: string) => {
+  const finishAfterCreate = (accountId: string, created: Transaction, then?: AfterCreate) => {
+    if (then === 'addWarranty' && onAddWarrantyAfterCreate) {
+      onAddWarrantyAfterCreate(created);
+      return;
+    }
     if (canCreateAnother && submitMode === 'new') {
       onCreateAnother?.(accountId);
       return;
@@ -1215,7 +1271,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
     onSuccess?.();
   };
 
-  const performSubmit = async (data: TransactionFormData) => {
+  const performSubmit = async (data: TransactionFormData, then?: AfterCreate) => {
     // Joint accounts: a free-text payee would auto-create on the OWNER's
     // ledger, which needs the delegation's payees-can-create capability. The
     // server enforces this too; refusing here keeps the form's state intact.
@@ -1233,6 +1289,15 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
     try {
       // Handle transfer mode
       if (mode === 'transfer') {
+        // An existing income, expense or split cannot become a transfer from
+        // here: creating one would leave the edited row in place and book the
+        // money twice (A26-H14). The mode is not offered on such an edit; this
+        // refuses it should anything else ever select it.
+        if (transaction && !transaction.isTransfer) {
+          toast.error(t('form.toasts.convertToTransferUnsupported'));
+          setIsLoading(false);
+          return;
+        }
         if (!transferToAccountId) {
           toast.error(t('form.toasts.destinationRequired'));
           setIsLoading(false);
@@ -1289,7 +1354,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
           rememberTransactionDate(LAST_TRANSACTION_DATE_KEY, data.transactionDate);
           // Attach staged files to the "from" leg (the account being edited).
           await uploadStagedAttachments(transfer.fromTransaction.id);
-          finishAfterCreate(data.accountId);
+          finishAfterCreate(data.accountId, transfer.fromTransaction, then);
         }
         return;
       }
@@ -1307,9 +1372,12 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
 
       // Validate splits sum to amount if in split mode
       if (isSplitMode && splitsData) {
+        // At the server's precision: it requires the lines to equal the parent
+        // exactly at four decimals, so a one-cent tolerance here let through a
+        // set the server refuses and refused a stored four-decimal set.
         const splitsTotal = splitsData.reduce((sum, s) => sum + s.amount, 0);
-        const roundedSplitsTotal = Math.round(splitsTotal * 100) / 100;
-        const roundedAmount = Math.round(data.amount * 100) / 100;
+        const roundedSplitsTotal = roundMoney(splitsTotal);
+        const roundedAmount = roundMoney(data.amount);
         if (roundedSplitsTotal !== roundedAmount) {
           toast.error(t('form.toasts.splitsNotEqual', { splitTotal: roundedSplitsTotal, txAmount: roundedAmount }));
           setIsLoading(false);
@@ -1377,7 +1445,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         // ('' when the account currency was used, which clears the stickiness).
         rememberTransactionCurrency(isForeign ? entryCurrency : '');
         await uploadStagedAttachments(created.id);
-        finishAfterCreate(data.accountId);
+        finishAfterCreate(data.accountId, created, then);
       }
     } catch (error) {
       logger.error('Submit error:', error);
@@ -1392,7 +1460,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
   // leave the date and amount untouched (e.g. fixing a payee or category) don't
   // affect the reconciliation and save without a prompt. New/duplicated
   // transactions start UNRECONCILED, so this only gates genuine edits.
-  const onSubmit = async (data: TransactionFormData) => {
+  const submitThen = async (data: TransactionFormData, then?: AfterCreate) => {
     if (
       transaction?.status === TransactionStatus.RECONCILED &&
       reconciledEditAffectsReconciliation(transaction, data)
@@ -1400,8 +1468,35 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
       setReconciledConfirmData(data);
       return;
     }
-    await performSubmit(data);
+    await performSubmit(data, then);
   };
+
+  // One argument only: react-hook-form passes the submit event second.
+  const onSubmit = (data: TransactionFormData) => submitThen(data);
+
+  /** Save, or a new transaction's save-then-Add-warranty: one at a time. */
+  const guardedSubmit = (then: AfterCreate | undefined, event?: BaseSyntheticEvent) => {
+    event?.preventDefault();
+    if (submitInFlight.current) return;
+    submitInFlight.current = true;
+    if (then === 'addWarranty') setIsSavingForWarranty(true);
+    void handleSubmit((data) => submitThen(data, then))(event).finally(() => {
+      submitInFlight.current = false;
+      setIsSavingForWarranty(false);
+    });
+  };
+
+  // An edit's Add leaves for the warranty through the host's own close; a new
+  // transaction's saves it first, as the warranty links to the row it creates.
+  const addWarranty = transaction
+    ? onAddWarranty && (() => onAddWarranty(transaction))
+    : onAddWarrantyAfterCreate && (() => guardedSubmit('addWarranty'));
+  const showWarrantiesLine =
+    !selectedIsJoint &&
+    !actingAsDelegate &&
+    // From the props, not `addWarranty`: that closes over the submit guard's ref.
+    ((transaction ? onAddWarranty : onAddWarrantyAfterCreate) !== undefined ||
+      (transaction !== undefined && rowHasWarranties(transaction)));
 
   const handleReconciledConfirm = async () => {
     const data = reconciledConfirmData;
@@ -1514,10 +1609,13 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
   return (
     <form
       {...tourAnchor(TOUR_ANCHORS.transactionForm)}
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={(event) => guardedSubmit(undefined, event)}
       className="space-y-4"
     >
-      {/* Mode selector - show for new/duplicate transactions, or non-transfer edits */}
+      {/* Mode selector - show for new/duplicate transactions, or non-transfer
+          edits. Transfer is offered only on a new entry: an edit has no route
+          that converts the row, and creating a transfer beside it would book
+          the money twice (A26-H14). */}
       {(!transaction || !transaction.isTransfer) && (
         <div className="flex space-x-2 pb-2 border-b dark:border-gray-700">
           <button
@@ -1552,17 +1650,19 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
           >
             {t('form.modeSplit')}
           </button>
-          <button
-            type="button"
-            onClick={() => handleModeChange('transfer')}
-            className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
-              mode === 'transfer'
-                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-          >
-            {t('form.modeTransfer')}
-          </button>
+          {!transaction && (
+            <button
+              type="button"
+              onClick={() => handleModeChange('transfer')}
+              className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+                mode === 'transfer'
+                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              {t('form.modeTransfer')}
+            </button>
+          )}
         </div>
       )}
 
@@ -1703,6 +1803,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
             displayCurrencyCode={isForeign ? entryCurrency : undefined}
             displayRate={isForeign ? (fxRate ?? undefined) : undefined}
             onCreateCategory={jointSafeCategoryCreator}
+            transactionDate={watchedDate}
           />
         </div>
       )}
@@ -1772,6 +1873,19 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         <AttachmentsSection
           stagedFiles={stagedAttachments}
           onStagedFilesChange={setStagedAttachments}
+        />
+      )}
+
+      {/* Warranties linked to this purchase, and Add warranty: shown where
+          there is one to list or the host can Add, never as a dead end. Not on
+          a joint account's row (a warranty is the reader's own, as
+          attachments are), and not for an acting delegate. */}
+      {showWarrantiesLine && (
+        <TransactionWarrantiesLine
+          transaction={transaction}
+          onAddWarranty={addWarranty}
+          isAdding={isSavingForWarranty}
+          onOpenWarranty={onOpenWarranty}
         />
       )}
 

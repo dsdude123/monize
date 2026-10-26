@@ -25,7 +25,6 @@
     "manual": "手動",
     "manualTitle": "需要手動過帳",
     "negativeBalanceWarning": "此交易將導致科目結餘低於零",
-    "viewAll": "查看所有帳單與存款",
     "moreItems": "+{count} 更多",
     "overdue": "已逾期",
     "today": "今天",
@@ -90,8 +89,12 @@
     "title": "消費洞察",
     "empty": "暫無洞察資料。請前往洞察頁面產生您的第一份分析。",
     "goToInsights": "前往洞察",
-    "viewAll": "查看所有洞察",
     "activeCount": "{count} 則有效"
+  },
+  "warrantiesExpiring": {
+    "title": "即將到期的保固",
+    "empty": "未來 30 天內沒有即將到期的保固",
+    "loadFailed": "無法載入即將到期的保固。請重新載入儀表板後再試。"
   },
   "topMovers": {
     "title": "漲跌幅排行",
@@ -125,8 +128,7 @@
     "dailyChange": "每日變動",
     "dailyChangeOn": "每日變動 · {date}",
     "openPriceHistory": "{symbol} 的價格歷史",
-    "refreshPrices": "更新價格",
-    "manage": "管理證券"
+    "refreshPrices": "更新價格"
   },
   "netWorth": {
     "title": "資產淨值",
@@ -143,6 +145,7 @@
     "netWorthLabel": "資產淨值",
     "assets": "資產",
     "liabilities": "負債",
+    "partialName": "{name}（不完整）",
     "viewCallouts": "標籤",
     "viewLegend": "圖例"
   },

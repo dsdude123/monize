@@ -78,6 +78,12 @@ import {
   LlmScheduledKind,
 } from "../../scheduled-transactions/scheduled-transactions.service";
 import { BuiltInReportsService } from "../../built-in-reports/built-in-reports.service";
+import {
+  SPENDING_ANOMALY_DEFAULT_MONTHS,
+  SPENDING_ANOMALY_DEFAULT_THRESHOLD,
+} from "../../built-in-reports/anomaly-reports.service";
+import { WarrantiesService } from "../../warranties/warranties.service";
+import { LlmWarrantyQuery } from "../../warranties/warranty-llm-shape";
 import { validateToolInput } from "./tool-input-schemas";
 import { AttachmentDto } from "./dto/ai-query.dto";
 import {
@@ -220,6 +226,8 @@ export class ToolExecutorService {
     // reaches BondsModule through a forwardRef (`src/module-graph.spec.ts`).
     @Inject(forwardRef(() => BondSeriesService))
     private readonly bondSeries: BondSeriesService,
+    // `list_warranties` (design decision 11).
+    private readonly warrantiesService: WarrantiesService,
   ) {}
 
   async execute(
@@ -329,6 +337,9 @@ export class ToolExecutorService {
           break;
         case "email_receipt_parsers":
           result = await this.emailReceiptParsers(userId, validatedInput);
+          break;
+        case "list_warranties":
+          result = await this.listWarranties(userId, validatedInput);
           break;
         default:
           this.logger.warn(`execute unknown tool=${toolName} user=${userId}`);
@@ -513,8 +524,19 @@ export class ToolExecutorService {
       };
     }
 
+    // The totals are in `totalsCurrency` and are `null` while a pair has no
+    // rate: say which currency, or say they are withheld and what to add. A
+    // bare number is what let 4,000 PLN and 1,000 USD read as 5,000.
+    const cur = data.totalsCurrency;
+    const flow =
+      data.fxComplete === false ||
+      data.totalIncome === null ||
+      data.totalExpenses === null ||
+      data.netCashFlow === null
+        ? `Totals withheld: no exchange rate for ${data.missingRatePairs.join(", ")}; add it under Currencies. Converted so far: income ${data.knownIncomeSubtotal.toFixed(2)} ${cur}, expenses ${data.knownExpensesSubtotal.toFixed(2)} ${cur}`
+        : `Income: ${data.totalIncome.toFixed(2)} ${cur}, Expenses: ${data.totalExpenses.toFixed(2)} ${cur}, Net: ${data.netCashFlow.toFixed(2)} ${cur}`;
     const summaryParts = [
-      `${data.transactionCount} transactions from ${startDate} to ${endDate}. Income: ${data.totalIncome.toFixed(2)}, Expenses: ${data.totalExpenses.toFixed(2)}, Net: ${data.netCashFlow.toFixed(2)}`,
+      `${data.transactionCount} transactions from ${startDate} to ${endDate}. ${flow}`,
     ];
     if (data.groupedBy !== "none") {
       summaryParts.push(`Grouped by ${data.groupedBy}.`);
@@ -2415,22 +2437,51 @@ export class ToolExecutorService {
     );
     const foreignPart = foreign.length
       ? ` Accounts in other currencies (own currency = ${data.defaultCurrency}): ${foreign
-          .map(
-            (a) =>
-              `${a.name}: ${a.balance.toFixed(2)} ${a.currency} = ${
-                a.balanceInDefaultCurrency === null
-                  ? "unknown (no rate)"
-                  : `${a.balanceInDefaultCurrency.toFixed(2)} ${data.defaultCurrency}`
-              }`,
-          )
+          .map((a) => {
+            // A brokerage with an unpriced or unconverted position has no
+            // balance: say so and give what did value, never a zero.
+            if (a.balance === null) {
+              return `${a.name}: unknown (holdings not priced); known subtotal ${a.knownBalanceSubtotal.toFixed(2)} ${a.currency}`;
+            }
+            return `${a.name}: ${a.balance.toFixed(2)} ${a.currency} = ${
+              a.balanceInDefaultCurrency === null
+                ? "unknown (no rate)"
+                : `${a.balanceInDefaultCurrency.toFixed(2)} ${data.defaultCurrency}`
+            }`;
+          })
           .join("; ")}.`
       : "";
     const missingRatePart = data.missingRatePairs.length
       ? ` No exchange rate for: ${data.missingRatePairs.join(", ")} (the user can add one on the Currencies page).`
       : "";
+    const unpricedPart = data.unpricedSymbols.length
+      ? ` No price for: ${data.unpricedSymbols.join(", ")} (the user can add one in the security's price history).`
+      : "";
+    // A total that is null is withheld, not zero: say why, and give the sum of
+    // what did convert under its own name.
+    const causes = [
+      ...(data.fxComplete === false
+        ? [
+            data.missingRatePairs.length
+              ? `no exchange rate for ${data.missingRatePairs.join(", ")}`
+              : "a component could not be converted",
+          ]
+        : []),
+      ...(data.pricesComplete === false
+        ? [
+            data.unpricedSymbols.length
+              ? `no price for ${data.unpricedSymbols.join(", ")}`
+              : "a position has no price",
+          ]
+        : []),
+    ];
+    const figure = (total: number | null, known: number): string =>
+      total === null
+        ? `withheld (incomplete: ${causes.join("; ") || "a component is unknown"}); known subtotal ${known.toFixed(2)} ${data.defaultCurrency}`
+        : `${total.toFixed(2)} ${data.defaultCurrency}`;
     return {
       data,
-      summary: `${data.totalAccounts} accounts. Net worth: ${data.netWorth.toFixed(2)} ${data.defaultCurrency}, Assets: ${data.totalAssets.toFixed(2)} ${data.defaultCurrency}, Liabilities: ${data.totalLiabilities.toFixed(2)} ${data.defaultCurrency}.${foreignPart}${missingRatePart}`,
+      summary: `${data.totalAccounts} accounts. Net worth: ${figure(data.netWorth, data.knownNetWorthSubtotal)}, Assets: ${figure(data.totalAssets, data.knownAssetsSubtotal)}, Liabilities: ${figure(data.totalLiabilities, data.knownLiabilitiesSubtotal)}.${foreignPart}${missingRatePart}${unpricedPart}`,
       sources: [
         {
           type: "accounts",
@@ -2494,9 +2545,23 @@ export class ToolExecutorService {
       direction,
     });
 
+    // Totals are in `totalsCurrency`; while a pair has no rate they are
+    // withheld (`null`), so the line says so instead of printing a subtotal.
+    const cur = data.totalsCurrency;
+    const periods = `Period 1 (${period1Start} to ${period1End})`;
+    const periods2 = `Period 2 (${period2Start} to ${period2End})`;
+    const summary =
+      data.fxComplete === false ||
+      data.period1.total === null ||
+      data.period2.total === null ||
+      data.totalChange === null ||
+      data.totalChangePercent === null
+        ? `Totals withheld: no exchange rate for ${data.missingRatePairs.join(", ")}; add it under Currencies. Converted so far: ${periods} ${data.period1.knownSubtotal.toFixed(2)} ${cur}, ${periods2} ${data.period2.knownSubtotal.toFixed(2)} ${cur}`
+        : `${periods}: ${data.period1.total.toFixed(2)} ${cur}, ${periods2}: ${data.period2.total.toFixed(2)} ${cur}, Change: ${data.totalChange >= 0 ? "+" : ""}${data.totalChange.toFixed(2)} ${cur} (${data.totalChangePercent >= 0 ? "+" : ""}${data.totalChangePercent}%)`;
+
     return {
       data,
-      summary: `Period 1 (${period1Start} to ${period1End}): ${data.period1.total.toFixed(2)}, Period 2 (${period2Start} to ${period2End}): ${data.period2.total.toFixed(2)}, Change: ${data.totalChange >= 0 ? "+" : ""}${data.totalChange.toFixed(2)} (${data.totalChangePercent >= 0 ? "+" : ""}${data.totalChangePercent}%)`,
+      summary,
       sources: [
         {
           type: "comparison",
@@ -2543,6 +2608,22 @@ export class ToolExecutorService {
     const incompleteNote = data.valuationComplete
       ? ""
       : ` INCOMPLETE: ${incompleteReasons.join("; ")}, so every total above is a subtotal of what could be worked out. Say so rather than quoting these figures as complete.`;
+    // The gain is over the holdings that have a value, so say which cost it
+    // leaves out; "every total above is a subtotal" does not tell a model that
+    // the percentage is over a smaller base (A26-M38).
+    const gainLeftOut = [
+      ...(data.unpricedSymbols.length > 0
+        ? [`${data.unpricedSymbols.join(", ")} (no price)`]
+        : []),
+      ...(data.missingRatePairs.length > 0
+        ? [`holdings needing ${data.missingRatePairs.join(", ")} (no rate)`]
+        : []),
+    ];
+    const gainNote = data.valuationComplete
+      ? ""
+      : ` The unrealized gain/loss is over the priced holdings only; it leaves out ${
+          gainLeftOut.length > 0 ? gainLeftOut.join("; ") : "unvalued holdings"
+        }, and the cost of the unpriced holdings excluded from it is ${data.unpricedCostBasis.toFixed(2)}.`;
     // An account whose own totals could not be worked out is separately worth
     // saying: its figures are in its own currency, so the flags above do not
     // cover it (recheck RR3-005).
@@ -2555,7 +2636,7 @@ export class ToolExecutorService {
         : "";
     return {
       data,
-      summary: `${data.holdingCount} holding${data.holdingCount === 1 ? "" : "s"}, total portfolio value ${data.totalPortfolioValue.toFixed(2)}, unrealized gain/loss ${sign}${data.totalGainLoss.toFixed(2)} (${sign}${data.totalGainLossPercent.toFixed(2)}%).${lookThroughNote}${incompleteNote}${incompleteAccountsNote}`,
+      summary: `${data.holdingCount} holding${data.holdingCount === 1 ? "" : "s"}, total portfolio value ${data.totalPortfolioValue.toFixed(2)}, unrealized gain/loss ${sign}${data.totalGainLoss.toFixed(2)} (${sign}${data.totalGainLossPercent.toFixed(2)}%).${lookThroughNote}${incompleteNote}${gainNote}${incompleteAccountsNote}`,
       sources: [
         {
           type: "portfolio",
@@ -2849,11 +2930,47 @@ export class ToolExecutorService {
   }
 
   /**
+   * `list_warranties` over `WarrantiesService.getLlmWarranties`, the MCP tool's
+   * own method. No account scope is passed: a delegate reaches the assistant
+   * only with READ on every account and section (`DelegateRequiresFullScope`
+   * on `AiQueryController`), so no linked purchase is theirs to be hidden
+   * from, and the answer equals what the warranties page shows them (WTY-007).
+   */
+  private async listWarranties(
+    userId: string,
+    input: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    const query = input as LlmWarrantyQuery;
+    const result = await this.warrantiesService.getLlmWarranties(userId, query);
+    const count = result.warranties.length;
+    const filter = [
+      query.status && query.status !== "all" ? query.status : "",
+      query.q ? `matching "${query.q}"` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return {
+      data: result,
+      summary: `${count} warrant${count === 1 ? "y" : "ies"}${
+        filter ? ` ${filter}` : ""
+      }${result.total > count ? ` (of ${result.total})` : ""} as of ${result.today}.`,
+      sources: [
+        {
+          type: "warranties",
+          description: filter ? `Warranties ${filter}` : "Current warranties",
+        },
+      ],
+    };
+  }
+
+  /**
    * Run a built-in financial report. Mirrors the MCP generate_report tool and
    * returns the same per-type data shape. The five aggregation types take a date
    * range (default last 30 days); 'net_worth_history' takes a date range
    * (default last 12 months); 'spending_anomalies' takes a months window
-   * (default 3); 'month_comparison' takes a month (default the previous month).
+   * (default 6, as the Reports page); 'month_comparison' takes a month
+   * (default the previous month).
    */
   private async generateReport(
     userId: string,
@@ -2906,15 +3023,20 @@ export class ToolExecutorService {
     }
 
     if (type === "spending_anomalies") {
-      const months = (input.months as number | undefined) ?? 3;
+      // The window and the threshold are two arguments: the months were once
+      // passed as the z-score threshold (audit A26-M34). The threshold is the
+      // Reports page's own default, so both surfaces answer alike.
+      const months =
+        (input.months as number | undefined) ?? SPENDING_ANOMALY_DEFAULT_MONTHS;
       const data = await this.builtInReportsService.getSpendingAnomalies(
         userId,
+        SPENDING_ANOMALY_DEFAULT_THRESHOLD,
         months,
       );
       const count = data.anomalies.length;
       return {
         data,
-        summary: `${count} spending anomal${count === 1 ? "y" : "ies"} detected over the last ${months} month${months === 1 ? "" : "s"}.`,
+        summary: `${count} spending anomal${count === 1 ? "y" : "ies"} detected over the last ${months} month${months === 1 ? "" : "s"}.${this.missingRateNote(data, "Transactions in those currencies were left out of the analysis")}`,
         sources: [
           {
             type: "anomalies",
@@ -2930,9 +3052,19 @@ export class ToolExecutorService {
         userId,
         month,
       );
+      // A month with a component that did not convert has no net worth: the
+      // figures in `data.netWorth` are null and the pairs are named here too.
+      const netWorthNote =
+        data.netWorth.fxComplete === false
+          ? ` Net worth is withheld for an incomplete month: ${
+              data.netWorth.missingRatePairs.length
+                ? `no exchange rate for ${data.netWorth.missingRatePairs.join(", ")}`
+                : "a component could not be converted"
+            } (the user can add a rate on the Currencies page).`
+          : "";
       return {
         data,
-        summary: `Comparison of ${data.currentMonthLabel} vs ${data.previousMonthLabel}.`,
+        summary: `Comparison of ${data.currentMonthLabel} vs ${data.previousMonthLabel}.${netWorthNote}`,
         sources: [
           {
             type: "monthly_comparison",
@@ -2987,7 +3119,7 @@ export class ToolExecutorService {
 
     return {
       data,
-      summary: `Report "${type}" from ${startDate} to ${endDate}.`,
+      summary: `Report "${type}" from ${startDate} to ${endDate}.${this.missingRateNote(data)}`,
       sources: [
         {
           type: "report",
@@ -2996,6 +3128,30 @@ export class ToolExecutorService {
         },
       ],
     };
+  }
+
+  /**
+   * The clause a report summary carries when rows had no exchange rate. The
+   * structured payload names them in `missingCurrencies`, but a model that only
+   * reads the summary line would otherwise quote a short figure as the whole
+   * answer. Names each missing pair and where to fix it; empty when the report
+   * converted everything.
+   */
+  private missingRateNote(
+    data: unknown,
+    consequence = "Total withheld",
+  ): string {
+    const { missingCurrencies, currency } = (data ?? {}) as {
+      missingCurrencies?: unknown;
+      currency?: unknown;
+    };
+    if (!Array.isArray(missingCurrencies) || missingCurrencies.length === 0) {
+      return "";
+    }
+    const pairs = missingCurrencies.map((code) =>
+      typeof currency === "string" ? `${code}->${currency}` : String(code),
+    );
+    return ` ${consequence}: no exchange rate for ${pairs.join(", ")}; add it under Currencies.`;
   }
 
   private async calculate(input: Record<string, unknown>): Promise<ToolResult> {

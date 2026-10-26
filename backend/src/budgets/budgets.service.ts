@@ -28,11 +28,14 @@ import {
   PeriodDateRange,
 } from "./budget-date.utils";
 import {
+  budgetExcludedAccountIds,
+  excludeBudgetAccounts,
   queryCategorySpending,
   resolveCategoryName,
   resolveCategorySpent,
 } from "./budget-spending.util";
 import { formatDateYMD, todayYMD } from "../common/date-utils";
+import { overdueCarryFrom } from "../common/scheduled-occurrences";
 import { roundMoney, sumMoney } from "../common/round.util";
 import {
   convertingTotal,
@@ -462,8 +465,12 @@ export class BudgetsService {
   }
 
   /**
-   * The next occurrence of every outflow schedule due between today and
-   * `periodEnd`, priced at what it would actually cost today.
+   * The next occurrence of every outflow schedule due by `periodEnd`, priced at
+   * what it would actually cost today. An occurrence that fell due in the last
+   * `OVERDUE_CARRY_DAYS` and was neither posted nor skipped is still owed, so it
+   * is the schedule's next one, listed on the date it was due: the balance
+   * forecasts apply it too (discussion #1784), and safe-to-spend must not count
+   * money a late bill will take.
    *
    * Both halves come from the one occurrence contract (issue #1247). The
    * occurrence matters as much as the amount: reading the schedule template meant
@@ -475,11 +482,10 @@ export class BudgetsService {
     userId: string,
     periodEnd: string,
   ): Promise<UpcomingBill[]> {
-    const todayStr = todayYMD();
     const occurrences = await this.occurrences.findOccurrences(
       userId,
       {
-        from: todayStr,
+        from: overdueCarryFrom(todayYMD()),
         through: periodEnd,
         // One row per schedule, which is the shape this list has always had.
         maxOccurrences: 1,
@@ -539,9 +545,11 @@ export class BudgetsService {
     const startDate = new Date(periodStart);
     const endDate = new Date(periodEnd);
 
-    const totalDays = Math.ceil(
-      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-    );
+    // periodEnd is the inclusive last day, so the period spans one more day.
+    const totalDays =
+      Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      ) + 1;
     const daysElapsed = Math.max(
       1,
       Math.ceil(
@@ -883,9 +891,11 @@ export class BudgetsService {
     const today = new Date();
     const startDate = new Date(periodStart);
     const endDate = new Date(periodEnd);
-    const totalDays = Math.ceil(
-      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-    );
+    // periodEnd is the inclusive last day, so the period spans one more day.
+    const totalDays =
+      Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+      ) + 1;
     const daysElapsed = Math.max(
       1,
       Math.ceil(
@@ -1040,36 +1050,41 @@ export class BudgetsService {
       (bc) => bc.categoryId as string,
     );
 
+    const excludedAccountIds = budgetExcludedAccountIds(budget.config);
     const [directResult, splitResult] = await Promise.all([
       withScopedDb(this.dataSource, (m) =>
-        m
-          .getRepository(Transaction)
-          .createQueryBuilder("t")
-          .select("COALESCE(SUM(t.amount), 0)", "total")
-          .where("t.user_id = :userId", { userId })
-          .andWhere("t.category_id IN (:...incomeCategoryIds)", {
-            incomeCategoryIds,
-          })
-          .andWhere("t.transaction_date >= :periodStart", { periodStart })
-          .andWhere("t.transaction_date <= :periodEnd", { periodEnd })
-          .andWhere("t.status != :void", { void: "VOID" })
-          .andWhere("t.is_split = false")
-          .getRawOne(),
+        excludeBudgetAccounts(
+          m
+            .getRepository(Transaction)
+            .createQueryBuilder("t")
+            .select("COALESCE(SUM(t.amount), 0)", "total")
+            .where("t.user_id = :userId", { userId })
+            .andWhere("t.category_id IN (:...incomeCategoryIds)", {
+              incomeCategoryIds,
+            })
+            .andWhere("t.transaction_date >= :periodStart", { periodStart })
+            .andWhere("t.transaction_date <= :periodEnd", { periodEnd })
+            .andWhere("t.status != :void", { void: "VOID" })
+            .andWhere("t.is_split = false"),
+          excludedAccountIds,
+        ).getRawOne(),
       ),
       withScopedDb(this.dataSource, (m) =>
-        m
-          .getRepository(TransactionSplit)
-          .createQueryBuilder("s")
-          .innerJoin("s.transaction", "t")
-          .select("COALESCE(SUM(s.amount), 0)", "total")
-          .where("t.user_id = :userId", { userId })
-          .andWhere("s.category_id IN (:...incomeCategoryIds)", {
-            incomeCategoryIds,
-          })
-          .andWhere("t.transaction_date >= :periodStart", { periodStart })
-          .andWhere("t.transaction_date <= :periodEnd", { periodEnd })
-          .andWhere("t.status != :void", { void: "VOID" })
-          .getRawOne(),
+        excludeBudgetAccounts(
+          m
+            .getRepository(TransactionSplit)
+            .createQueryBuilder("s")
+            .innerJoin("s.transaction", "t")
+            .select("COALESCE(SUM(s.amount), 0)", "total")
+            .where("t.user_id = :userId", { userId })
+            .andWhere("s.category_id IN (:...incomeCategoryIds)", {
+              incomeCategoryIds,
+            })
+            .andWhere("t.transaction_date >= :periodStart", { periodStart })
+            .andWhere("t.transaction_date <= :periodEnd", { periodEnd })
+            .andWhere("t.status != :void", { void: "VOID" }),
+          excludedAccountIds,
+        ).getRawOne(),
       ),
     ]);
 
