@@ -316,6 +316,7 @@
     "totalInflows": "Total Arus Masuk",
     "totalOutflows": "Total Arus Keluar",
     "netCashFlow": "Arus Kas Bersih",
+    "notAvailable": "T/A",
     "monthlyCashFlow": "Arus Kas Bulanan",
     "inflowsByCategory": "Arus Masuk per Kategori",
     "outflowsByCategory": "Arus Keluar per Kategori",
@@ -330,7 +331,31 @@
     "untagged": "Tanpa tag",
     "inflows": "Arus masuk bertag",
     "outflows": "Arus keluar bertag",
-    "sharesExceedNote": "Baris yang diberi tag dengan lebih dari satu nilai di bawah kunci ini dihitung untuk masing-masing nilai tersebut, sehingga persentase per nilai dapat berjumlah lebih dari 100%."
+    "inflowsSeries": "Arus masuk bertag: {value}",
+    "outflowsSeries": "Arus keluar bertag: {value}",
+    "includeTransfers": "Sertakan transfer bertag",
+    "balance": "Saldo",
+    "balancePercent": "Saldo %",
+    "balancePercentTooltip": "Saldo %: {rate}",
+    "sharesExceedNote": "Baris yang diberi tag dengan lebih dari satu nilai di bawah kunci ini dihitung untuk masing-masing nilai tersebut, sehingga persentase per nilai dapat berjumlah lebih dari 100%.",
+    "valueLabel": "Nilai tag",
+    "allValues": "Semua nilai",
+    "selectValue": "Pilih nilai",
+    "fundsIncome": "Pendapatan",
+    "fundsTagged": "Transfer bertag: {value}",
+    "fundsAvailable": "Dana tersedia",
+    "fundsSpent": "Dibelanjakan",
+    "fundsLoadFailed": "Angka transfer bertag tidak dapat dimuat.",
+    "notIncome": "Bukan pendapatan",
+    "noNetTagged": "Tidak ada arus masuk bertag bersih untuk nilai ini pada periode ini.",
+    "monthlySummaryTitle": "Saldo per bulan, termasuk transfer bertag: {value}",
+    "fundsExpenses": "Pengeluaran",
+    "fundsPartialNote": "Beberapa jumlah tidak dapat dikonversi (tidak ada kurs untuk {currencies}), sehingga Saldo adalah subtotal dan Saldo % tidak ditampilkan.",
+    "fundsPartialNoteGeneric": "Beberapa jumlah tidak dapat disertakan, sehingga Saldo adalah subtotal dan Saldo % tidak ditampilkan.",
+    "actualVsAvailable": "Aktual vs tersedia",
+    "budgetFundsPartialNote": "Beberapa jumlah tidak dapat dikonversi (tidak ada kurs untuk {currencies}), sehingga dana tersedia adalah subtotal.",
+    "budgetFundsPartialNoteGeneric": "Beberapa jumlah tidak dapat disertakan, sehingga dana tersedia adalah subtotal.",
+    "fundsSeriesName": "Dana tersedia ({value})"
   },
   "categoryPerformance": {
     "noBudgets": "Tidak ada anggaran ditemukan. Buat anggaran untuk melihat kinerja kategori.",
@@ -764,6 +789,7 @@
     "totalValue": "Total Nilai",
     "costBasis": "Dasar Biaya",
     "totalGainLoss": "Total Keuntungan/Kerugian",
+    "gainPartialCaption": "Hanya atas kepemilikan yang memiliki harga",
     "return": "Imbal Hasil",
     "viewHoldings": "Kepemilikan",
     "viewAllocation": "Alokasi",
@@ -821,6 +847,7 @@
     "actionCapitalGainShort": "Keuntungan Modal Jangka Pendek",
     "actionCapitalGainLong": "Keuntungan Modal Jangka Panjang",
     "actionRedeem": "Pencairan CD/Obligasi",
+    "actionReturnOfCapital": "Pengembalian Modal",
     "colCommission": "Komisi",
     "colPriceCurrency": "Mata Uang Harga",
     "colAmountCurrency": "Mata Uang Jumlah",
@@ -1146,6 +1173,11 @@
     "vsMonth": "vs {month}",
     "inMonth": "{amount} dalam {month}",
     "netWorthTotal": "Total: {amount}",
+    "netWorthSummaryPartial": "Nilai bersih Anda pada {currentMonth} adalah <strong>{netWorth}</strong>. Perubahan dibandingkan {previousMonth} tidak dapat dihitung karena tidak ada kurs untuk {pairs}; tambahkan di halaman Mata Uang.",
+    "pdfPartialSuffix": "{amount} (parsial)",
+    "pdfNote": "Catatan",
+    "pdfNotAvailable": "T/A",
+    "pdfPartialNote": "Total parsial: tidak ada kurs untuk {pairs}.",
     "netWorthSummary": "Nilai bersih Anda pada {currentMonth} adalah <strong>{netWorth}</strong>, yang merupakan <delta>{changeAmount}</delta> dibandingkan dengan {previousMonth}.",
     "pdfTitle": "Perbandingan Bulanan",
     "pdfSubtitle": "{current} vs {previous}",
@@ -1193,7 +1225,12 @@
     "colNetWorth": "Nilai Bersih",
     "barStyle": "Gaya batang",
     "barStyleNetWorth": "Nilai bersih",
-    "barStyleAccountType": "Menurut jenis akun"
+    "barStyleAccountType": "Menurut jenis akun",
+    "notAvailable": "T/A",
+    "colNote": "Catatan",
+    "partialMonthNote": "Parsial: tidak ada kurs untuk {pairs}",
+    "pdfPartialNote": "Total parsial: tidak ada kurs untuk {pairs}. Tambahkan di halaman Mata Uang.",
+    "partialMonth": "Tidak ditampilkan: beberapa jumlah pada bulan ini tidak dapat dikonversi, sehingga nilai bersihnya tidak diketahui."
   },
   "portfolioValue": {
     "highestValue": "Nilai Tertinggi",
@@ -1279,6 +1316,7 @@
     "colDate": "Tanggal",
     "colShares": "Saham",
     "colPrice": "Harga",
+    "returnOfCapitalRow": "Pengembalian modal melebihi dasar biaya",
     "pdfTitle": "Laporan Keuntungan yang Direalisasi",
     "pdfSubtitle": "{count} keamanan dokumen | Keuntungan bersih: {gain}",
     "csvColSecurity": "Keamanan Dokumen",
@@ -1288,7 +1326,11 @@
     "csvColCostBasis": "Dasar Biaya",
     "csvColGainLoss": "Keuntungan/Kerugian",
     "csvColReturn": "Imbal Hasil %",
-    "csvNoRate": "Tidak ada kurs"
+    "csvNoRate": "Tidak ada kurs",
+    "csvUnknownCost": "Tidak diketahui",
+    "unknownBasisReason": "Keuntungan ini tidak dapat dihitung: posisi memiliki saham yang ditambahkan tanpa biaya, sehingga biaya saham yang dijual tidak diketahui. Buka transaksi yang menambahkannya dan masukkan harganya.",
+    "knownPart": "Bagian yang diketahui: {amount}",
+    "unknownCostNotice": "{count, plural, one {# penjualan} other {# penjualan}} memiliki biaya yang tidak diketahui, karena saham ditambahkan tanpa harga. Tidak ada keuntungan yang diberikan untuk {count, plural, one {penjualan itu} other {penjualan itu}}, sehingga total keuntungan hanya menampilkan bagian yang diketahui."
   },
   "recurringExpenses": {
     "recurringExpenses": "Pengeluaran Berulang",
@@ -1851,6 +1893,13 @@
   "foreignCurrencyFees": {
     "noEligibleAccounts": "Tidak ada akun yang memiliki biaya transaksi luar negeri yang dikonfigurasi. Tetapkan persentase biaya pada akun untuk melacak biaya mata uang asingnya di sini."
   },
+  "partialData": {
+    "notice": "Sebagian angka bersifat parsial: {count, plural, other {# jumlah tidak dapat dikonversi ke {displayCurrency} dan}} tidak disertakan. Tidak ada kurs untuk {currencies}; tambahkan di halaman Mata Uang.",
+    "noticeExcluded": "Sebagian angka bersifat parsial: {count, plural, other {# jumlah tidak dapat dihitung dan}} tidak disertakan.",
+    "pdfNote": "Total parsial: tidak ada kurs untuk {currencies}",
+    "pdfNoteExcluded": "Total parsial: {count, plural, other {# jumlah}} tidak disertakan",
+    "pdfSuffix": "(parsial)"
+  },
   "sankey": {
     "help": "Uang yang masuk mengalir melalui bagian tengah ke tempat uang itu dibelanjakan, yang ditabung atau diinvestasikan, dan yang membayar utang. Secara bawaan, laporan mencakup rekening giro, tabungan, tunai, kartu kredit, dan jalur kredit Anda yang masih terbuka, dan transfer antara dua di antaranya tidak ditampilkan. Keluarkan rekening tabungan dari filter rekening untuk melihat berapa yang Anda pindahkan ke sana. Pembayaran kartu kredit tidak pernah dianggap pembayaran utang: pembelian yang dilunasinya sudah dihitung sebagai pengeluaran.",
     "depthLabel": "Rincian",
@@ -1897,5 +1946,8 @@
       "residualDeficit": "Diambil dari saldo",
       "unlinkedAccount": "(rekening tidak tertaut)"
     }
+  },
+  "pdfExport": {
+    "generatedAt": "Dibuat: {timestamp}"
   }
 }

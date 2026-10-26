@@ -4,6 +4,7 @@ import { AxiosError } from 'axios';
 import { User } from '@/types/auth';
 import { clearAllCache } from '@/lib/apiCache';
 import { endSignOut } from '@/lib/logout-state';
+import { clearIdentityScopedSessionStorage } from '@/lib/identity-session-storage';
 import { markWhatsNewPendingForLogin } from './whatsNewStore';
 import type {
   DelegateContext,
@@ -97,6 +98,10 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         // Backend clears httpOnly cookies via /auth/logout; we only clear Zustand state
         clearAllCache();
+        // SECURITY: sessionStorage holds the intraday portfolio series and the
+        // remembered entry date/currency; the next identity on this tab must
+        // not be drawn them (INV-SHARE-003).
+        clearIdentityScopedSessionStorage();
         // SECURITY: A share is one account's document. Drop the stash so the
         // next account to sign in on this device does not find it waiting.
         import('@/lib/share-inbox').then(({ clearShareInbox }) => {
@@ -105,6 +110,11 @@ export const useAuthStore = create<AuthState>()(
         // SECURITY: Clear preferences store to remove userId from localStorage
         import('@/store/preferencesStore').then(({ usePreferencesStore }) => {
           usePreferencesStore.getState().clearPreferences();
+        });
+        // SECURITY: The header logout navigates without a reload, so the chat
+        // held in memory (and re-persisted by the store) outlives the session.
+        import('@/store/aiChatStore').then(({ useAiChatStore }) => {
+          useAiChatStore.getState().clear();
         });
         // SECURITY: Clear AI chat history so conversations don't leak across accounts
         try {

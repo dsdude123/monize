@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ComponentProps } from 'react';
-import { render, screen, fireEvent, act, waitFor } from '@/test/render';
+import { render, screen, fireEvent, act, waitFor, cleanup } from '@/test/render';
 import { LoanPaymentSetupDialog } from './LoanPaymentSetupDialog';
 import { accountsApi } from '@/lib/accounts';
 import { categoriesApi } from '@/lib/categories';
 import { payeesApi } from '@/lib/payees';
 import { Account, DetectedLoanPayment } from '@/types/account';
 import toast from 'react-hot-toast';
+import { usePreferencesStore } from '@/store/preferencesStore';
 
 vi.mock('@/lib/accounts', () => ({
   accountsApi: {
@@ -78,8 +79,8 @@ function createAccount(overrides: Partial<Account> = {}): Account {
     isFavourite: false, favouriteSortOrder: 0, excludeFromNetWorth: false, paymentAmount: null, paymentFrequency: null, paymentStartDate: null,
     sourceAccountId: null, principalCategoryId: null, interestCategoryId: null, overpaymentCategoryId: null, overpaymentMemo: null, overpaymentPayeeId: null, fxFeePercent: null,
     scheduledTransactionId: null, assetCategoryId: null, dateAcquired: null, linkedLoanAccountId: null,
-    mortgageType: null,
-    isCanadianMortgage: false, isVariableRate: false, termMonths: null, termEndDate: null,
+    mortgageType: 'ANNUITY',
+    termMonths: null, termEndDate: null,
     amortizationMonths: null, originalPrincipal: null,
     statementDueDay: null, statementSettlementDay: null,
     createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z',
@@ -326,8 +327,6 @@ describe('LoanPaymentSetupDialog', () => {
     await act(async () => fireEvent.click(buttons[buttons.length - 1]));
     expect(mockSetupLoanPayments).toHaveBeenCalledWith('m-1', expect.objectContaining({
       mortgageType: 'CANADIAN_FIXED',
-      isCanadianMortgage: true,
-      isVariableRate: false,
     }));
   });
 
@@ -380,8 +379,6 @@ describe('LoanPaymentSetupDialog', () => {
         paymentAmount: 1333.3333,
         mortgageType: 'LINEAR',
         prepaymentMode: 'LOWER_INSTALLMENT',
-        isCanadianMortgage: false,
-        isVariableRate: false,
       });
       expect(data).not.toHaveProperty('detectedInterestAmount');
     });
@@ -525,12 +522,10 @@ describe('LoanPaymentSetupDialog', () => {
     await act(async () => fireEvent.click(buttons[buttons.length - 1]));
     expect(mockSetupLoanPayments).toHaveBeenCalledWith('m-1', expect.objectContaining({
       mortgageType: 'ANNUITY',
-      isCanadianMortgage: false,
-      isVariableRate: false,
     }));
   });
 
-  it('sends no mortgage type or flags for an ordinary loan', async () => {
+  it('sends no mortgage type for an ordinary loan', async () => {
     mockDetectLoanPayments.mockResolvedValue(defaultDetected);
     mockSetupLoanPayments.mockResolvedValue({} as any);
     await renderDialog();
@@ -539,7 +534,6 @@ describe('LoanPaymentSetupDialog', () => {
     await act(async () => fireEvent.click(buttons[buttons.length - 1]));
     const data = mockSetupLoanPayments.mock.calls[0][1];
     expect(data).not.toHaveProperty('mortgageType');
-    expect(data).not.toHaveProperty('isCanadianMortgage');
   });
 
   it('stops offering quarterly and yearly once the mortgage compounds semi-annually', async () => {
@@ -924,6 +918,34 @@ describe('LoanPaymentSetupDialog', () => {
     });
     await renderDialog();
     expect(screen.getByText(/Last payment split:/)).toBeInTheDocument();
+  });
+
+  it('writes the detected amounts in the reader number locale, with the currency once', async () => {
+    usePreferencesStore.setState({
+      preferences: { numberFormat: 'pl-PL', language: 'en' } as any,
+    });
+    try {
+      mockDetectLoanPayments.mockResolvedValue({
+        ...defaultDetected,
+        lastPrincipalAmount: 1200.5,
+        lastInterestAmount: 300.25,
+        extraPrincipalCount: 2,
+        averageExtraPrincipal: 99.5,
+      });
+      await renderDialog();
+
+      const split = screen.getByText(/Last payment split:/).textContent ?? '';
+      expect(split).toMatch(/300,25/);
+      expect(split).toMatch(/1\s?200,50/);
+      expect(split).not.toMatch(/\d\.\d\d/);
+      // The currency comes from the formatter alone, not from a `{currency}`
+      // placeholder beside it.
+      expect(split.match(/USD|\$/g) ?? []).toHaveLength(2);
+      expect(screen.getByText(/avg [^)]*99,50/)).toBeInTheDocument();
+    } finally {
+      cleanup();
+      usePreferencesStore.setState({ preferences: null });
+    }
   });
 
   it('enables detected split by default for mortgages when split data is available', async () => {

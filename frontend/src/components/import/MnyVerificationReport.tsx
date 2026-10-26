@@ -123,6 +123,12 @@ export function MnyVerificationReport({
           label={t('mnyComplete.counts.categories')}
           value={result.categoriesCreated}
         />
+        {result.tagLinksApplied > 0 && (
+          <Tile
+            label={t('mnyComplete.counts.taggedRows')}
+            value={result.tagLinksApplied}
+          />
+        )}
         {result.securitiesCreated > 0 && (
           <Tile
             label={t('mnyComplete.counts.securities')}
@@ -158,6 +164,12 @@ export function MnyVerificationReport({
       {result.existingDataRemoved && (
         <p className="mb-6 text-sm text-muted-foreground">
           {t('mnyComplete.existingDataRemoved')}
+        </p>
+      )}
+
+      {(result.bondRowsWithoutSeries ?? 0) > 0 && (
+        <p className="mb-6 text-sm text-amber-800 dark:text-amber-300">
+          {t('mnyComplete.bondRowsWithoutSeries', { count: result.bondRowsWithoutSeries ?? 0 })}
         </p>
       )}
 

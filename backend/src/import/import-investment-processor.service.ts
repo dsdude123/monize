@@ -13,6 +13,7 @@ import {
 import {
   ImportContext,
   bondStateOf,
+  recordSkippedRow,
   resolveImportedSeriesMemo,
   updateAccountBalance,
 } from "./import-context";
@@ -136,7 +137,8 @@ export class ImportInvestmentProcessorService {
       margint: InvestmentAction.INTEREST,
       miscexp: InvestmentAction.INTEREST,
       miscinc: InvestmentAction.INTEREST,
-      rtrncap: InvestmentAction.DIVIDEND,
+      // Return of capital is not a dividend: it comes off the basis (#1800).
+      rtrncap: InvestmentAction.RETURN_OF_CAPITAL,
       shtsell: InvestmentAction.SELL,
       cvrshrt: InvestmentAction.BUY,
       xin: InvestmentAction.TRANSFER_IN,
@@ -426,7 +428,12 @@ export class ImportInvestmentProcessorService {
       const seenSoFar = ctx.transferDupCounts.get(sigKey) || 0;
       ctx.transferDupCounts.set(sigKey, seenSoFar + 1);
       if (existingCount > 0 && seenSoFar + 1 <= existingCount) {
-        ctx.importResult.skipped++;
+        recordSkippedRow(
+          ctx.importResult,
+          qifTx,
+          "duplicateTransfer",
+          ctx.account.currencyCode,
+        );
         return;
       }
     }
@@ -538,6 +545,7 @@ export class ImportInvestmentProcessorService {
       InvestmentAction.DIVIDEND,
       InvestmentAction.INTEREST,
       InvestmentAction.CAPITAL_GAIN,
+      InvestmentAction.RETURN_OF_CAPITAL,
     ];
 
     // Base-normalized: REDEEM and the term'd gain distributions move cash as

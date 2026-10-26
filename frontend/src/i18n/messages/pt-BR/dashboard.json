@@ -25,7 +25,6 @@
     "manual": "Manual",
     "manualTitle": "Requer lançamento manual",
     "negativeBalanceWarning": "Esta transação irá colocar o saldo da conta abaixo de zero",
-    "viewAll": "Ver todas as faturas e depósitos",
     "moreItems": "+{count} mais",
     "overdue": "Em atraso",
     "today": "Hoje",
@@ -90,8 +89,12 @@
     "title": "Análise de Despesas",
     "empty": "Sem análises disponíveis. Visite a página de Análises para gerar a sua primeira análise.",
     "goToInsights": "Ir para Análises",
-    "viewAll": "Ver todas as análises",
     "activeCount": "{count} ativas"
+  },
+  "warrantiesExpiring": {
+    "title": "Garantias expirando em breve",
+    "empty": "Nada expira nos próximos 30 dias",
+    "loadFailed": "Não foi possível carregar as garantias que estão expirando. Recarregue o painel para tentar novamente."
   },
   "topMovers": {
     "title": "Maiores Variações",
@@ -125,8 +128,7 @@
     "dailyChange": "Variação diária",
     "dailyChangeOn": "Variação diária · {date}",
     "openPriceHistory": "Histórico de preços de {symbol}",
-    "refreshPrices": "Atualizar cotações",
-    "manage": "Gerenciar títulos"
+    "refreshPrices": "Atualizar cotações"
   },
   "netWorth": {
     "title": "Patrimônio Líquido",
@@ -143,6 +145,7 @@
     "netWorthLabel": "Patrimônio Líquido",
     "assets": "Ativos",
     "liabilities": "Passivos",
+    "partialName": "{name} (parcial)",
     "viewCallouts": "Rótulos",
     "viewLegend": "Legenda"
   },

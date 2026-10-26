@@ -71,6 +71,23 @@ CREATE TABLE currencies (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- A user's deletion clears created_by_user_id (ON DELETE SET NULL); a currency
+-- that loses its creator must not become an active system currency every user is
+-- offered, so it is deactivated as the creator is cleared.
+CREATE OR REPLACE FUNCTION currencies_creator_cleared_deactivate() RETURNS TRIGGER
+LANGUAGE plpgsql AS $$
+BEGIN
+    NEW.is_active := false;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER currencies_creator_cleared_deactivate
+    BEFORE UPDATE OF created_by_user_id ON currencies
+    FOR EACH ROW
+    WHEN (OLD.created_by_user_id IS NOT NULL AND NEW.created_by_user_id IS NULL)
+    EXECUTE FUNCTION currencies_creator_cleared_deactivate();
+
 -- Per-user currency preferences (visibility + is_active)
 CREATE TABLE user_currency_preferences (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -194,12 +211,16 @@ CREATE TABLE accounts (
     date_acquired DATE, -- date the asset was acquired (for net worth historical accuracy)
     linked_loan_account_id UUID, -- asset's financing loan/mortgage (self-referential FK added below; for the equity view)
     -- Mortgage-specific fields
-    is_canadian_mortgage BOOLEAN DEFAULT false, -- with is_variable_rate false: semi-annual compounding (CANADIAN_FIXED); superseded by mortgage_type
-    is_variable_rate BOOLEAN DEFAULT false, -- only cancels the Canadian semi-annual compounding (the nominal rate / payments per year); superseded by mortgage_type
+    -- Superseded by mortgage_type and unused since 1.20.0; kept so a 1.19.x
+    -- rollback still finds them, and dropped by the contract migration.
+    is_canadian_mortgage BOOLEAN DEFAULT false,
+    is_variable_rate BOOLEAN DEFAULT false,
     -- Compounding convention and amortization method (docs/specs/mortgage-types.md):
-    -- 'ANNUITY' | 'CANADIAN_FIXED' | 'LINEAR' | 'INTEREST_ONLY'. Nullable until the
-    -- contract migration; a null MORTGAGE row is read from the two flags above.
-    mortgage_type VARCHAR(20),
+    -- 'ANNUITY' | 'CANADIAN_FIXED' | 'LINEAR' | 'INTEREST_ONLY'. Read only on a
+    -- MORTGAGE; every other account carries the default, the annuity engine a
+    -- plain LOAN uses. Nullable until the contract migration, because 1.19.x may
+    -- write null on a non-mortgage row; a null reads as ANNUITY.
+    mortgage_type VARCHAR(20) DEFAULT 'ANNUITY',
     -- What an extra repayment does to a LINEAR mortgage's constant principal:
     -- 'SHORTEN_TERM' (null reads as this) or 'LOWER_INSTALLMENT'. Null on every
     -- other type (accounts_prepayment_mode_linear_only).
@@ -421,13 +442,26 @@ CREATE INDEX idx_transaction_splits_category ON transaction_splits(category_id);
 CREATE INDEX idx_transaction_splits_transfer_account ON transaction_splits(transfer_account_id);
 CREATE INDEX idx_transaction_splits_linked ON transaction_splits(linked_transaction_id);
 
--- Transaction Attachments: receipts/invoices/documents stored in Postgres by
--- default. Metadata lives here; the bytes live in attachment_blobs (database
--- provider) or an external store keyed by storage_key. See migration 109.
+-- Attachments: receipts/invoices/documents stored in Postgres by default.
+-- Metadata lives here; the bytes live in attachment_blobs (database provider)
+-- or an external store keyed by storage_key. See migration 109.
+--
+-- An attachment has exactly one parent (chk_attachment_one_parent, WTY-003):
+-- the transaction whose receipt it is, or the warranty whose receipt, manual
+-- or photo it is (docs/specs/warranty-tracker.md decision 7). The
+-- table keeps its historical name. Ownership is user_id on this row whichever
+-- parent it has, so the attachment_blobs policy, the tombstone trigger, the
+-- orphan sweeper and the storage migrator never look at the parent.
 CREATE TABLE transaction_attachments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    transaction_id UUID REFERENCES transactions(id) ON DELETE CASCADE,
+    -- The other parent. Its foreign key to warranties is added after that
+    -- table, further down (fk added with ALTER TABLE, like accounts').
+    warranty_id UUID,
+    -- What a warranty's document is; a transaction's attachments are always
+    -- 'other' (the register offers no picker).
+    document_kind VARCHAR(20) NOT NULL DEFAULT 'other', -- 'receipt' | 'manual' | 'photo' | 'warranty' | 'other'
     filename VARCHAR(255) NOT NULL,
     content_type VARCHAR(100) NOT NULL, -- server-sniffed MIME, not the client's claim
     byte_size BIGINT NOT NULL,
@@ -441,10 +475,16 @@ CREATE TABLE transaction_attachments (
     original_of_attachment_id UUID NULL REFERENCES transaction_attachments(id) ON DELETE CASCADE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_attachment_not_own_original
-        CHECK (original_of_attachment_id IS NULL OR original_of_attachment_id <> id)
+        CHECK (original_of_attachment_id IS NULL OR original_of_attachment_id <> id),
+    CONSTRAINT chk_attachment_document_kind
+        CHECK (document_kind IN ('receipt', 'manual', 'photo', 'warranty', 'other')),
+    -- Exactly one parent: never none, never both.
+    CONSTRAINT chk_attachment_one_parent
+        CHECK (((transaction_id IS NOT NULL)::int + (warranty_id IS NOT NULL)::int) = 1)
 );
 
 CREATE INDEX idx_transaction_attachments_transaction ON transaction_attachments(transaction_id);
+CREATE INDEX idx_transaction_attachments_warranty ON transaction_attachments(warranty_id);
 CREATE INDEX idx_transaction_attachments_user ON transaction_attachments(user_id);
 -- At most one original per attachment: a scan pair is exactly two rows.
 CREATE UNIQUE INDEX uq_transaction_attachments_original_of
@@ -1512,7 +1552,10 @@ CREATE TYPE investment_action AS ENUM (
     'REINVEST_CAPITAL_GAIN_LONG',
     'CAPITAL_GAIN_SHORT',
     'CAPITAL_GAIN_LONG',
-    'REDEEM'
+    'REDEEM',
+    -- Return of capital (issue #1800): cash in like a dividend, no shares, and
+    -- the amount reduces the position's cost basis instead of counting as income.
+    'RETURN_OF_CAPITAL'
 );
 
 CREATE TABLE investment_transactions (
@@ -1725,6 +1768,7 @@ CREATE TABLE account_delegates (
     budgets_can_read      BOOLEAN NOT NULL DEFAULT false,
     reports_can_read      BOOLEAN NOT NULL DEFAULT false,
     ai_can_read           BOOLEAN NOT NULL DEFAULT false,
+    warranties_can_read   BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT account_delegates_owner_delegate_unique UNIQUE (owner_user_id, delegate_user_id),
     CONSTRAINT account_delegates_no_self CHECK (owner_user_id <> delegate_user_id)
 );
@@ -2480,13 +2524,19 @@ CREATE INDEX idx_notifications_budget_period ON notifications(budget_id, period_
 --
 -- Duplicates predating the key are collapsed by the migration's preflight before
 -- it is created, keeping whichever row the user acted on.
+--
+-- A flex-group warning is budget-wide too, and the group it is about lives only
+-- in `data`, so the group is part of the key: two flex groups over 90 percent in
+-- one period are two alerts (audit A26-L39, migration
+-- 20261022103319_notifications_fingerprint_flex_group.sql).
 CREATE UNIQUE INDEX idx_notifications_fingerprint
     ON notifications(
         budget_id,
         period_start,
         alert_type,
         COALESCE(budget_category_id, '00000000-0000-0000-0000-000000000000'::uuid),
-        severity
+        severity,
+        COALESCE(data->>'flexGroup', '')
     );
 
 -- System-level alerts (BACKUP_FAILED, PROVIDER_OUTAGE, SMTP_FAILURE, ...) have
@@ -2659,6 +2709,11 @@ CREATE TABLE import_jobs (
     -- import transaction's last statement is a fenced compare-and-set on this
     -- column, and a zero-row result rolls the whole import back (audit RV4-001).
     attempt_token UUID,
+    -- The staged file's digest, copied by the commit checkpoint inside the import
+    -- transaction (migration 20261022061534). Held by the unique index below, so
+    -- the same bytes cannot be committed into one user's ledger twice; cleared
+    -- when a "start fresh" import's wipe removed the rows it vouched for.
+    content_sha256 CHAR(64),
     heartbeat_at TIMESTAMP,
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
@@ -2719,6 +2774,12 @@ CREATE INDEX idx_import_jobs_running_heartbeat ON import_jobs(heartbeat_at) WHER
 CREATE UNIQUE INDEX idx_import_jobs_one_active_per_user
     ON import_jobs(user_id)
     WHERE status IN ('pending', 'running');
+-- One committed import per user and file content (audit A26-H08). The service
+-- refuses the start first; this is what makes a second commit of the same bytes
+-- abort its own import transaction.
+CREATE UNIQUE INDEX idx_import_jobs_committed_content
+    ON import_jobs(user_id, content_sha256)
+    WHERE content_sha256 IS NOT NULL;
 
 CREATE TRIGGER update_import_jobs_updated_at BEFORE UPDATE ON import_jobs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -2734,15 +2795,30 @@ CREATE TABLE bank_sync_credentials (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider VARCHAR(30) NOT NULL DEFAULT 'enable_banking',
-    application_id VARCHAR(100) NOT NULL,
-    private_key_enc TEXT NOT NULL,
+    application_id VARCHAR(100),
+    private_key_enc TEXT,
+    access_url_enc TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT ck_bank_sync_credentials_provider
-      CHECK (provider IN ('enable_banking')),
+      CHECK (provider IN ('enable_banking', 'simplefin')),
     CONSTRAINT uq_bank_sync_credentials_user_provider
-      UNIQUE (user_id, provider)
+      UNIQUE (user_id, provider),
+    CONSTRAINT uq_bank_sync_credentials_id_user
+      UNIQUE (id, user_id),
+    CONSTRAINT ck_bank_sync_credentials_shape CHECK ((provider = 'enable_banking' AND application_id IS NOT NULL AND private_key_enc IS NOT NULL AND access_url_enc IS NULL) OR (provider = 'simplefin' AND application_id IS NULL AND private_key_enc IS NULL AND access_url_enc IS NOT NULL))
 );
+
+CREATE TABLE bank_sync_provider_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    credential_id UUID NOT NULL,
+    requested_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_bank_sync_provider_requests_credential_owner
+      FOREIGN KEY (credential_id, user_id) REFERENCES bank_sync_credentials(id, user_id) ON DELETE CASCADE
+);
+CREATE INDEX idx_bank_sync_provider_requests_window
+    ON bank_sync_provider_requests(credential_id, requested_at);
 
 -- Connections: one authorization of one user at one institution.
 -- auth_state_hash is the SHA-256 hex of the one-time OAuth state; clearing it
@@ -2772,7 +2848,7 @@ CREATE TABLE bank_sync_connections (
     -- 20261002074622_bank_sync_exceptions_and_operation_tags.sql.
     tag_operation_type BOOLEAN NOT NULL DEFAULT true,
     CONSTRAINT ck_bank_sync_connections_provider
-      CHECK (provider IN ('enable_banking')),
+      CHECK (provider IN ('enable_banking', 'simplefin')),
     CONSTRAINT ck_bank_sync_connections_psu_type
       CHECK (psu_type IN ('personal', 'business')),
     CONSTRAINT ck_bank_sync_connections_status
@@ -2804,6 +2880,7 @@ CREATE TABLE bank_sync_accounts (
     currency_code VARCHAR(3),
     account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
     sync_from_date DATE,
+    backfill_through DATE,
     last_synced_at TIMESTAMPTZ,
     last_success_at TIMESTAMPTZ,
     last_sync_status VARCHAR(20),
@@ -2814,6 +2891,7 @@ CREATE TABLE bank_sync_accounts (
     bank_balance NUMERIC(20,4),
     bank_balance_currency VARCHAR(3),
     bank_balance_date DATE,
+    bank_balance_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT ck_bank_sync_accounts_last_sync_status
@@ -3457,6 +3535,89 @@ CREATE TABLE calendar_day_notes (
 );
 
 -- ---------------------------------------------------------------------------
+-- Warranties (docs/specs/warranty-tracker.md sections 6.1 and 6.2)
+--
+-- One purchased item: its expiry, vendor, serial and model numbers and an
+-- informational purchase price, optionally linked to the transaction that
+-- bought it. A warranty never moves money: nothing sums `purchase_price`, and
+-- the transaction link is ON DELETE SET NULL, so deleting the purchase keeps
+-- the warranty. Status (lifetime, active, expiring, expired) is derived from
+-- `expires_on` and `is_lifetime` by the application and never stored.
+--
+-- `expires_on` is the stored fact; a lifetime warranty may leave it NULL and
+-- every other one must carry it (chk_warranty_expiry). The price carries its
+-- own currency, both set or both NULL (chk_warranty_price_currency).
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE warranties (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(200) NOT NULL,
+    vendor_name VARCHAR(200),
+    payee_id UUID REFERENCES payees(id) ON DELETE SET NULL,
+    transaction_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
+    model_number VARCHAR(100),
+    serial_numbers TEXT[] NOT NULL DEFAULT '{}',
+    warranty_kind VARCHAR(20) NOT NULL DEFAULT 'manufacturer'
+        CHECK (warranty_kind IN ('manufacturer', 'extended', 'store', 'other')),
+    purchase_date DATE NOT NULL,
+    expires_on DATE,
+    is_lifetime BOOLEAN NOT NULL DEFAULT false,
+    purchase_price NUMERIC(20,4) CHECK (purchase_price IS NULL OR purchase_price >= 0),
+    currency_code VARCHAR(3) REFERENCES currencies(code),
+    product_url VARCHAR(500),
+    notes VARCHAR(2000),
+    archived_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_warranty_expiry CHECK (is_lifetime OR expires_on IS NOT NULL),
+    CONSTRAINT chk_warranty_expiry_after_purchase
+        CHECK (expires_on IS NULL OR expires_on >= purchase_date),
+    CONSTRAINT chk_warranty_price_currency
+        CHECK ((purchase_price IS NULL) = (currency_code IS NULL))
+);
+
+-- The list, the widget and the reminder cron all read a user's unarchived rows
+-- by expiry.
+CREATE INDEX idx_warranties_user_status
+    ON warranties(user_id, archived_at, expires_on);
+CREATE INDEX idx_warranties_transaction ON warranties(transaction_id);
+CREATE INDEX idx_warranties_payee ON warranties(payee_id);
+
+CREATE TRIGGER update_warranties_updated_at
+  BEFORE UPDATE ON warranties
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- The claims made against one warranty. A claim never changes the warranty's
+-- status; it is a log the owner keeps.
+CREATE TABLE warranty_claims (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    warranty_id UUID NOT NULL REFERENCES warranties(id) ON DELETE CASCADE,
+    claim_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'approved', 'denied', 'resolved')),
+    description VARCHAR(2000),
+    resolution VARCHAR(2000),
+    resolved_on DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_warranty_claims_warranty ON warranty_claims(warranty_id);
+
+-- A warranty's documents live in transaction_attachments (its second parent;
+-- see that table). The column is declared there; the foreign key is added
+-- here because warranties is defined after it. The name is the one PostgreSQL
+-- gives an inline REFERENCES, which is how the migration adds it.
+ALTER TABLE transaction_attachments ADD CONSTRAINT transaction_attachments_warranty_id_fkey
+    FOREIGN KEY (warranty_id) REFERENCES warranties(id) ON DELETE CASCADE;
+
+CREATE TRIGGER update_warranty_claims_updated_at
+  BEFORE UPDATE ON warranty_claims
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ---------------------------------------------------------------------------
 -- Off-machine backup destinations (docs/specs/backup-off-machine.md section 9).
 --
 -- One row per user: which destinations a completed automatic backup is copied
@@ -3590,6 +3751,7 @@ DECLARE
         'bank_sync_accounts',
         'bank_sync_connections',
         'bank_sync_credentials',
+        'bank_sync_provider_requests',
         'bank_sync_imported_transactions',
         'budgets',
         'calendar_day_notes',
@@ -3625,7 +3787,9 @@ DECLARE
         'transaction_attachments',
         'transaction_rule_applications',
         'transaction_rules',
-        'user_currency_preferences'
+        'user_currency_preferences',
+        'warranties',
+        'warranty_claims'
     ];
 BEGIN
     FOREACH t IN ARRAY direct_tables LOOP
@@ -4072,6 +4236,35 @@ CREATE POLICY monte_carlo_cash_flows_isolation ON monte_carlo_cash_flows
 -- while acting (current = owner, real = delegate).
 -- ---------------------------------------------------------------------------
 
+-- A grant's account must belong to the delegation's owner. The grants WITH
+-- CHECK cannot read accounts under RLS (the accounts policy reads
+-- account_delegate_grants: "infinite recursion detected in policy"), so this
+-- reads both rows as the definer. EXECUTE stays with PUBLIC: a policy
+-- expression runs with the caller's privileges (A26-M06).
+CREATE OR REPLACE FUNCTION delegation_grant_account_is_owners(
+  p_delegation_id UUID,
+  p_account_id UUID
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+      FROM account_delegates ad
+      JOIN accounts a ON a.user_id = ad.owner_user_id
+     WHERE ad.id = p_delegation_id
+       AND a.id = p_account_id
+  )
+$$;
+
+COMMENT ON FUNCTION delegation_grant_account_is_owners(UUID, UUID) IS
+  'True when the account belongs to the owner of the delegation. SECURITY '
+  'DEFINER because the account_delegate_grants WITH CHECK cannot read accounts '
+  'under RLS: the accounts policy reads account_delegate_grants (a policy cycle).';
+
 DROP POLICY IF EXISTS account_delegate_grants_isolation ON account_delegate_grants;
 CREATE POLICY account_delegate_grants_isolation ON account_delegate_grants
   USING ((SELECT app_bypass_rls()) OR EXISTS (
@@ -4079,11 +4272,14 @@ CREATE POLICY account_delegate_grants_isolation ON account_delegate_grants
     WHERE ad.id = account_delegate_grants.delegation_id
       AND (ad.owner_user_id = (SELECT app_current_user_id())
         OR ad.delegate_user_id = (SELECT app_real_user_id()))))
-  WITH CHECK ((SELECT app_bypass_rls()) OR EXISTS (
+  WITH CHECK ((SELECT app_bypass_rls()) OR (EXISTS (
     SELECT 1 FROM account_delegates ad
     WHERE ad.id = account_delegate_grants.delegation_id
-      AND (ad.owner_user_id = (SELECT app_current_user_id())
-        OR ad.delegate_user_id = (SELECT app_real_user_id()))));
+      AND ad.owner_user_id = (SELECT app_current_user_id())
+      AND ad.owner_user_id = (SELECT app_real_user_id()))
+    AND delegation_grant_account_is_owners(
+      account_delegate_grants.delegation_id,
+      account_delegate_grants.account_id)));
 
 -- ---------------------------------------------------------------------------
 -- Bespoke owner columns, and the documented exemptions
@@ -4105,15 +4301,17 @@ CREATE POLICY users_self ON users
 -- with). The delegate reaches it through app.real_user_id, which works both in
 -- their own session (current = real = delegate) and while acting for the owner
 -- (current = owner, real = delegate) -- the latter is what lets the delegate
--- guard resolve its own grant row on every acting request.
+-- guard resolve its own grant row on every acting request. Those are read arms:
+-- WITH CHECK admits only the owner's own session (current = real = owner), so
+-- no delegate-side statement can issue itself a delegation (A26-M06).
 -- ---------------------------------------------------------------------------
 DROP POLICY IF EXISTS account_delegates_isolation ON account_delegates;
 CREATE POLICY account_delegates_isolation ON account_delegates
   USING (owner_user_id = (SELECT app_current_user_id())
       OR delegate_user_id = (SELECT app_real_user_id())
       OR (SELECT app_bypass_rls()))
-  WITH CHECK (owner_user_id = (SELECT app_current_user_id())
-      OR delegate_user_id = (SELECT app_real_user_id())
+  WITH CHECK ((owner_user_id = (SELECT app_current_user_id())
+               AND owner_user_id = (SELECT app_real_user_id()))
       OR (SELECT app_bypass_rls()));
 
 -- ---------------------------------------------------------------------------
@@ -4313,6 +4511,7 @@ AS $$
     UNION ALL SELECT 1 FROM scheduled_transactions
       WHERE currency_code = p_code OR original_currency_code = p_code
     UNION ALL SELECT 1 FROM budgets WHERE currency_code = p_code
+    UNION ALL SELECT 1 FROM warranties WHERE currency_code = p_code
     UNION ALL SELECT 1 FROM user_preferences WHERE default_currency = p_code
   )
 $$;
@@ -4395,6 +4594,7 @@ AS $$
     UNION SELECT currency_code FROM scheduled_transactions WHERE user_id = p_user_id
     UNION SELECT original_currency_code FROM scheduled_transactions WHERE user_id = p_user_id
     UNION SELECT currency_code FROM budgets WHERE user_id = p_user_id
+    UNION SELECT currency_code FROM warranties WHERE user_id = p_user_id
   ) referenced
   WHERE code IS NOT NULL
 $$;
@@ -4424,3 +4624,6 @@ COMMENT ON FUNCTION currency_codes_referenced_by_user(uuid) IS
   'activated-but-unused currency definition still travels with the backup. '
   'Derives from currency_codes_referenced_by_user_data rather than repeating its '
   'branches -- that list has drifted three times.';
+
+-- SimpleFIN request reservations are direct user-owned instance state.
+ALTER TABLE bank_sync_provider_requests ENABLE ROW LEVEL SECURITY;

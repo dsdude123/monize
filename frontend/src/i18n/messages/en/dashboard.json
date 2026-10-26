@@ -25,7 +25,6 @@
     "manual": "Manual",
     "manualTitle": "Requires manual posting",
     "negativeBalanceWarning": "This transaction will cause the account balance to go below zero",
-    "viewAll": "View all bills & deposits",
     "moreItems": "+{count} more",
     "overdue": "Overdue",
     "today": "Today",
@@ -90,8 +89,12 @@
     "title": "Spending Insights",
     "empty": "No insights available. Visit the Insights page to generate your first analysis.",
     "goToInsights": "Go to Insights",
-    "viewAll": "View all insights",
     "activeCount": "{count} active"
+  },
+  "warrantiesExpiring": {
+    "title": "Warranties expiring soon",
+    "empty": "Nothing expires in the next 30 days",
+    "loadFailed": "Couldn't load your expiring warranties. Reload the dashboard to try again."
   },
   "topMovers": {
     "title": "Top Movers",
@@ -125,8 +128,7 @@
     "dailyChange": "Daily change",
     "dailyChangeOn": "Daily change · {date}",
     "openPriceHistory": "Price history for {symbol}",
-    "refreshPrices": "Refresh prices",
-    "manage": "Manage securities"
+    "refreshPrices": "Refresh prices"
   },
   "netWorth": {
     "title": "Net Worth",
@@ -143,6 +145,7 @@
     "netWorthLabel": "Net Worth",
     "assets": "Assets",
     "liabilities": "Liabilities",
+    "partialName": "{name} (partial)",
     "viewCallouts": "Labels",
     "viewLegend": "Legend"
   },

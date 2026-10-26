@@ -54,8 +54,6 @@ describe("LoanPaymentSetupService: LINEAR and INTEREST_ONLY", () => {
     scheduledTransactionId: null,
     mortgageType: "ANNUITY",
     prepaymentMode: null,
-    isCanadianMortgage: false,
-    isVariableRate: false,
     originalPrincipal: 300000,
     amortizationMonths: 360,
   };
@@ -65,6 +63,7 @@ describe("LoanPaymentSetupService: LINEAR and INTEREST_ONLY", () => {
     userId: "user-1",
     name: "Checking",
     accountType: AccountType.CHEQUING,
+    currencyCode: "EUR",
   };
 
   const dto = (

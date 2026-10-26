@@ -2,7 +2,11 @@ import { Injectable } from "@nestjs/common";
 import { SpendingReportsService } from "./spending-reports.service";
 import { IncomeReportsService } from "./income-reports.service";
 import { ComparisonReportsService } from "./comparison-reports.service";
-import { AnomalyReportsService } from "./anomaly-reports.service";
+import {
+  AnomalyReportsService,
+  SPENDING_ANOMALY_DEFAULT_MONTHS,
+  SPENDING_ANOMALY_DEFAULT_THRESHOLD,
+} from "./anomaly-reports.service";
 import { TaxRecurringReportsService } from "./tax-recurring-reports.service";
 import { DataQualityReportsService } from "./data-quality-reports.service";
 import { MonthlyComparisonService } from "./monthly-comparison.service";
@@ -52,7 +56,12 @@ export class BuiltInReportsService {
     userId: string,
     startDate: string | undefined,
     endDate: string,
-    options?: { rollupToParent?: boolean; accountIds?: string[] },
+    options?: {
+      rollupToParent?: boolean;
+      accountIds?: string[];
+      tagKey?: string;
+      tagValue?: string;
+    },
   ): Promise<SpendingByCategoryResponse> {
     return this.spendingReports.getSpendingByCategory(
       userId,
@@ -74,8 +83,14 @@ export class BuiltInReportsService {
     userId: string,
     startDate: string | undefined,
     endDate: string,
+    options: { accountIds?: string[] } = {},
   ): Promise<IncomeBySourceResponse> {
-    return this.incomeReports.getIncomeBySource(userId, startDate, endDate);
+    return this.incomeReports.getIncomeBySource(
+      userId,
+      startDate,
+      endDate,
+      options,
+    );
   }
 
   getMonthlySpendingTrend(
@@ -99,6 +114,7 @@ export class BuiltInReportsService {
       bucket?: IncomeExpenseBucket;
       weekStartsOn?: WeekStartsOn;
       tagKey?: string;
+      transferScopeAccountIds?: string[];
     },
   ): Promise<IncomeVsExpensesResponse> {
     return this.incomeReports.getIncomeVsExpenses(
@@ -144,9 +160,10 @@ export class BuiltInReportsService {
 
   getSpendingAnomalies(
     userId: string,
-    threshold: number = 2,
+    threshold: number = SPENDING_ANOMALY_DEFAULT_THRESHOLD,
+    months: number = SPENDING_ANOMALY_DEFAULT_MONTHS,
   ): Promise<SpendingAnomaliesResponse> {
-    return this.anomalyReports.getSpendingAnomalies(userId, threshold);
+    return this.anomalyReports.getSpendingAnomalies(userId, threshold, months);
   }
 
   getTaxSummary(userId: string, year: number): Promise<TaxSummaryResponse> {
@@ -216,11 +233,13 @@ export class BuiltInReportsService {
     userId: string,
     startDate: string | undefined,
     endDate: string,
+    options?: { accountIds?: string[] },
   ): Promise<MonthlyCategoryBreakdownResponse> {
     return this.monthlyCategoryBreakdown.getMonthlyCategoryBreakdown(
       userId,
       startDate,
       endDate,
+      options,
     );
   }
 }

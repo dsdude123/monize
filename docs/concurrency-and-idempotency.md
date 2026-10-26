@@ -117,7 +117,9 @@ The API create's `externalId` is the same shape one level up:
 lookup before the insert is advisory, and the create whose insert loses the race
 matches the violation by the index's name (`isExternalIdConflict`) and answers
 with the winner's row rather than a 409, because a repeated create is a retry,
-not a conflict (INV-API-001).
+not a conflict (INV-API-001). An OFX import writes the same key from the bank's
+`FITID`; the row whose insert loses there rolls back to its savepoint and is
+counted as skipped, since the winner already holds that line of the file.
 
 ### 3 -- conditional update as the claim
 
@@ -241,6 +243,50 @@ A comment claiming atomicity, a lock, or single-use consumption must name the
 mechanism. Two comments in this codebase claimed a guarantee the code beside
 them did not implement, and both were believed for as long as they existed. If
 the mechanism cannot be named, the comment is wrong, not merely vague.
+
+CONC-008
+An entity read before a SQL statement that writes the same row is not saved
+back whole. TypeORM's save diffs the snapshot against the row and writes every
+column that differs, so it reverts what the statement wrote. Write only the
+columns the path owns (repo.update({ id }, { lastLogin })), and keep the
+in-memory entity in step with the statement for the readers after it. The login
+success path wrote failed_login_attempts = 4 back over its own reset to 0
+(A26-M01; AuthService.recordLastLogin,
+test/integration/credential-writes-atomic.integration.spec.ts).
+
+CONC-009
+Ending a set of rows that a concurrent writer can extend is a converging
+protocol under that writer's lock, not one UPDATE. Blocked on a row a refresh
+rotation holds, UPDATE ... WHERE user_id = ? AND is_revoked = false resumes with
+its old snapshot and misses the successor the rotation inserted. A path that
+ends a user's sessions calls TokenService.revokeAllUserRefreshTokens, or
+revokeRefreshSessionsAfterCommit (auth/credential-revocation.ts) where
+TokenService cannot be injected, after its own commit; an in-transaction
+blanket UPDATE is a first pass only (A26-M02).
+
+CONC-010
+An attempt budget reserves before it checks. Count the attempt with the
+counter's single statement (AuthAttemptCounterService.increment, INSERT ... ON
+CONFLICT ... RETURNING), refuse when the committed count is over the cap, then
+check the code or password; a success resets the counter. A peek followed by an
+increment after a failed check lets K concurrent guesses read the same count
+before any of them is recorded, so all K reach the verifier (A26-L08:
+StepUpAuthService.reserveAttempt, TwoFactorService.reserveUserTotpAttempt;
+test/integration/two-factor-step-up-budget.integration.spec.ts). A peek may stay
+in front as an advisory early refusal.
+
+CONC-011
+A delete or update that must spare a row another table is about to reference
+locks its candidates first (`SELECT ... FOR UPDATE`, `SKIP LOCKED` where waiting
+buys nothing) and decides in a later statement. A single
+`DELETE ... WHERE NOT EXISTS (referencing row)` under READ COMMITTED evaluates
+the sub-select on the snapshot it started with: it waits on the referencing
+INSERT's key-share lock and then deletes without looking again, so the reference
+committed while it waited is not seen. The worked example is
+`MnyStagingService.deleteUnlessNeeded` and `remove` (audit A26-L14): a staged
+file a job INSERT was committing against was swept or discarded, and the job ran
+without its bytes. A referencing INSERT that arrives after the lock waits for
+the deleter and then fails its foreign key; report that as the row being gone.
 ```
 
 ## 4. Retry semantics
@@ -402,6 +448,21 @@ itself*, and not against a concurrent delta -- which is CONC-003, and is why
 the account-balance cron appears in the gap register below despite being
 correctly documented as idempotent with respect to re-running.
 
+**A lease outlasts the work it guards, and its holder's writes are fenced by
+its token** (A26-L13). A lease TTL chosen apart from the work let an AI insight
+generation (15-minute lease) and a receipt poll (10-minute lease) run on past
+expiry inside a 20-minute Ollama call, while a second holder started the same
+work and both saved. So a lease around a provider call is sized from
+`PROVIDER_CALL_BUDGET_MS` (`ai/providers/provider-call-budget.ts`, the largest
+provider abort) plus a margin, is renewed while the work runs
+(`JobClaimService.whileLeaseHeld`, every third of the TTL, through
+`renewLease`, which declares the token for the migration-143 trigger), and the
+holder's own write checks `JobClaimService.holdsLease` -- the row `FOR UPDATE`
+with this attempt's token, inside the write's transaction -- before writing, so
+a holder whose lease was retaken writes nothing. A step whose selection is a
+plain read (the receipt poll's parser draft) takes its own claim per key
+(`email_receipt_parser_draft`, per sender domain). `provider-lease-overrun.integration.spec.ts`.
+
 ## 8. Mechanism inventory and gap register
 
 This is the part of the document that goes stale fastest, and the part most
@@ -416,7 +477,7 @@ worth keeping: CONC-003 can only be checked against a list of all writers.
 | `accounts/accounts.service.ts` `update` | `Account` row | Concurrent balance modification |
 | `accounts/accounts.service.ts` `close` | `Account` row | Race between the balance check and the close |
 | `strategies/gem-signal.service.ts` | advisory, per `strategyId` | Materialization interleaving with a settings save |
-| `securities/investment-transactions.service.ts` `create`, `update`, `remove`, `transferSecurity`, `createEmbeddedForSplit` | advisory, per account (`lockHoldingScope`), first statement of the transaction | A ledger write and a rebuild racing on one position, and the lock order that keeps it deadlock-free |
+| `securities/investment-transactions.service.ts` `create`, `update`, `remove`, `transferSecurity`, the transfer edit (`updateLinkedTransfer`), `createEmbeddedForSplit` | advisory, per account (`lockHoldingScope`), first statement of the transaction; `update`, `remove` and the transfer edit then row-lock the rows they read (`lockUnchangedInvestmentRow`) | A ledger write and a rebuild racing on one position, and the lock order that keeps it deadlock-free |
 | `transactions/transaction-reconciliation.service.ts`, `transactions/transaction-bulk-update.service.ts`, `transactions/transactions.service.ts` `update`, `transactions/transaction-split.service.ts` `updateSplits` (split-parent writes) | advisory, per brokerage account (`lockEmbeddedInvestmentScopes`), first statement of the transaction | The embedded rows' rebuild takes the same lock, and an investment write row-locks the same parent after taking it |
 | `import/import.service.ts` | advisory, per investment account (`lockHoldingScope`), first statement of the import transaction | The import's balance writes row-lock `accounts` before `rebuildImportedHoldings` |
 | `transaction-rules/transaction-rules.service.ts` `create`, `update`, `setEnabled`, `remove`, `reorder` | advisory, per user (`lockTransactionRuleList`), first statement of the transaction | Create's `max + 1` position, the per-user cap, delete's compaction and reorder each read the whole rule list before writing it; the deferred unique `(user_id, position)` is the backstop |
@@ -536,11 +597,14 @@ this table when a mechanism lands, not when someone judges the window small.
 | Logout vs rotation | Logout's family revoke is an unlocked bulk `UPDATE`. It happens to be safe because `isRevoked = true` is idempotent and the end state is order-independent -- but this is a property of the value, not a protocol, and it stops holding the moment logout writes anything else. | CONC-003 (tolerated; document, do not copy) |
 | MNY import retry after a committed write | `writeAll`'s transaction commits before post-processing, verification, staged-file deletion and the terminal status update. A failure in that window leaves committed rows behind a retryable job, and a retry re-parses with fresh UUIDs. No checkpoint, run id, or per-record key. See INV-IMPORT-002. | CONC-006, CONC-007 |
 
-Refresh-token rotation is worth reading as a positive finding rather than a gap:
-it is correct and subtle -- the loser blocks on the lock, then sees the winner's
-committed `isRevoked`, and takes the reuse-detection branch that revokes the whole
-family, so a concurrent double-rotation ends in revocation rather than two live
-successors.
+Refresh-token rotation is worth reading as a positive finding rather than a gap,
+with two corrections the 2026-10 audit forced. The loser blocks on the family
+lock, then sees the winner's committed `isRevoked`; inside the rotation grace it
+is answered with an access token only (two tabs of one browser), and outside it
+it is reuse and the family is revoked. A concurrent double-rotation therefore
+ends in exactly one live successor, never two. The reuse revocation commits
+before the 401 is raised: it used to be thrown inside the transaction, which
+rolled back the revocation it reported (A26-H01, INV-AUTH-001).
 
 The MNY import job deserves a more careful verdict than either column allows. It
 has the most complete protocol in the codebase for the races it was built to
@@ -569,3 +633,11 @@ copy; it states its own rationale: these are "properties of Postgres, not of the
 service". `docs/verification-contract.md` records which invariant requires
 which kind of test, and `docs/testing-contract.md` section on asynchronous and
 concurrent operations lists the interleavings to pick from.
+
+## SimpleFIN credential and request-budget writers
+
+SimpleFIN first credential writes serialize on the existing users row, then lock the user/provider credential before replacement. Request reservations take the users row FOR KEY SHARE before that same credential row (the lock their INSERT's foreign key takes anyway, moved ahead of the credential so a reservation and a discovery holding the user FOR UPDATE cannot deadlock), and local removal locks the credential row. Reservations count and insert inside one withScopedDb transaction; HTTP callers must await its commit, and reserve rejects an already-active database transaction. No HTTP is performed by these storage services. The real PostgreSQL/RLS simplefin-storage integration suite exercises simultaneous first saves, the last of 24 rolling request slots, replacement retaining spent quota, and foreign-owner refusal.
+
+### SimpleFIN setup and discovery
+
+Setup/removal take JobClaimType.SimplefinSetup with key setup and a two-minute lease. Setup additionally records token:<SHA-256 claim URL> before HTTP. Persistence locks the live, matching lease row first, then the user, then the credential; a stale holder is refused. Cleanup uses the lease token and cannot release a successor. Discovery HTTP runs outside a scoped transaction after its committed budget reservation. Reconciliation locks the owner row, then the owned credential, verifies the current Access URL, and only then updates institution/account metadata. The owner lock serializes first-discovery inserts across replicas; no in-process lock or guessed matching participates. Missing IDs retain their historical rows and mappings and disable automatic sync for review.

@@ -8,6 +8,7 @@ import {
   scaleQty,
 } from "./support-backup-rule-kinds";
 import { PLANNING_RULES } from "./support-backup-rules.planning";
+import { WARRANTY_RULES } from "./support-backup-rules.warranties";
 
 /**
  * Per-column de-identification rules for the support backup. This registry is
@@ -224,8 +225,6 @@ export const RULES: Record<string, TableRules> = {
     asset_category_id: keep,
     date_acquired: keep,
     linked_loan_account_id: keep,
-    is_canadian_mortgage: keep,
-    is_variable_rate: keep,
     mortgage_type: keep,
     prepayment_mode: keep,
     term_months: keep,
@@ -758,6 +757,8 @@ export const RULES: Record<string, TableRules> = {
   // their own file (a separate area from the account core above), merged here
   // so every import site and the golden test still read one RULES map.
   ...PLANNING_RULES,
+  // The warranty tables, likewise in their own file.
+  ...WARRANTY_RULES,
 };
 
 /**

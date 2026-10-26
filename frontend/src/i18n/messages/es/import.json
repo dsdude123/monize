@@ -34,18 +34,18 @@
   },
   "page": {
     "title": "Importar Transacciones",
-    "subtitle": "Importa transacciones desde archivos QIF, OFX/QFX o CSV, o trae un archivo completo de Microsoft Money (.mny)"
+    "subtitle": "Importa transacciones desde archivos QIF/QMTF, OFX/QFX o CSV, o trae un archivo completo de Microsoft Money (.mny)"
   },
   "upload": {
     "heading": "Cargar Archivos de Transacciones",
-    "instructions": "Selecciona uno o más archivos para importar. Formatos admitidos: QIF, OFX/QFX, CSV y Microsoft Money (.mny).\nPuedes seleccionar varios archivos del mismo tipo para importación masiva. Los archivos de Microsoft Money se importan de uno en uno: un archivo .mny contiene un perfil completo.",
+    "instructions": "Selecciona uno o más archivos para importar. Formatos admitidos: QIF/QMTF, OFX/QFX, CSV y Microsoft Money (.mny).\nPuedes seleccionar varios archivos del mismo tipo para importación masiva. Los archivos de Microsoft Money se importan de uno en uno: un archivo .mny contiene un perfil completo.",
     "importingTo": "Importando a:",
     "clickToSelect": "Haz clic para seleccionar archivo(s)",
     "orDragAndDrop": "o arrástralos y suéltalos aquí",
     "dropToImport": "Suelta para importar",
-    "unsupportedDrop": "Estos archivos no se pueden importar: {names}. Usa archivos QIF, OFX, QFX, CSV o Microsoft Money (.mny).",
+    "unsupportedDrop": "Estos archivos no se pueden importar: {names}. Usa archivos QIF/QMTF, OFX, QFX, CSV o Microsoft Money (.mny).",
     "processing": "Procesando...",
-    "acceptedFormats": "QIF, OFX, QFX, CSV o Microsoft Money (.mny)",
+    "acceptedFormats": "QIF/QMTF, OFX, QFX, CSV o Microsoft Money (.mny)",
     "mnyFailedHeading": "No se pudo abrir ese archivo de Microsoft Money",
     "wikiNotice": {
       "title": "Antes de importar",
@@ -302,7 +302,7 @@
     "totalImported": "Total importado:",
     "totalImportedSuffix": "transacciones",
     "totalSkipped": "Total omitido:",
-    "totalSkippedSuffix": "transferencias duplicadas",
+    "totalSkippedSuffix": "transacciones",
     "totalErrors": "Total de errores:",
     "categoriesCreated": "Categorías creadas:",
     "accountsCreated": "Cuentas creadas:",
@@ -314,17 +314,24 @@
     "imported": "Importadas:",
     "importedSuffix": "transacciones",
     "skipped": "Omitidas:",
-    "skippedSuffix": "transferencias duplicadas",
+    "skippedSuffix": "transacciones",
     "errors": "Errores:",
     "errorsLabel": "Errores:",
     "andMoreErrors": "...y {count} errores más",
+    "skippedRowsHeading": "Filas omitidas:",
+    "skippedRow": "{date}: {amount}, {payee} ({reason})",
+    "skippedRowNoPayee": "{date}: {amount} ({reason})",
+    "skipReasonAlreadyImported": "ya importada",
+    "skipReasonDuplicateTransfer": "transferencia ya registrada",
+    "andMoreSkipped": "...y {count} filas omitidas más",
     "loanSetupHeading": "Configurar Pagos Recurrentes",
     "loanSetupDescription": "Las siguientes cuentas de préstamo/hipoteca se importaron sin pagos planificados. Configura los pagos recurrentes para continuar el seguimiento de tu préstamo.",
     "setUpPayments": "Configurar Pagos",
     "scheduledPaymentsConfigured": "Pagos planificados configurados para {count} cuenta{plural}.",
     "viewInvestments": "Ver Inversiones",
     "viewTransactions": "Ver Transacciones",
-    "importMoreFiles": "Importar Más Archivos"
+    "importMoreFiles": "Importar Más Archivos",
+    "bondRowsWithoutSeries": "{count, plural, one {Se importó # compra de bonos sin serie. Elige su serie en los lotes de bonos del valor.} other {Se importaron # compras de bonos sin serie. Elige sus series en los lotes de bonos del valor.}}"
   },
   "multiAccountReview": {
     "heading": "Importación QIF de Múltiples Cuentas",
@@ -370,6 +377,7 @@
       "transfersLinked": "{count} transferencias enlazadas",
       "payees": "Beneficiarios",
       "categories": "Categorías",
+      "tags": "Etiquetas de clasificaciones",
       "accounts": "Cuentas",
       "securities": "Valores",
       "investments": "Transacciones de inversión",
@@ -484,6 +492,7 @@
       "splits": "Líneas desglosadas",
       "payees": "Beneficiarios",
       "categories": "Categorías",
+      "taggedRows": "Filas etiquetadas desde clasificaciones",
       "securities": "Valores",
       "investments": "Transacciones de inversión",
       "prices": "Precios",
@@ -507,7 +516,8 @@
     },
     "warningsHeading": "Notas sobre esta importación",
     "downloadReport": "Descargar informe",
-    "done": "Listo"
+    "done": "Listo",
+    "bondRowsWithoutSeries": "{count, plural, one {Se importó # compra de bonos sin serie. Elige su serie en los lotes de bonos del valor.} other {Se importaron # compras de bonos sin serie. Elige sus series en los lotes de bonos del valor.}}"
   },
   "mnyWarnings": {
     "missingTable": "Esta versión de Money no tiene {count, plural, one {# tabla} other {# tablas}} que usa la importación.",
@@ -518,6 +528,7 @@
     "categoryFlattened": "{count, plural, one {# categoría superaba} other {# categorías superaban}} los dos niveles y se agruparon en su categoría principal.",
     "categoryTypeInferred": "Faltaba el indicador de ingreso de Money en {count, plural, one {# categoría} other {# categorías}}; ingreso o gasto se dedujo del árbol de categorías.",
     "degeneratePayeeSkipped": "Se omitieron {count, plural, one {# beneficiario ficticio} other {# beneficiarios ficticios}} que Money mantiene internamente.",
+    "unknownClassificationItem": "{count, plural, one {# transacción indicaba un elemento de clasificación} other {# transacciones indicaban elementos de clasificación}} que el archivo no define y se importaron sin esa etiqueta.",
     "unusableTransaction": "{count, plural, one {# transacción no tenía} other {# transacciones no tenían}} cuenta ni fecha utilizable y se omitieron.",
     "orphanedTransferSide": "{count, plural, one {# transferencia no tenía} other {# transferencias no tenían}} su contrapartida en el archivo y se omitieron.",
     "orphanedSplit": "{count, plural, one {# línea desglosada no tenía} other {# líneas desglosadas no tenían}} transacción principal y se omitieron.",
@@ -536,6 +547,8 @@
     "unusableBill": "{count, plural, one {# factura programada no tenía} other {# facturas programadas no tenían}} cuenta, fecha utilizable o periodicidad reconocida, y se omitieron.",
     "billFrequencyApproximated": "{count, plural, one {# factura programada usa} other {# facturas programadas usan}} un intervalo de repetición que Monize no puede expresar con exactitud, así que se usó el más corto más cercano.",
     "loanInterestCategoryUnclear": "{count, plural, one {# pago de préstamo incluía} other {# pagos de préstamo incluían}} varias categorías distintas del principal, por lo que la categoría de intereses del préstamo quedó sin asignar. Comprueba si el pago incluye una cuenta de garantía (escrow) y asigna la categoría de intereses después de importar.",
+    "transferAmountMismatch": "{count, plural, one {# transferencia a una cuenta de inversión registró} other {# transferencias a una cuenta de inversión registraron}} en el lado de inversión un importe distinto al del lado bancario. El lado de inversión se importó tal como estaba registrado.",
+    "crossCurrencyTradeUnconverted": "{count, plural, one {# operación con un valor cotizado en otra moneda se guardó} other {# operaciones con un valor cotizado en otra moneda se guardaron}} en la moneda de la cuenta, porque el archivo no tiene tipo de cambio para ese par de monedas cerca de la fecha de la operación. Añade el tipo de cambio y corrige el precio de cada operación.",
     "showTransactions": "{count, plural, one {Mostrar la # transacción} other {Mostrar las # transacciones}}",
     "hideTransactions": "Ocultar transacciones",
     "reviewInMoney": "Ábrelas en Microsoft Money para revisarlas o corregirlas y vuelve a exportar e importar.",
@@ -554,6 +567,8 @@
     "mnyImportFailed": "Algo salió mal durante la importación. No se guardó nada: puede volver a intentarlo.",
     "mnyJobStalled": "La importación dejó de responder, probablemente porque el servidor se reinició. Su archivo sigue aquí, así que reintentarlo es seguro.",
     "mnyJobStalledAfterCommit": "La importación dejó de responder después de haber guardado ya tus datos, probablemente porque el servidor se reinició. Los registros importados están en tu cuenta, así que volver a importar el mismo archivo los duplicaría. Revisa tus cuentas antes de importar nada más.",
+    "mnyImportFailedAfterCommit": "La importación guardó sus datos, pero un paso posterior falló. Los registros importados están en su cuenta, por lo que volver a importar el mismo archivo los duplicaría. Revise sus cuentas antes de importar cualquier otra cosa.",
+    "mnyAlreadyImported": "Este archivo ya se importó en su cuenta, así que importarlo de nuevo duplicaría sus registros. Para reemplazarlos, empiece de nuevo y elija reemplazar sus datos existentes.",
     "mnyStagedFileMissing": "El archivo de Money subido ya no está disponible. Vuelva a subirlo.",
     "mnyFileTruncated": "Este archivo de Money parece incompleto. Puede que la subida se haya interrumpido.",
     "mnyNotAMoneyFile": "Ese archivo no es un archivo de Microsoft Money (.mny).",
@@ -604,7 +619,8 @@
       "notEvaluated": {
         "afterStop": "No evaluada: una regla anterior detuvo las reglas.",
         "disabled": "No evaluada: la regla está desactivada.",
-        "invalid": "No evaluada: la regla no es válida. Ábrela para repararla."
+        "invalid": "No evaluada: la regla no es válida. Ábrela para repararla.",
+        "outside_active_window": "No evaluada: la fecha de la fila está fuera de las fechas activas de la regla."
       },
       "condition": {
         "met": "Condición cumplida",

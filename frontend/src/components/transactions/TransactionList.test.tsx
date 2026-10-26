@@ -3774,3 +3774,26 @@ describe('TransactionList hidden columns', () => {
     expect(onSortChange).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('TransactionList warranties', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows the shield but offers no warranty action in the Copy menu or the action sheet', async () => {
+    render(
+      <TransactionList
+        transactions={[createTransaction({ warrantyCount: 2 })]}
+        onEdit={vi.fn()}
+        onDuplicate={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('img', { name: '2 warranties' })).toBeInTheDocument();
+    // Duplicate alone is the single button, not a menu.
+    expect(screen.getByTitle('Duplicate transaction')).toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByText('Grocery Store').closest('tr')!);
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument());
+    expect(screen.queryByText('Add warranty')).not.toBeInTheDocument();
+    expect(screen.queryByText('View warranties')).not.toBeInTheDocument();
+  });
+});

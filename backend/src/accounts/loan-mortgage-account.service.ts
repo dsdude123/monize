@@ -52,10 +52,8 @@ import { withScopedDb } from "../common/db/scoped-db";
 import { datedLoanDebt } from "./dated-loan-debt.util";
 import {
   MortgageType,
-  mortgageTypeColumns,
   mortgageTypeOf,
   prepaymentModeColumn,
-  requestedMortgageType,
   storesConstantPayment,
 } from "./mortgage-type.util";
 import {
@@ -83,6 +81,7 @@ import {
   PaymentMatchingFailureDto,
 } from "./dto/payment-matching.dto";
 import { LoanPaymentMatchingService } from "./loan-payment-matching.service";
+import { assertLoanSourceCurrency } from "./loan-source-currency.util";
 
 /**
  * A loan or mortgage just created, with the outcome of the "Payment matching"
@@ -163,6 +162,27 @@ export class LoanMortgageAccountService {
     return null;
   }
 
+  /**
+   * Refuse a payment account in another currency than the new loan, before the
+   * account row is saved (A26-S15-10). An account the caller does not own, or
+   * that does not exist, is not this check's to report: the schedule create
+   * that follows refuses it as it always has.
+   */
+  private async assertSourceCurrency(
+    userId: string,
+    sourceAccountId: string,
+    loanCurrencyCode: string,
+  ): Promise<void> {
+    const source = await withScopedDb(this.dataSource, (m) =>
+      m.getRepository(Account).findOne({
+        where: { id: sourceAccountId, userId },
+      }),
+    );
+    if (source) {
+      assertLoanSourceCurrency(source.currencyCode, loanCurrencyCode);
+    }
+  }
+
   async createLoanAccount(
     userId: string,
     createAccountDto: CreateAccountDto,
@@ -240,6 +260,12 @@ export class LoanMortgageAccountService {
       assertLoanInterestCategory(m, userId, interestCategoryId),
     );
     const interestCatId = interestCategoryId;
+
+    await this.assertSourceCurrency(
+      userId,
+      sourceAccountId,
+      accountData.currencyCode,
+    );
 
     const loanAmount = Math.abs(openingBalance);
     const amortization = calculateAmortization(
@@ -341,8 +367,6 @@ export class LoanMortgageAccountService {
       institution,
       mortgageType: requestedType,
       prepaymentMode,
-      isCanadianMortgage,
-      isVariableRate,
       termMonths,
       amortizationMonths,
       ...accountData
@@ -406,14 +430,14 @@ export class LoanMortgageAccountService {
     );
     const interestCatId = interestCategoryId;
 
-    // The type wins over the legacy flags; a request naming neither is the
-    // default type, as the flags' `false` defaults always denoted.
-    const mortgageType =
-      requestedMortgageType({
-        mortgageType: requestedType,
-        isCanadianMortgage,
-        isVariableRate,
-      }) ?? "ANNUITY";
+    await this.assertSourceCurrency(
+      userId,
+      sourceAccountId,
+      accountData.currencyCode,
+    );
+
+    // A request naming no type is the default type.
+    const mortgageType = requestedType ?? "ANNUITY";
     const mortgageAmount = Math.abs(openingBalance);
     const amortizationInput: MortgageAmortizationInput = {
       principal: mortgageAmount,
@@ -495,7 +519,7 @@ export class LoanMortgageAccountService {
         paymentStartDate: localDateForColumn(paymentStartDate),
         sourceAccountId,
         interestCategoryId: interestCatId,
-        ...mortgageTypeColumns(mortgageType),
+        mortgageType,
         prepaymentMode: prepaymentModeColumn(mortgageType, prepaymentMode),
         termMonths: termMonths || null,
         termEndDate,

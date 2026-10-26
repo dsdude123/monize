@@ -316,6 +316,7 @@
     "totalInflows": "Totale instroom",
     "totalOutflows": "Totale uitstroom",
     "netCashFlow": "Netto kasstroom",
+    "notAvailable": "N/B",
     "monthlyCashFlow": "Maandelijkse kasstroom",
     "inflowsByCategory": "Instroom per categorie",
     "outflowsByCategory": "Uitstroom per categorie",
@@ -330,7 +331,31 @@
     "untagged": "Zonder label",
     "inflows": "Gelabelde instroom",
     "outflows": "Gelabelde uitstroom",
-    "sharesExceedNote": "Een rij die onder deze sleutel met meer dan één waarde is gelabeld, telt voor elk van die waarden mee, waardoor de aandelen per waarde samen meer dan 100% kunnen zijn."
+    "inflowsSeries": "Gelabelde instroom: {value}",
+    "outflowsSeries": "Gelabelde uitstroom: {value}",
+    "includeTransfers": "Getagde overboekingen opnemen",
+    "balance": "Saldo",
+    "balancePercent": "Saldo %",
+    "balancePercentTooltip": "Saldo %: {rate}",
+    "sharesExceedNote": "Een rij die onder deze sleutel met meer dan één waarde is gelabeld, telt voor elk van die waarden mee, waardoor de aandelen per waarde samen meer dan 100% kunnen zijn.",
+    "valueLabel": "Labelwaarde",
+    "allValues": "Alle waarden",
+    "selectValue": "Selecteer een waarde",
+    "fundsIncome": "Inkomsten",
+    "fundsTagged": "Getagde overboekingen: {value}",
+    "fundsAvailable": "Beschikbare middelen",
+    "fundsSpent": "Uitgegeven",
+    "fundsLoadFailed": "De cijfers voor getagde overboekingen konden niet worden geladen.",
+    "notIncome": "Geen inkomen",
+    "noNetTagged": "Geen netto gelabelde instroom voor deze waarde in deze periode.",
+    "monthlySummaryTitle": "Saldo per maand, inclusief getagde overboekingen: {value}",
+    "fundsExpenses": "Uitgaven",
+    "fundsPartialNote": "Sommige bedragen konden niet worden omgerekend (geen wisselkoers voor {currencies}), dus het saldo is een subtotaal en Saldo % wordt niet getoond.",
+    "fundsPartialNoteGeneric": "Sommige bedragen konden niet worden meegenomen, dus het saldo is een subtotaal en Saldo % wordt niet getoond.",
+    "actualVsAvailable": "Werkelijk vs beschikbaar",
+    "budgetFundsPartialNote": "Sommige bedragen konden niet worden omgerekend (geen wisselkoers voor {currencies}), dus de beschikbare middelen zijn een subtotaal.",
+    "budgetFundsPartialNoteGeneric": "Sommige bedragen konden niet worden meegenomen, dus de beschikbare middelen zijn een subtotaal.",
+    "fundsSeriesName": "Beschikbare middelen ({value})"
   },
   "categoryPerformance": {
     "noBudgets": "Geen budgetten gevonden. Maak een budget aan om categorieprestaties te zien.",
@@ -764,6 +789,7 @@
     "totalValue": "Totale waarde",
     "costBasis": "Kostprijs",
     "totalGainLoss": "Totale winst/verlies",
+    "gainPartialCaption": "Alleen over posities met een koers",
     "return": "Rendement",
     "viewHoldings": "Posities",
     "viewAllocation": "Allocatie",
@@ -821,6 +847,7 @@
     "actionCapitalGainShort": "Kortetermijnkapitaalwinst",
     "actionCapitalGainLong": "Langetermijnkapitaalwinst",
     "actionRedeem": "CD/obligatie aflossen",
+    "actionReturnOfCapital": "Kapitaalterugbetaling",
     "colCommission": "Commissie",
     "colPriceCurrency": "Koersvaluta",
     "colAmountCurrency": "Bedragvaluta",
@@ -1146,6 +1173,11 @@
     "vsMonth": "vs {month}",
     "inMonth": "{amount} in {month}",
     "netWorthTotal": "Totaal: {amount}",
+    "netWorthSummaryPartial": "Jouw nettowaarde in {currentMonth} was <strong>{netWorth}</strong>. De verandering ten opzichte van {previousMonth} kan niet worden berekend omdat er geen wisselkoers is voor {pairs}; voeg er een toe op de pagina Valuta's.",
+    "pdfPartialSuffix": "{amount} (gedeeltelijk)",
+    "pdfNote": "Opmerking",
+    "pdfNotAvailable": "N/B",
+    "pdfPartialNote": "Gedeeltelijk totaal: geen wisselkoers voor {pairs}.",
     "netWorthSummary": "Jouw nettowaarde in {currentMonth} was <strong>{netWorth}</strong>, wat <delta>{changeAmount}</delta> was ten opzichte van {previousMonth}.",
     "pdfTitle": "Maandvergelijking",
     "pdfSubtitle": "{current} vs {previous}",
@@ -1193,7 +1225,12 @@
     "colNetWorth": "Nettowaarde",
     "barStyle": "Staafstijl",
     "barStyleNetWorth": "Nettowaarde",
-    "barStyleAccountType": "Per rekeningtype"
+    "barStyleAccountType": "Per rekeningtype",
+    "notAvailable": "N/B",
+    "colNote": "Opmerking",
+    "partialMonthNote": "Gedeeltelijk: geen wisselkoers voor {pairs}",
+    "pdfPartialNote": "Gedeeltelijk totaal: geen wisselkoers voor {pairs}. Voeg er een toe op de pagina Valuta's.",
+    "partialMonth": "Niet getoond: sommige bedragen in deze maand konden niet worden omgerekend, dus de nettowaarde is onbekend."
   },
   "portfolioValue": {
     "highestValue": "Hoogste waarde",
@@ -1279,6 +1316,7 @@
     "colDate": "Datum",
     "colShares": "Aandelen",
     "colPrice": "Koers",
+    "returnOfCapitalRow": "Kapitaalterugbetaling boven de kostprijs",
     "pdfTitle": "Rapport gerealiseerde winsten",
     "pdfSubtitle": "{count} waardepapieren | Netto winst: {gain}",
     "csvColSecurity": "Waardepapier",
@@ -1288,7 +1326,11 @@
     "csvColCostBasis": "Kostprijs",
     "csvColGainLoss": "Winst/verlies",
     "csvColReturn": "Rendement %",
-    "csvNoRate": "Geen koers"
+    "csvNoRate": "Geen koers",
+    "csvUnknownCost": "Onbekend",
+    "unknownBasisReason": "Deze winst kan niet worden berekend: de positie bevat aandelen die zonder kosten zijn toegevoegd, dus de kostprijs van de verkochte aandelen is onbekend. Open de transactie die ze heeft toegevoegd en voer hun prijs in.",
+    "knownPart": "Bekend deel: {amount}",
+    "unknownCostNotice": "{count, plural, one {# verkoop heeft} other {# verkopen hebben}} een onbekende kostprijs, omdat aandelen zonder prijs zijn toegevoegd. Voor {count, plural, one {deze} other {deze}} wordt geen winst opgegeven, dus de winsttotalen tonen alleen het bekende deel."
   },
   "recurringExpenses": {
     "recurringExpenses": "Terugkerende uitgaven",
@@ -1851,6 +1893,13 @@
   "foreignCurrencyFees": {
     "noEligibleAccounts": "Voor geen enkele rekening zijn transactiekosten voor vreemde valuta geconfigureerd. Stel een kostenpercentage in op een rekening om hier de transactiekosten voor vreemde valuta bij te houden."
   },
+  "partialData": {
+    "notice": "Sommige cijfers zijn gedeeltelijk: {count, plural, one {# bedrag kon niet naar {displayCurrency} worden omgerekend en is} other {# bedragen konden niet naar {displayCurrency} worden omgerekend en zijn}} weggelaten. Er is geen koers voor {currencies}; voeg er een toe op de pagina Valuta's.",
+    "noticeExcluded": "Sommige cijfers zijn gedeeltelijk: {count, plural, one {# bedrag kon niet worden berekend en is} other {# bedragen konden niet worden berekend en zijn}} weggelaten.",
+    "pdfNote": "Gedeeltelijk totaal: geen wisselkoers voor {currencies}",
+    "pdfNoteExcluded": "Gedeeltelijk totaal: {count, plural, one {# bedrag} other {# bedragen}} weggelaten",
+    "pdfSuffix": "(gedeeltelijk)"
+  },
   "sankey": {
     "help": "Binnengekomen geld stroomt door het midden naar waaraan het is uitgegeven, wat is gespaard of belegd en wat schulden heeft afgelost. Standaard omvat het rapport uw open betaal-, spaar-, contant-, creditcard- en kredietlijnrekeningen, en een overboeking tussen twee daarvan wordt niet getoond. Laat een spaarrekening weg uit het rekeningfilter om te zien wat u ernaar hebt overgemaakt. Een creditcardbetaling is nooit een aflossing: de aankopen die ze vereffent, zijn al als uitgaven geteld.",
     "depthLabel": "Detail",
@@ -1897,5 +1946,8 @@
       "residualDeficit": "Uit saldi opgenomen",
       "unlinkedAccount": "(niet-gekoppelde rekening)"
     }
+  },
+  "pdfExport": {
+    "generatedAt": "Gemaakt: {timestamp}"
   }
 }

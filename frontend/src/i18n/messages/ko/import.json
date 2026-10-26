@@ -34,18 +34,18 @@
   },
   "page": {
     "title": "거래 가져오기",
-    "subtitle": "QIF, OFX/QFX 또는 CSV 파일에서 거래를 가져오거나 Microsoft Money (.mny) 파일 전체를 가져옵니다"
+    "subtitle": "QIF/QMTF, OFX/QFX 또는 CSV 파일에서 거래를 가져오거나 Microsoft Money (.mny) 파일 전체를 가져옵니다"
   },
   "upload": {
     "heading": "거래 파일 업로드",
-    "instructions": "가져올 파일을 하나 이상 선택하세요. 지원 형식: QIF, OFX/QFX, CSV, Microsoft Money (.mny).\n대량 가져오기를 위해 동일한 유형의 파일을 여러 개 선택할 수 있습니다. Microsoft Money 파일은 한 번에 하나씩 가져오세요. .mny 파일에는 프로필 전체가 들어 있습니다.",
+    "instructions": "가져올 파일을 하나 이상 선택하세요. 지원 형식: QIF/QMTF, OFX/QFX, CSV, Microsoft Money (.mny).\n대량 가져오기를 위해 동일한 유형의 파일을 여러 개 선택할 수 있습니다. Microsoft Money 파일은 한 번에 하나씩 가져오세요. .mny 파일에는 프로필 전체가 들어 있습니다.",
     "importingTo": "가져오기 대상:",
     "clickToSelect": "파일을 선택하려면 클릭하세요",
     "orDragAndDrop": "또는 여기로 끌어다 놓으세요",
     "dropToImport": "놓아서 가져오기",
-    "unsupportedDrop": "다음 파일은 가져올 수 없습니다: {names}. QIF, OFX, QFX, CSV 또는 Microsoft Money(.mny) 파일을 사용하세요.",
+    "unsupportedDrop": "다음 파일은 가져올 수 없습니다: {names}. QIF/QMTF, OFX, QFX, CSV 또는 Microsoft Money(.mny) 파일을 사용하세요.",
     "processing": "처리 중...",
-    "acceptedFormats": "QIF, OFX, QFX, CSV 또는 Microsoft Money (.mny)",
+    "acceptedFormats": "QIF/QMTF, OFX, QFX, CSV 또는 Microsoft Money (.mny)",
     "mnyFailedHeading": "이 Microsoft Money 파일을 열 수 없습니다",
     "wikiNotice": {
       "title": "가져오기 전에",
@@ -302,7 +302,7 @@
     "totalImported": "총 가져온 항목:",
     "totalImportedSuffix": "건의 거래",
     "totalSkipped": "총 건너뛴 항목:",
-    "totalSkippedSuffix": "건의 중복 이체",
+    "totalSkippedSuffix": "건의 거래",
     "totalErrors": "총 오류:",
     "categoriesCreated": "생성된 카테고리:",
     "accountsCreated": "생성된 계정:",
@@ -314,17 +314,24 @@
     "imported": "가져온 항목:",
     "importedSuffix": "건의 거래",
     "skipped": "건너뛴 항목:",
-    "skippedSuffix": "건의 중복 이체",
+    "skippedSuffix": "건의 거래",
     "errors": "오류:",
     "errorsLabel": "오류:",
     "andMoreErrors": "...외 {count}건의 오류",
+    "skippedRowsHeading": "건너뛴 행:",
+    "skippedRow": "{date}: {amount}, {payee} ({reason})",
+    "skippedRowNoPayee": "{date}: {amount} ({reason})",
+    "skipReasonAlreadyImported": "이미 가져옴",
+    "skipReasonDuplicateTransfer": "이미 기록된 이체",
+    "andMoreSkipped": "...외 {count}개 행 건너뜀",
     "loanSetupHeading": "정기 상환 설정",
     "loanSetupDescription": "다음 대출/모기지 계정은 예약된 상환 없이 가져왔습니다. 대출 진행 상황을 계속 추적하려면 정기 상환을 설정하세요.",
     "setUpPayments": "상환 설정",
     "scheduledPaymentsConfigured": "{count}개 계정에 대한 예약 상환이 설정되었습니다.",
     "viewInvestments": "투자 보기",
     "viewTransactions": "거래 보기",
-    "importMoreFiles": "파일 더 가져오기"
+    "importMoreFiles": "파일 더 가져오기",
+    "bondRowsWithoutSeries": "{count, plural, other {채권 매수 #건이 시리즈 없이 가져와졌습니다. 증권의 채권 로트에서 시리즈를 선택하세요.}}"
   },
   "multiAccountReview": {
     "heading": "다중 계정 QIF 가져오기",
@@ -370,6 +377,7 @@
       "transfersLinked": "이체 {count}건 연결",
       "payees": "거래처",
       "categories": "범주",
+      "tags": "분류에서 만든 태그",
       "accounts": "계정",
       "securities": "증권",
       "investments": "투자 거래",
@@ -484,6 +492,7 @@
       "splits": "분할 항목",
       "payees": "거래처",
       "categories": "범주",
+      "taggedRows": "분류에서 태그를 지정한 행",
       "securities": "증권",
       "investments": "투자 거래",
       "prices": "가격",
@@ -507,7 +516,8 @@
     },
     "warningsHeading": "이번 가져오기에 대한 참고 사항",
     "downloadReport": "보고서 다운로드",
-    "done": "완료"
+    "done": "완료",
+    "bondRowsWithoutSeries": "{count, plural, other {채권 매수 #건이 시리즈 없이 가져와졌습니다. 증권의 채권 로트에서 시리즈를 선택하세요.}}"
   },
   "mnyWarnings": {
     "missingTable": "이 Money 버전에는 가져오기에 사용하는 테이블 {count, plural, other {#개}}가 없습니다.",
@@ -518,6 +528,7 @@
     "categoryFlattened": "{count, plural, other {#개 범주}}가 두 단계보다 깊어 상위 범주로 합쳤습니다.",
     "categoryTypeInferred": "{count, plural, other {#개 범주}}에 Money의 수입 표시가 없어 범주 트리에서 수입/지출을 판단했습니다.",
     "degeneratePayeeSkipped": "Money가 내부적으로 유지하는 {count, plural, other {#개 자리표시 거래처}}를 건너뛰었습니다.",
+    "unknownClassificationItem": "{count, plural, one {# 건의 거래} other {# 건의 거래}}가 파일에 정의되지 않은 분류 항목을 참조하여 해당 태그 없이 가져왔습니다.",
     "unusableTransaction": "{count, plural, other {#건 거래}}에 계정이나 사용 가능한 날짜가 없어 건너뛰었습니다.",
     "orphanedTransferSide": "{count, plural, other {#건 이체}}의 상대편이 파일에 없어 건너뛰었습니다.",
     "orphanedSplit": "{count, plural, other {#개 분할 항목}}에 상위 거래가 없어 건너뛰었습니다.",
@@ -536,6 +547,8 @@
     "unusableBill": "{count, plural, other {#개 예약된 청구}}에 계정, 사용 가능한 날짜 또는 인식된 반복 주기가 없어 건너뛰었습니다.",
     "billFrequencyApproximated": "{count, plural, other {#개 예약된 청구}}가 Monize에서 정확히 표현할 수 없는 반복 주기를 사용하여 가장 가까운 더 짧은 주기를 사용했습니다.",
     "loanInterestCategoryUnclear": "{count, plural, other {#건의 대출 상환}}에 원금 외 여러 카테고리가 포함되어 있어 대출의 이자 카테고리가 설정되지 않았습니다. 상환에 에스크로(escrow)가 포함되는지 확인하고 가져오기 후 이자 카테고리를 설정하세요.",
+    "transferAmountMismatch": "{count, plural, other {#건의 투자 계좌로의 이체}}에서 투자 쪽에 기록된 금액이 은행 쪽과 달랐습니다. 투자 쪽은 기록된 대로 가져왔습니다.",
+    "crossCurrencyTradeUnconverted": "{count, plural, other {#건의 다른 통화 표시 증권 거래}}는 파일에 거래일 부근의 해당 통화쌍 환율이 없어 계좌 통화로 저장되었습니다. 환율을 추가한 다음 각 거래의 가격을 수정하세요.",
     "showTransactions": "{count, plural, other {#건 거래}} 표시",
     "hideTransactions": "거래 숨기기",
     "reviewInMoney": "Microsoft Money에서 이 거래들을 열어 확인하거나 수정한 뒤 다시 내보내고 가져오세요.",
@@ -554,6 +567,8 @@
     "mnyImportFailed": "가져오는 중 문제가 발생했습니다. 저장된 것은 없으므로 다시 시도할 수 있습니다.",
     "mnyJobStalled": "가져오기가 응답을 멈췄습니다. 서버가 재시작되었을 가능성이 큽니다. 업로드한 파일은 남아 있으므로 다시 시도해도 안전합니다.",
     "mnyJobStalledAfterCommit": "가져오기가 데이터를 이미 저장한 뒤 응답을 멈췄습니다. 서버가 재시작되었을 가능성이 큽니다. 가져온 레코드는 계정에 저장되어 있으므로 같은 파일을 다시 가져오면 중복됩니다. 다른 파일을 가져오기 전에 계좌를 확인하세요.",
+    "mnyImportFailedAfterCommit": "가져오기가 데이터를 저장했지만 그 이후 단계가 실패했습니다. 가져온 기록이 계정에 있으므로 같은 파일을 다시 가져오면 중복됩니다. 다른 항목을 가져오기 전에 계좌를 확인하세요.",
+    "mnyAlreadyImported": "이 파일은 이미 계정에 가져왔으므로 다시 가져오면 기록이 중복됩니다. 기록을 바꾸려면 처음부터 다시 시작하고 기존 데이터를 바꾸도록 선택하세요.",
     "mnyStagedFileMissing": "업로드한 Money 파일을 더 이상 사용할 수 없습니다. 다시 업로드하세요.",
     "mnyFileTruncated": "이 Money 파일은 불완전해 보입니다. 업로드가 중단되었을 수 있습니다.",
     "mnyNotAMoneyFile": "이 파일은 Microsoft Money(.mny) 파일이 아닙니다.",
@@ -604,7 +619,8 @@
       "notEvaluated": {
         "afterStop": "평가하지 않음: 앞의 규칙이 이후 규칙을 중단했습니다.",
         "disabled": "평가하지 않음: 규칙이 꺼져 있습니다.",
-        "invalid": "평가하지 않음: 규칙이 올바르지 않습니다. 열어서 고치세요."
+        "invalid": "평가하지 않음: 규칙이 올바르지 않습니다. 열어서 고치세요.",
+        "outside_active_window": "평가하지 않음: 행의 날짜가 규칙의 활성 기간을 벗어났습니다."
       },
       "condition": {
         "met": "조건 충족",

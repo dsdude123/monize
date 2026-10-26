@@ -27,6 +27,10 @@ import {
 import { TRANSACTION_SORT_FIELDS } from "../../transactions/register-order";
 import { RULE_ACTIONS_HELP, RULE_CONDITION_HELP } from "./rule-language";
 import { RULE_TRIGGERS } from "../../transaction-rules/rule-trigger.types";
+import {
+  LLM_WARRANTY_DEFAULT_LIMIT,
+  LLM_WARRANTY_MAX_LIMIT,
+} from "../../warranties/warranty-llm-shape";
 import { MAX_RULE_ACTIONS } from "../../transaction-rules/rule-validation";
 import {
   MAX_RULE_RUN_ACCOUNTS,
@@ -131,6 +135,7 @@ export const INVESTMENT_ACTIONS = [
   "CAPITAL_GAIN_SHORT",
   "CAPITAL_GAIN_LONG",
   "REDEEM",
+  "RETURN_OF_CAPITAL",
 ] as const;
 
 const investmentActionSchema = z.preprocess(
@@ -408,21 +413,6 @@ const amountSchema = z
     "amount supports at most 4 decimal places",
   );
 
-export const createTransactionSchema = z.object({
-  accountName: z.string().min(1).max(100),
-  amount: amountSchema,
-  date: isoDateSchema,
-  payeeName: z.string().max(100).optional(),
-  categoryName: z.string().max(100).optional(),
-  description: z.string().max(TRANSACTION_NOTE_MAX_LENGTH).optional(),
-  createPayeeIfMissing: booleanArg().optional(),
-});
-
-export const categorizeTransactionSchema = z.object({
-  transactionId: z.string().uuid(),
-  categoryName: z.string().min(1).max(100),
-});
-
 export const managePayeesSchema = z.object({
   operation: z.enum(["create", "update", "delete"]),
   items: z
@@ -511,16 +501,6 @@ export const manageSecuritiesSchema = z.object({
 const nonNegativeAmountSchema = numberArg(
   z.number().finite().min(0).max(999999999999),
 );
-
-/**
- * Bulk variants: an array of the singular row schema, capped at
- * MAX_BULK_ACTION_ROWS so a pasted table cannot blow past the provider's
- * tool-call output-token budget. The singular schemas are reused directly so
- * the row shapes can never drift from their single-row counterparts.
- */
-export const createTransactionsSchema = z.object({
-  rows: z.array(createTransactionSchema).min(1).max(MAX_BULK_ACTION_ROWS),
-});
 
 /**
  * Unified `manage_investment_transactions` input. A single schema validated
@@ -615,38 +595,6 @@ export const manageInvestmentTransactionsSchema = z
       }
     });
   });
-
-/**
- * Edit/delete schemas. Edits require at least one field to change (enforced via
- * refine) so a no-op confirmation card is never proposed; deletes need only the
- * target id.
- */
-export const updateTransactionSchema = z
-  .object({
-    transactionId: z.string().uuid(),
-    amount: amountSchema.optional(),
-    date: isoDateSchema.optional(),
-    payeeName: z.string().max(100).optional(),
-    categoryName: z.string().max(100).optional(),
-    description: z.string().max(TRANSACTION_NOTE_MAX_LENGTH).optional(),
-    createPayeeIfMissing: booleanArg().optional(),
-  })
-  .refine(
-    (v) =>
-      v.amount !== undefined ||
-      v.date !== undefined ||
-      v.payeeName !== undefined ||
-      v.categoryName !== undefined ||
-      v.description !== undefined,
-    {
-      message:
-        "Provide at least one field to change (amount, date, payeeName, categoryName, or description).",
-    },
-  );
-
-export const deleteTransactionSchema = z.object({
-  transactionId: z.string().uuid(),
-});
 
 /**
  * Unified `manage_transactions` input. A single schema validated per-operation
@@ -1078,6 +1026,28 @@ export const fetchBondSeriesSchema = z.object({
     .describe("Series code."),
 });
 
+/**
+ * `list_warranties`, one definition for both surfaces: the MCP tool registers
+ * this schema and the description below as they are, and the assistant's
+ * definition in `tool-definitions.ts` states the same fields.
+ */
+export const LIST_WARRANTIES_DESCRIPTION =
+  "Current (unarchived) warranties, soonest expiry first. `status` and " +
+  "`daysLeft` are as of `today`: quote them, never compute from dates. " +
+  "`linkedTransactionId` is the purchase, null if unlinked; `total` counts " +
+  "all matches.";
+
+export const listWarrantiesSchema = z.object({
+  status: z
+    .enum(["all", "lifetime", "active", "expiring", "expired"])
+    .optional()
+    .describe("expiring: within windowDays. Default all."),
+  q: z.string().max(100).optional().describe("Name, vendor, model or serial."),
+  limit: numberArg(z.number().int().min(1).max(LLM_WARRANTY_MAX_LIMIT))
+    .optional()
+    .describe(`Default ${LLM_WARRANTY_DEFAULT_LIMIT}.`),
+});
+
 export const toolInputSchemas: Record<string, z.ZodSchema> = {
   list_transactions: listTransactionsSchema,
   list_accounts: listAccountsSchema,
@@ -1102,6 +1072,7 @@ export const toolInputSchemas: Record<string, z.ZodSchema> = {
   ai_review_requests: aiReviewRequestsSchema,
   email_receipt_parsers: emailReceiptParsersSchema,
   fetch_bond_series: fetchBondSeriesSchema,
+  list_warranties: listWarrantiesSchema,
 };
 
 /**

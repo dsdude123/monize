@@ -135,6 +135,7 @@
       "toggleTitle": "날짜에서 연도를 빼서 수취인 이름이 더 많이 보이도록 합니다"
     },
     "attachmentsCount": "{count, plural, other {# 개의 첨부 파일}}",
+    "warrantiesCount": "{count, plural, other {보증 #건}}",
     "today": "오늘",
     "export": {
       "button": "내보내기",
@@ -431,6 +432,7 @@
       "destinationRequired": "목적 계정을 선택해 주세요",
       "sameAccount": "출금 계정과 입금 계정은 달라야 합니다",
       "negativeTransfer": "이체 금액은 음수일 수 없습니다",
+      "convertToTransferUnsupported": "기존 거래는 여기에서 이체로 바꿀 수 없습니다. 거래를 삭제한 후 이체를 새로 만드세요.",
       "payeeCreated": "수취인 \"{name}\"이(가) 생성되었습니다",
       "payeeCreateFailed": "수취인 생성에 실패했습니다",
       "payeeReactivated": "수취인 \"{name}\"이(가) 다시 활성화되었습니다",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "{percent}% 해외 거래 수수료({fee})가 포함됩니다."
     },
-    "jointSplitDisabled": "공유 계좌의 분할 거래는 소유자만 관리할 수 있습니다"
+    "jointSplitDisabled": "공유 계좌의 분할 거래는 소유자만 관리할 수 있습니다",
+    "warranties": {
+      "title": "보증",
+      "add": "보증 추가",
+      "expires": "{date} 만료",
+      "loading": "보증을 불러오는 중",
+      "loadError": "이 거래의 보증을 불러올 수 없습니다.",
+      "empty": "아직 보증이 없습니다"
+    }
   },
   "splitEditor": {
     "header": "분할 세부 정보",
@@ -626,7 +636,8 @@
       "amountRange": "금액 50~100",
       "datePeriod": "2026년 3월의 모든 날",
       "isSplit": "분할 거래",
-      "hasAttachment": "첨부 파일 있음"
+      "hasAttachment": "첨부 파일 있음",
+      "hasWarranty": "보증 있음"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "첨부 파일 있음",
+        "warranty": "보증 있음",
         "ref": "참조 번호 있음",
         "memo": "메모 있음",
         "tag": "태그 있음"

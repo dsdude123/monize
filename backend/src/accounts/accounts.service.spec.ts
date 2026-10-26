@@ -15,7 +15,10 @@ import { Institution } from "../institutions/entities/institution.entity";
 import { Category } from "../categories/entities/category.entity";
 import { ScheduledTransactionsService } from "../scheduled-transactions/scheduled-transactions.service";
 import { NetWorthService } from "../net-worth/net-worth.service";
-import { PortfolioService } from "../securities/portfolio.service";
+import {
+  AccountMarketValue,
+  PortfolioService,
+} from "../securities/portfolio.service";
 import { ExchangeRateService } from "../currencies/exchange-rate.service";
 import { UserPreference } from "../users/entities/user-preference.entity";
 import { LoanMortgageAccountService } from "./loan-mortgage-account.service";
@@ -23,6 +26,7 @@ import { LoanRateChangesService } from "../loan-rate-changes/loan-rate-changes.s
 import { LoanPaymentDetectorService } from "./loan-payment-detector.service";
 import { LoanPaymentMatchingService } from "./loan-payment-matching.service";
 import { constantLinearPrincipal } from "./mortgage-installment.util";
+import { ledgerMovementPredicate } from "../common/ledger-balance.sql";
 import { DataSource } from "typeorm";
 import { ActionHistoryService } from "../action-history/action-history.service";
 import { ScheduledOccurrenceService } from "../scheduled-transactions/scheduled-occurrence.service";
@@ -39,7 +43,51 @@ jest.mock("../common/db/scoped-db", () =>
   jest.requireActual("../test-helpers/scoped-db-testing").scopedDbMockModule(),
 );
 
+type LatestNetWorth = NonNullable<
+  Awaited<ReturnType<NetWorthService["getLatestNetWorth"]>>
+>;
+
+/** What `getLatestNetWorth` answers for a month that converted completely. */
+const latestNetWorth = (
+  overrides: Partial<LatestNetWorth> = {},
+): LatestNetWorth => ({
+  assets: 0,
+  liabilities: 0,
+  netWorth: 0,
+  fxComplete: true,
+  missingRatePairs: [],
+  assetsFxComplete: true,
+  liabilitiesFxComplete: true,
+  ...overrides,
+});
+
+/** A brokerage whose every position was priced and converted. */
+const marketValueOf = (
+  marketValue: number,
+  overrides: Partial<AccountMarketValue> = {},
+): AccountMarketValue => ({
+  marketValue,
+  knownMarketValueSubtotal: marketValue,
+  pricesComplete: true,
+  unpricedSecurityIds: [],
+  unpricedSymbols: [],
+  fxComplete: true,
+  missingRatePairs: [],
+  valuationComplete: true,
+  ...overrides,
+});
+
 describe("AccountsService", () => {
+  /**
+   * The columns the linked investment half was written with: a targeted
+   * update of the changed columns, never a save of its unlocked read
+   * (A26-M13).
+   */
+  const linkedUpdate = (id: string): Record<string, unknown> | undefined =>
+    (mockQueryRunner.manager.update.mock.calls as unknown[][]).find(
+      (call) => call[1] === id || (call[1] as { id?: string })?.id === id,
+    )?.[2] as Record<string, unknown> | undefined;
+
   let service: AccountsService;
   let accountsRepository: Record<string, jest.Mock>;
   let transactionRepository: Record<string, jest.Mock>;
@@ -73,6 +121,8 @@ describe("AccountsService", () => {
     accountSubType: null,
     scheduledTransactionId: null,
     excludeFromNetWorth: false,
+    // The column default every row carries; a mortgage case overrides it.
+    mortgageType: "ANNUITY",
   };
 
   beforeEach(async () => {
@@ -195,7 +245,13 @@ describe("AccountsService", () => {
     txManager.save.mockImplementation((data) => data);
     txManager.remove.mockImplementation((data) => data);
     txManager.count.mockResolvedValue(0);
-    txManager.query.mockResolvedValue([]);
+    // A COUNT always answers one row; the close path's pending-row count
+    // (A26-M12) reads it. Every other raw query answers no rows by default.
+    txManager.query.mockImplementation(async (sql: string) =>
+      typeof sql === "string" && sql.includes("count(*)::int AS n")
+        ? [{ n: 0 }]
+        : [],
+    );
     // Transaction-block tests address the manager through this legacy alias.
     mockQueryRunner = { manager: txManager, query: txManager.query };
 
@@ -388,12 +444,12 @@ describe("AccountsService", () => {
       expect(createCall.fxFeePercent).toBe(2.5);
     });
 
-    it("writes a bare mortgage's type with its flags, and no type elsewhere", async () => {
+    it("writes a bare mortgage's type, and no type elsewhere", async () => {
       await service.create("user-1", {
         name: "Mortgage without a schedule",
         accountType: AccountType.MORTGAGE,
         currencyCode: "CAD",
-        isCanadianMortgage: true,
+        mortgageType: "CANADIAN_FIXED",
       } as any);
       await service.create("user-1", {
         name: "Savings",
@@ -401,16 +457,18 @@ describe("AccountsService", () => {
         currencyCode: "CAD",
         mortgageType: "CANADIAN_FIXED",
       } as any);
+      await service.create("user-1", {
+        name: "Mortgage naming no type",
+        accountType: AccountType.MORTGAGE,
+        currencyCode: "CAD",
+      } as any);
 
-      const [mortgage, savings] = accountsRepository.create.mock.calls.map(
-        ([row]) => row,
-      );
-      expect(mortgage).toMatchObject({
-        mortgageType: "CANADIAN_FIXED",
-        isCanadianMortgage: true,
-        isVariableRate: false,
-      });
+      const [mortgage, savings, untyped] =
+        accountsRepository.create.mock.calls.map(([row]) => row);
+      expect(mortgage).toMatchObject({ mortgageType: "CANADIAN_FIXED" });
+      // Any other account takes the column default.
       expect(savings).not.toHaveProperty("mortgageType");
+      expect(untyped).toMatchObject({ mortgageType: "ANNUITY" });
     });
 
     it("refuses a bare LINEAR mortgage without the terms its method prices from", async () => {
@@ -1025,38 +1083,27 @@ describe("AccountsService", () => {
       expect(saved.termEndDate).toBeNull();
     });
 
-    it("writes the type with the flags it maps to when a flag changes", async () => {
-      // A flags-only request (the previous release's form) saves the type the
-      // flags denote beside the flags it maps to, so a previous-release pod
-      // reading the flags and this one reading the type price the row alike.
+    it("writes the requested type and keeps it when a form resends it", async () => {
       const storedFixed = {
         ...mockAccount,
         accountType: "MORTGAGE",
-        isCanadianMortgage: true,
-        isVariableRate: false,
         mortgageType: "CANADIAN_FIXED",
       };
 
       mockQueryRunner.manager.findOne.mockResolvedValue({ ...storedFixed });
-      await service.update("user-1", "account-1", { isVariableRate: true });
-      const changed = mockQueryRunner.manager.save.mock.calls[0][0];
-      expect(changed).toMatchObject({
+      await service.update("user-1", "account-1", { mortgageType: "ANNUITY" });
+      expect(mockQueryRunner.manager.save.mock.calls[0][0]).toMatchObject({
         mortgageType: "ANNUITY",
-        isCanadianMortgage: false,
-        isVariableRate: false,
       });
 
-      // A form resends every field: the same values keep the same type.
+      // A form resends every field: the same value keeps the same type.
       mockQueryRunner.manager.save.mockClear();
       mockQueryRunner.manager.findOne.mockResolvedValue({ ...storedFixed });
       await service.update("user-1", "account-1", {
-        isCanadianMortgage: true,
-        isVariableRate: false,
+        mortgageType: "CANADIAN_FIXED",
       });
       expect(mockQueryRunner.manager.save.mock.calls[0][0]).toMatchObject({
         mortgageType: "CANADIAN_FIXED",
-        isCanadianMortgage: true,
-        isVariableRate: false,
       });
     });
 
@@ -1240,111 +1287,62 @@ describe("AccountsService", () => {
       expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
     });
 
-    it("stores the same row for a type-only and a flags-only request", async () => {
-      const storedAnnuity = {
+    it("leaves the stored type alone when the request names none", async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValue({
         ...mockAccount,
         accountType: "MORTGAGE",
-        isCanadianMortgage: false,
-        isVariableRate: false,
-        mortgageType: "ANNUITY",
-      };
-      const savedColumns = async (dto: Record<string, unknown>) => {
-        mockQueryRunner.manager.save.mockClear();
-        mockQueryRunner.manager.findOne.mockResolvedValue({ ...storedAnnuity });
-        await service.update("user-1", "account-1", dto as never);
-        const saved = mockQueryRunner.manager.save.mock.calls[0][0];
-        return {
-          mortgageType: saved.mortgageType,
-          isCanadianMortgage: saved.isCanadianMortgage,
-          isVariableRate: saved.isVariableRate,
-        };
-      };
-
-      const byType = await savedColumns({ mortgageType: "CANADIAN_FIXED" });
-      const byFlags = await savedColumns({
-        isCanadianMortgage: true,
-        isVariableRate: false,
-      });
-      expect(byType).toEqual({
         mortgageType: "CANADIAN_FIXED",
-        isCanadianMortgage: true,
-        isVariableRate: false,
-      });
-      expect(byFlags).toEqual(byType);
-    });
-
-    it("prefers the type over flags sent beside it", async () => {
-      mockQueryRunner.manager.findOne.mockResolvedValue({
-        ...mockAccount,
-        accountType: "MORTGAGE",
-        isCanadianMortgage: false,
-        isVariableRate: false,
-        mortgageType: "ANNUITY",
-      });
-      await service.update("user-1", "account-1", {
-        mortgageType: "ANNUITY",
-        isCanadianMortgage: true,
-        isVariableRate: false,
-      });
-      expect(mockQueryRunner.manager.save.mock.calls[0][0]).toMatchObject({
-        mortgageType: "ANNUITY",
-        isCanadianMortgage: false,
-        isVariableRate: false,
-      });
-    });
-
-    it("leaves the stored type alone when the request names neither", async () => {
-      mockQueryRunner.manager.findOne.mockResolvedValue({
-        ...mockAccount,
-        accountType: "MORTGAGE",
-        isCanadianMortgage: true,
-        isVariableRate: true,
-        mortgageType: null,
       });
       await service.update("user-1", "account-1", { name: "Renamed" });
       expect(mockQueryRunner.manager.save.mock.calls[0][0]).toMatchObject({
-        mortgageType: null,
-        isCanadianMortgage: true,
-        isVariableRate: true,
+        mortgageType: "CANADIAN_FIXED",
       });
     });
 
-    it("clears the type when an edit moves a mortgage to another type", async () => {
-      // Non-mortgage rows hold no type (the backfill leaves them null); a stale
-      // CANADIAN_FIXED left on a LOAN would be read over its flags.
+    it("reads a null type as naming none, never writing null to the NOT NULL column", async () => {
+      // `@IsOptional()` lets a null through validation; an API or MCP caller
+      // sending one must not reach the column or the traits lookup with it.
       mockQueryRunner.manager.findOne.mockResolvedValue({
         ...mockAccount,
         accountType: "MORTGAGE",
-        isCanadianMortgage: true,
-        isVariableRate: false,
         mortgageType: "CANADIAN_FIXED",
       });
       await service.update("user-1", "account-1", {
-        accountType: AccountType.LOAN,
-        isCanadianMortgage: false,
-      });
-      expect(mockQueryRunner.manager.save.mock.calls[0][0]).toMatchObject({
-        accountType: AccountType.LOAN,
         mortgageType: null,
-        isCanadianMortgage: false,
+      } as never);
+      expect(mockQueryRunner.manager.save.mock.calls[0][0]).toMatchObject({
+        mortgageType: "CANADIAN_FIXED",
       });
     });
 
-    it("writes no type on an account that is not a mortgage", async () => {
+    it("resets the type to the default when an edit moves a mortgage to another type", async () => {
+      // Every non-mortgage row carries the column default; a stale
+      // CANADIAN_FIXED left on a LOAN would describe a mortgage it is not.
+      mockQueryRunner.manager.findOne.mockResolvedValue({
+        ...mockAccount,
+        accountType: "MORTGAGE",
+        mortgageType: "CANADIAN_FIXED",
+      });
+      await service.update("user-1", "account-1", {
+        accountType: AccountType.LOAN,
+      });
+      expect(mockQueryRunner.manager.save.mock.calls[0][0]).toMatchObject({
+        accountType: AccountType.LOAN,
+        mortgageType: "ANNUITY",
+      });
+    });
+
+    it("writes no requested type on an account that is not a mortgage", async () => {
       mockQueryRunner.manager.findOne.mockResolvedValue({
         ...mockAccount,
         accountType: "LOAN",
-        isCanadianMortgage: false,
-        isVariableRate: false,
-        mortgageType: null,
+        mortgageType: "ANNUITY",
       });
       await service.update("user-1", "account-1", {
         mortgageType: "CANADIAN_FIXED",
-        isVariableRate: true,
       });
       expect(mockQueryRunner.manager.save.mock.calls[0][0]).toMatchObject({
-        mortgageType: null,
-        isVariableRate: true,
+        mortgageType: "ANNUITY",
       });
     });
 
@@ -1586,6 +1584,29 @@ describe("AccountsService", () => {
       expect(mockDataSource.transaction).toHaveBeenCalled();
     });
 
+    it("refuses to close over a non-VOID row dated after today, writing nothing (A26-M12)", async () => {
+      mockQueryRunner.manager.findOne.mockResolvedValue({
+        ...mockAccount,
+        currentBalance: 0,
+      });
+      mockQueryRunner.manager.query.mockImplementation(async (sql: string) =>
+        typeof sql === "string" && sql.includes("count(*)::int AS n")
+          ? [{ n: 1 }]
+          : [],
+      );
+
+      await expect(service.close("user-1", "account-1")).rejects.toThrow(
+        "Cannot close an account with future-dated transactions",
+      );
+      const [sql, params] = mockQueryRunner.manager.query.mock.calls.find(
+        ([q]: [string]) => q.includes("count(*)::int AS n"),
+      );
+      expect(sql).toContain(ledgerMovementPredicate(""));
+      expect(sql).toContain("transaction_date > $3");
+      expect(params[0]).toEqual(["account-1"]);
+      expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
+    });
+
     it("throws when account already closed", async () => {
       mockQueryRunner.manager.findOne.mockResolvedValue({
         ...mockAccount,
@@ -1719,8 +1740,38 @@ describe("AccountsService", () => {
 
       await service.delete("user-1", "account-1");
 
-      const savedLinked = mockQueryRunner.manager.save.mock.calls[0][0];
-      expect(savedLinked.linkedAccountId).toBeNull();
+      expect(mockQueryRunner.manager.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ userId: "user-1" }),
+        { linkedAccountId: null },
+      );
+      expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
+    });
+
+    it("re-counts under the account lock inside the deleting transaction (A26-M19)", async () => {
+      accountsRepository.findOne.mockResolvedValue({ ...mockAccount });
+      // Empty when first asked; a sync committed a row before the lock.
+      transactionRepository.count
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(1);
+      investmentTxRepository.count.mockResolvedValue(0);
+
+      await expect(service.delete("user-1", "account-1")).rejects.toThrow(
+        "Close the account instead",
+      );
+
+      const lockCall = mockQueryRunner.manager.query.mock.calls.findIndex(
+        ([sql]: [string]) =>
+          typeof sql === "string" &&
+          sql.includes("FROM accounts") &&
+          sql.includes("FOR UPDATE"),
+      );
+      expect(lockCall).toBeGreaterThanOrEqual(0);
+      expect(transactionRepository.count).toHaveBeenCalledTimes(2);
+      expect(
+        mockQueryRunner.manager.query.mock.invocationCallOrder[lockCall],
+      ).toBeLessThan(transactionRepository.count.mock.invocationCallOrder[1]);
+      expect(mockQueryRunner.manager.remove).not.toHaveBeenCalled();
     });
 
     it("records action history on delete", async () => {
@@ -2265,6 +2316,8 @@ describe("AccountsService", () => {
       accountsRepository.findOne.mockResolvedValue({
         ...mockAccount,
         id: "source-1",
+        // The payment account is in the mortgage's currency (A26-S15-10).
+        currencyCode: "CAD",
       });
       accountsRepository.create.mockImplementation((data) => ({
         ...data,
@@ -2365,49 +2418,22 @@ describe("AccountsService", () => {
     it("sets mortgage-specific fields on the account", async () => {
       await service.createMortgageAccount("user-1", {
         ...baseMortgageDto,
-        isCanadianMortgage: true,
-        isVariableRate: false,
+        mortgageType: "CANADIAN_FIXED",
         termMonths: 60,
       } as any);
 
       const createCall = accountsRepository.create.mock.calls[0][0];
       expect(createCall.mortgageType).toBe("CANADIAN_FIXED");
-      expect(createCall.isCanadianMortgage).toBe(true);
-      expect(createCall.isVariableRate).toBe(false);
       expect(createCall.termMonths).toBe(60);
       expect(createCall.amortizationMonths).toBe(300);
       expect(createCall.originalPrincipal).toBe(400000);
     });
 
-    it("stores the same row for a type-only and a flags-only request", async () => {
-      await service.createMortgageAccount("user-1", {
-        ...baseMortgageDto,
-        mortgageType: "CANADIAN_FIXED",
-      } as any);
-      await service.createMortgageAccount("user-1", {
-        ...baseMortgageDto,
-        isCanadianMortgage: true,
-        isVariableRate: false,
-      } as any);
-
-      const [byType, byFlags] = accountsRepository.create.mock.calls.map(
-        ([row]) => row,
-      );
-      expect(byType).toMatchObject({
-        mortgageType: "CANADIAN_FIXED",
-        isCanadianMortgage: true,
-        isVariableRate: false,
-      });
-      expect(byFlags).toEqual(byType);
-    });
-
-    it("stores ANNUITY when the request names neither the type nor a flag", async () => {
+    it("stores ANNUITY when the request names no type", async () => {
       await service.createMortgageAccount("user-1", baseMortgageDto as any);
 
       expect(accountsRepository.create.mock.calls[0][0]).toMatchObject({
         mortgageType: "ANNUITY",
-        isCanadianMortgage: false,
-        isVariableRate: false,
       });
     });
 
@@ -2494,13 +2520,11 @@ describe("AccountsService", () => {
     it("creates Canadian mortgage with correct parameters", async () => {
       await service.createMortgageAccount("user-1", {
         ...baseMortgageDto,
-        isCanadianMortgage: true,
-        isVariableRate: false,
+        mortgageType: "CANADIAN_FIXED",
       } as any);
 
       const createCall = accountsRepository.create.mock.calls[0][0];
-      expect(createCall.isCanadianMortgage).toBe(true);
-      expect(createCall.isVariableRate).toBe(false);
+      expect(createCall.mortgageType).toBe("CANADIAN_FIXED");
       // Payment amount should be calculated by the amortization utility
       expect(createCall.paymentAmount).toBeDefined();
       expect(typeof createCall.paymentAmount).toBe("number");
@@ -2629,8 +2653,7 @@ describe("AccountsService", () => {
       paymentFrequency: "MONTHLY",
       paymentStartDate: new Date("2024-01-01"),
       amortizationMonths: 300,
-      isCanadianMortgage: false,
-      isVariableRate: false,
+      mortgageType: "ANNUITY",
       scheduledTransactionId: "sched-tx-1",
       interestCategoryId: "interest-cat-1",
       isClosed: false,
@@ -2881,9 +2904,14 @@ describe("AccountsService", () => {
 
       await service.update("user-1", "account-1", { currencyCode: "CAD" });
 
-      // Second save should be the linked account currency update
-      const linkedSave = mockQueryRunner.manager.save.mock.calls[1][0];
-      expect(linkedSave.currencyCode).toBe("CAD");
+      // The linked half gets a targeted update of the synced columns.
+      const linked = mockQueryRunner.manager.update.mock.calls.find(
+        (call: unknown[]) =>
+          (call[2] as { currencyCode?: string })?.currencyCode === "CAD",
+      );
+      expect(linked).toBeDefined();
+      expect(linked[2]).not.toHaveProperty("currentBalance");
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledTimes(1);
       expect(mockDataSource.transaction).toHaveBeenCalled();
     });
 
@@ -2959,11 +2987,14 @@ describe("AccountsService", () => {
 
       await service.update("user-1", "brok-1", { name: "RRSP" });
 
-      const [brokerageSave, cashSave] =
-        mockQueryRunner.manager.save.mock.calls.map((c) => c[0]);
+      const [brokerageSave] = mockQueryRunner.manager.save.mock.calls.map(
+        (c) => c[0],
+      );
       expect(brokerageSave.name).toBe("RRSP - Depot");
-      expect(cashSave.id).toBe("cash-1");
-      expect(cashSave.name).toBe("RRSP - Bargeld");
+      expect(linkedUpdate("cash-1")).toEqual(
+        expect.objectContaining({ name: "RRSP - Bargeld" }),
+      );
+      expect(linkedUpdate("cash-1")).not.toHaveProperty("currentBalance");
     });
 
     it("renames the brokerage half when the cash half is renamed", async () => {
@@ -2987,10 +3018,11 @@ describe("AccountsService", () => {
 
       await service.update("user-1", "cash-1", { name: "RRSP" });
 
-      const [cashSave, brokerageSave] =
-        mockQueryRunner.manager.save.mock.calls.map((c) => c[0]);
+      const [cashSave] = mockQueryRunner.manager.save.mock.calls.map(
+        (c) => c[0],
+      );
       expect(cashSave.name).toBe("RRSP - Bargeld");
-      expect(brokerageSave.name).toBe("RRSP - Depot");
+      expect(linkedUpdate("brok-1")?.name).toBe("RRSP - Depot");
     });
 
     // A client that sends the stored name back rather than the base must not
@@ -3016,10 +3048,11 @@ describe("AccountsService", () => {
 
       await service.update("user-1", "brok-1", { name: "RRSP - Depot" });
 
-      const [brokerageSave, cashSave] =
-        mockQueryRunner.manager.save.mock.calls.map((c) => c[0]);
+      const [brokerageSave] = mockQueryRunner.manager.save.mock.calls.map(
+        (c) => c[0],
+      );
       expect(brokerageSave.name).toBe("RRSP - Depot");
-      expect(cashSave.name).toBe("RRSP - Bargeld");
+      expect(linkedUpdate("cash-1")?.name).toBe("RRSP - Bargeld");
     });
 
     // The English words are stripped alongside the locale's, so a pair created
@@ -3046,10 +3079,11 @@ describe("AccountsService", () => {
 
       await service.update("user-1", "brok-1", { name: "RRSP - Brokerage" });
 
-      const [brokerageSave, cashSave] =
-        mockQueryRunner.manager.save.mock.calls.map((c) => c[0]);
+      const [brokerageSave] = mockQueryRunner.manager.save.mock.calls.map(
+        (c) => c[0],
+      );
       expect(brokerageSave.name).toBe("RRSP - Depot");
-      expect(cashSave.name).toBe("RRSP - Bargeld");
+      expect(linkedUpdate("cash-1")?.name).toBe("RRSP - Bargeld");
     });
 
     it("leaves a standalone investment account name exactly as submitted", async () => {
@@ -3468,8 +3502,11 @@ describe("AccountsService", () => {
 
       await service.delete("user-1", "account-1");
 
-      const savedLinked = mockQueryRunner.manager.save.mock.calls[0][0];
-      expect(savedLinked.linkedAccountId).toBeNull();
+      expect(mockQueryRunner.manager.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ userId: "user-1" }),
+        { linkedAccountId: null },
+      );
       expect(mockQueryRunner.manager.remove).toHaveBeenCalled();
     });
 
@@ -3560,17 +3597,173 @@ describe("AccountsService", () => {
       stubAccounts([{ ...mockAccount, id: "a1", currentBalance: 5000 }]);
       // getLatestNetWorth is the canonical source shared with the dashboard
       // widget and get_account_balances; getSummary must report its latest month.
-      netWorthService.getLatestNetWorth.mockResolvedValue({
-        assets: 25000,
-        liabilities: 302000,
-        netWorth: 25000 - 302000,
-      });
+      netWorthService.getLatestNetWorth.mockResolvedValue(
+        latestNetWorth({
+          assets: 25000,
+          liabilities: 302000,
+          netWorth: 25000 - 302000,
+        }),
+      );
 
       const result = await service.getSummary("user-1");
 
       expect(result.totalAssets).toBe(25000);
       expect(result.totalLiabilities).toBe(302000);
       expect(result.netWorth).toBe(25000 - 302000);
+      expect(result.knownNetWorthSubtotal).toBe(25000 - 302000);
+      expect(result.fxComplete).toBe(true);
+      expect(result.pricesComplete).toBe(true);
+      expect(result.valuationComplete).toBe(true);
+      expect(result.missingRatePairs).toEqual([]);
+      expect(result.unpricedSymbols).toEqual([]);
+    });
+
+    it("does not report a subtotal as net worth when a rate is missing", async () => {
+      stubAccounts([{ ...mockAccount, id: "a1", currentBalance: 1000 }]);
+      netWorthService.getLatestNetWorth.mockResolvedValue(
+        latestNetWorth({
+          assets: 1000,
+          liabilities: 0,
+          netWorth: 1000,
+          fxComplete: false,
+          missingRatePairs: ["ZZZ->USD"],
+          assetsFxComplete: false,
+        }),
+      );
+
+      const result = await service.getSummary("user-1");
+
+      expect(result.netWorth).toBeNull();
+      expect(result.totalAssets).toBeNull();
+      // Liabilities converted completely, so they are a total.
+      expect(result.totalLiabilities).toBe(0);
+      expect(result.knownNetWorthSubtotal).toBe(1000);
+      expect(result.knownAssetsSubtotal).toBe(1000);
+      expect(result.knownLiabilitiesSubtotal).toBe(0);
+      expect(result.fxComplete).toBe(false);
+      expect(result.valuationComplete).toBe(false);
+      expect(result.missingRatePairs).toEqual(["ZZZ->USD"]);
+    });
+
+    it("withholds net worth when a snapshot is complete but a brokerage holds an unpriced position", async () => {
+      const brokerage = {
+        ...mockAccount,
+        id: "b1",
+        accountType: AccountType.INVESTMENT,
+        accountSubType: AccountSubType.INVESTMENT_BROKERAGE,
+        excludeFromNetWorth: false,
+        currentBalance: 0,
+      };
+      stubAccounts([
+        { ...mockAccount, id: "a1", currentBalance: 1000 },
+        brokerage,
+      ]);
+      netWorthService.getLatestNetWorth.mockResolvedValue(
+        latestNetWorth({ assets: 1000, netWorth: 1000 }),
+      );
+      (
+        service["portfolioService"] as unknown as {
+          getAccountMarketValues: jest.Mock;
+        }
+      ).getAccountMarketValues = jest.fn().mockResolvedValue(
+        new Map([
+          [
+            "b1",
+            marketValueOf(0, {
+              marketValue: null,
+              knownMarketValueSubtotal: 0,
+              pricesComplete: false,
+              unpricedSecurityIds: ["sec-abc"],
+              unpricedSymbols: ["ABC"],
+              valuationComplete: false,
+            }),
+          ],
+        ]),
+      );
+
+      const result = await service.getSummary("user-1");
+
+      expect(result.pricesComplete).toBe(false);
+      expect(result.fxComplete).toBe(true);
+      expect(result.valuationComplete).toBe(false);
+      expect(result.netWorth).toBeNull();
+      expect(result.totalAssets).toBeNull();
+      expect(result.totalLiabilities).toBe(0);
+      expect(result.knownNetWorthSubtotal).toBe(1000);
+      expect(result.unpricedSymbols).toEqual(["ABC"]);
+      expect(result.unpricedSecurityIds).toEqual(["sec-abc"]);
+    });
+
+    it("withholds the assets when a brokerage position has no rate into the account's currency", async () => {
+      const brokerage = {
+        ...mockAccount,
+        id: "b1",
+        accountType: AccountType.INVESTMENT,
+        accountSubType: AccountSubType.INVESTMENT_BROKERAGE,
+        excludeFromNetWorth: false,
+        currentBalance: 0,
+      };
+      stubAccounts([brokerage]);
+      netWorthService.getLatestNetWorth.mockResolvedValue(latestNetWorth());
+      (
+        service["portfolioService"] as unknown as {
+          getAccountMarketValues: jest.Mock;
+        }
+      ).getAccountMarketValues = jest.fn().mockResolvedValue(
+        new Map([
+          [
+            "b1",
+            marketValueOf(0, {
+              marketValue: null,
+              fxComplete: false,
+              missingRatePairs: ["EUR->USD"],
+              valuationComplete: false,
+            }),
+          ],
+        ]),
+      );
+
+      const result = await service.getSummary("user-1");
+
+      expect(result.fxComplete).toBe(false);
+      expect(result.missingRatePairs).toEqual(["EUR->USD"]);
+      expect(result.netWorth).toBeNull();
+    });
+
+    it("ignores an excluded account's market value", async () => {
+      const excluded = {
+        ...mockAccount,
+        id: "b1",
+        accountType: AccountType.INVESTMENT,
+        accountSubType: AccountSubType.INVESTMENT_BROKERAGE,
+        excludeFromNetWorth: true,
+        currentBalance: 0,
+      };
+      stubAccounts([excluded]);
+      netWorthService.getLatestNetWorth.mockResolvedValue(latestNetWorth());
+      (
+        service["portfolioService"] as unknown as {
+          getAccountMarketValues: jest.Mock;
+        }
+      ).getAccountMarketValues = jest.fn().mockResolvedValue(
+        new Map([
+          [
+            "b1",
+            marketValueOf(0, {
+              marketValue: null,
+              pricesComplete: false,
+              unpricedSymbols: ["ABC"],
+              unpricedSecurityIds: ["sec-abc"],
+              valuationComplete: false,
+            }),
+          ],
+        ]),
+      );
+
+      const result = await service.getSummary("user-1");
+
+      expect(result.pricesComplete).toBe(true);
+      expect(result.netWorth).toBe(0);
     });
 
     it("returns zero net worth when no monthly snapshots exist", async () => {
@@ -3582,6 +3775,9 @@ describe("AccountsService", () => {
       expect(result.totalAssets).toBe(0);
       expect(result.totalLiabilities).toBe(0);
       expect(result.netWorth).toBe(0);
+      // No snapshot at all is a known zero, not an unknown one.
+      expect(result.knownNetWorthSubtotal).toBe(0);
+      expect(result.valuationComplete).toBe(true);
       // totalBalance still reflects the raw book balance
       expect(result.totalBalance).toBe(5000);
     });
@@ -3671,8 +3867,9 @@ describe("AccountsService", () => {
       await service.update("user-1", "account-1", {
         currencyCode: "CAD",
       });
-      // 2 saves: original account + linked account
-      expect(mockQueryRunner.manager.save).toHaveBeenCalledTimes(2);
+      // The account itself is saved; the linked half gets a targeted update.
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledTimes(1);
+      expect(linkedUpdate("linked-1")?.currencyCode).toBe("CAD");
     });
 
     it("does not save linked account when not found", async () => {
@@ -3705,10 +3902,9 @@ describe("AccountsService", () => {
           institutionId: null,
         });
       await service.update("user-1", "account-1", { institutionId: "inst-1" });
-      // 2 saves: original account + linked partner
-      expect(mockQueryRunner.manager.save).toHaveBeenCalledTimes(2);
-      const linkedSave = mockQueryRunner.manager.save.mock.calls[1][0];
-      expect(linkedSave.institutionId).toBe("inst-1");
+      // The account itself is saved; the linked partner gets a targeted update.
+      expect(mockQueryRunner.manager.save).toHaveBeenCalledTimes(1);
+      expect(linkedUpdate("linked-1")?.institutionId).toBe("inst-1");
     });
 
     it("triggers net-worth recalc when openingBalance changes", async () => {
@@ -3745,8 +3941,7 @@ describe("AccountsService", () => {
         interestCategoryId: "i-1",
         assetCategoryId: "a-1",
         dateAcquired: "2024-01-01",
-        isCanadianMortgage: true,
-        isVariableRate: false,
+        mortgageType: "CANADIAN_FIXED",
       } as never);
       const saved = mockQueryRunner.manager.save.mock.calls[0][0];
       expect(saved.description).toBe("desc");
@@ -3992,14 +4187,16 @@ describe("AccountsService", () => {
         netWorthService as unknown as Record<string, jest.Mock>
       ).getLatestNetWorth = jest
         .fn()
-        .mockResolvedValue({ assets: 800, liabilities: 0, netWorth: 800 });
+        .mockResolvedValue(
+          latestNetWorth({ assets: 800, liabilities: 0, netWorth: 800 }),
+        );
       (
         service["portfolioService"] as unknown as {
           getAccountMarketValues: jest.Mock;
         }
       ).getAccountMarketValues = jest
         .fn()
-        .mockResolvedValue(new Map([["a3", 750]]));
+        .mockResolvedValue(new Map([["a3", marketValueOf(750)]]));
       institutionsRepository.find = jest
         .fn()
         .mockResolvedValue([{ id: "inst-1", name: "Big Bank" }]);
@@ -4060,7 +4257,7 @@ describe("AccountsService", () => {
       expect(names).toEqual(["Checking", "Savings"]);
     });
 
-    it("carries a mortgage's type, read through the flags when the column is null", async () => {
+    it("carries a mortgage's type, and none on any other account", async () => {
       // The LLM shape is a consumer of the type (AGENTS.md): the assistant and
       // the MCP accounts tool read it from this row.
       const mortgage = {
@@ -4072,35 +4269,22 @@ describe("AccountsService", () => {
         {
           ...mortgage,
           id: "m1",
-          name: "Stored type",
+          name: "Canadian fixed",
           mortgageType: "CANADIAN_FIXED",
-          isCanadianMortgage: true,
-          isVariableRate: false,
         },
         {
           ...mortgage,
           id: "m2",
-          name: "Flags only",
-          mortgageType: null,
-          isCanadianMortgage: true,
-          isVariableRate: false,
-        },
-        {
-          ...mortgage,
-          id: "m3",
-          name: "Canadian variable",
-          mortgageType: null,
-          isCanadianMortgage: true,
-          isVariableRate: true,
+          name: "Annuity",
+          mortgageType: "ANNUITY",
         },
         {
           ...allAccounts[0],
           id: "l1",
           name: "Car loan",
           accountType: AccountType.LOAN,
-          mortgageType: null,
-          isCanadianMortgage: false,
-          isVariableRate: false,
+          // The column default every non-mortgage row carries.
+          mortgageType: "ANNUITY",
         },
       ] as never);
 
@@ -4110,8 +4294,7 @@ describe("AccountsService", () => {
         Object.fromEntries(r.accounts.map((a) => [a.id, a.mortgageType])),
       ).toEqual({
         m1: "CANADIAN_FIXED",
-        m2: "CANADIAN_FIXED",
-        m3: "ANNUITY",
+        m2: "ANNUITY",
         l1: null,
       });
     });
@@ -4124,8 +4307,6 @@ describe("AccountsService", () => {
         ...allAccounts[0],
         accountType: AccountType.MORTGAGE,
         currentBalance: -265000,
-        isCanadianMortgage: false,
-        isVariableRate: false,
         interestRate: 2,
         paymentAmount: null,
         paymentFrequency: "MONTHLY",
@@ -4234,7 +4415,7 @@ describe("AccountsService", () => {
           }
         ).getAccountMarketValues = jest
           .fn()
-          .mockResolvedValue(new Map([["cad-brokerage", 2000]]));
+          .mockResolvedValue(new Map([["cad-brokerage", marketValueOf(2000)]]));
       });
 
       it("prices a foreign account at today's rate, once per currency", async () => {
@@ -4425,6 +4606,75 @@ describe("AccountsService", () => {
       expect(r.totalAssets).toBe(800);
       expect(r.totalLiabilities).toBe(0);
       expect(r.netWorth).toBe(800);
+    });
+
+    it("carries the same completeness totals as the summary, and a brokerage row with a null balance", async () => {
+      (
+        netWorthService as unknown as Record<string, jest.Mock>
+      ).getLatestNetWorth = jest.fn().mockResolvedValue(
+        latestNetWorth({
+          assets: 800,
+          netWorth: 800,
+          fxComplete: false,
+          missingRatePairs: ["ZZZ->USD"],
+          assetsFxComplete: false,
+        }),
+      );
+      (
+        service["portfolioService"] as unknown as {
+          getAccountMarketValues: jest.Mock;
+        }
+      ).getAccountMarketValues = jest.fn().mockResolvedValue(
+        new Map([
+          [
+            "a3",
+            marketValueOf(0, {
+              marketValue: null,
+              knownMarketValueSubtotal: 600,
+              pricesComplete: false,
+              unpricedSecurityIds: ["sec-abc"],
+              unpricedSymbols: ["ABC"],
+              valuationComplete: false,
+            }),
+          ],
+        ]),
+      );
+
+      const r = await service.getLlmAccounts("user-1");
+
+      expect(r.netWorth).toBeNull();
+      expect(r.totalAssets).toBeNull();
+      expect(r.totalLiabilities).toBe(0);
+      expect(r.knownNetWorthSubtotal).toBe(800);
+      expect(r.fxComplete).toBe(false);
+      expect(r.pricesComplete).toBe(false);
+      expect(r.valuationComplete).toBe(false);
+      expect(r.unpricedSymbols).toEqual(["ABC"]);
+      expect(r.missingRatePairs).toContain("ZZZ->USD");
+      const brokerage = r.accounts.find((a) => a.name === "Brokerage")!;
+      expect(brokerage.balance).toBeNull();
+      expect(brokerage.balanceInDefaultCurrency).toBeNull();
+      expect(brokerage.knownBalanceSubtotal).toBe(600);
+      expect(brokerage.valuationComplete).toBe(false);
+      const checking = r.accounts.find((a) => a.name === "Checking")!;
+      expect(checking.balance).toBe(100);
+      expect(checking.knownBalanceSubtotal).toBe(100);
+      expect(checking.valuationComplete).toBe(true);
+    });
+
+    it("treats a brokerage absent from the market-value map as holding nothing", async () => {
+      (
+        service["portfolioService"] as unknown as {
+          getAccountMarketValues: jest.Mock;
+        }
+      ).getAccountMarketValues = jest.fn().mockResolvedValue(new Map());
+
+      const r = await service.getLlmAccounts("user-1");
+
+      const brokerage = r.accounts.find((a) => a.name === "Brokerage")!;
+      expect(brokerage.balance).toBe(0);
+      expect(brokerage.knownBalanceSubtotal).toBe(0);
+      expect(brokerage.valuationComplete).toBe(true);
     });
 
     it("falls back to 0 totals when the net worth snapshot is null", async () => {
