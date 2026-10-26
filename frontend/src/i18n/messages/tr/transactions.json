@@ -135,6 +135,7 @@
       "toggleTitle": "Alacaklının adının daha fazlası sığması için tarihlerden yılı çıkar"
     },
     "attachmentsCount": "{count, plural, other {# ek}}",
+    "warrantiesCount": "{count, plural, other {# garanti}}",
     "today": "Bugün",
     "export": {
       "button": "Dışa Aktar",
@@ -431,6 +432,7 @@
       "destinationRequired": "Lütfen hedef hesap seçin",
       "sameAccount": "Kaynak ve hedef hesaplar farklı olmalıdır",
       "negativeTransfer": "Transfer tutarı negatif olamaz",
+      "convertToTransferUnsupported": "Mevcut bir işlem burada transfere dönüştürülemez. İşlemi silin ve bunun yerine transferi oluşturun.",
       "payeeCreated": "\"{name}\" alacaklısı oluşturuldu",
       "payeeCreateFailed": "Alacaklı oluşturulamadı",
       "payeeReactivated": "\"{name}\" alacaklısı yeniden etkinleştirildi",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "%{percent} yurt dışı işlem ücreti ({fee}) içerir."
     },
-    "jointSplitDisabled": "Paylaşılan bir hesaptaki bölünmüş işlemleri yalnızca sahibi yönetebilir"
+    "jointSplitDisabled": "Paylaşılan bir hesaptaki bölünmüş işlemleri yalnızca sahibi yönetebilir",
+    "warranties": {
+      "title": "Garantiler",
+      "add": "Garanti ekle",
+      "expires": "Bitiş: {date}",
+      "loading": "Garantiler yükleniyor",
+      "loadError": "Bu işlemin garantileri yüklenemedi.",
+      "empty": "Henüz garanti yok"
+    }
   },
   "splitEditor": {
     "header": "Bölüm Ayrıntıları",
@@ -626,7 +636,8 @@
       "amountRange": "Tutar 50 ile 100 arası",
       "datePeriod": "Mart 2026'nın herhangi bir günü",
       "isSplit": "Bölünmüş işlemler",
-      "hasAttachment": "Eki var"
+      "hasAttachment": "Eki var",
+      "hasWarranty": "Garantisi var"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "Eki var",
+        "warranty": "Garantisi var",
         "ref": "Referans numarası var",
         "memo": "Notu var",
         "tag": "Etiketi var"

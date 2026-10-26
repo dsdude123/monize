@@ -135,6 +135,7 @@
       "toggleTitle": "Het jaar uit de datums weglaten zodat er meer van de begunstigde past"
     },
     "attachmentsCount": "{count, plural, one {# bijlage} other {# bijlagen}}",
+    "warrantiesCount": "{count, plural, one {# garantie} other {# garanties}}",
     "today": "Vandaag",
     "export": {
       "button": "Exporteren",
@@ -431,6 +432,7 @@
       "destinationRequired": "Selecteer een doelrekening",
       "sameAccount": "Bron- en doelrekening moeten verschillend zijn",
       "negativeTransfer": "Overboekingsbedrag mag niet negatief zijn",
+      "convertToTransferUnsupported": "Een bestaande transactie kan hier niet in een overboeking worden omgezet. Verwijder de transactie en maak in plaats daarvan de overboeking aan.",
       "payeeCreated": "Begunstigde \"{name}\" aangemaakt",
       "payeeCreateFailed": "Aanmaken van begunstigde mislukt",
       "payeeReactivated": "Begunstigde \"{name}\" opnieuw geactiveerd",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "Inclusief {percent}% kosten voor buitenlandse transactie ({fee})."
     },
-    "jointSplitDisabled": "Gesplitste transacties in een gedeelde rekening kunnen alleen door de eigenaar worden beheerd"
+    "jointSplitDisabled": "Gesplitste transacties in een gedeelde rekening kunnen alleen door de eigenaar worden beheerd",
+    "warranties": {
+      "title": "Garanties",
+      "add": "Garantie toevoegen",
+      "expires": "Verloopt op {date}",
+      "loading": "Garanties laden",
+      "loadError": "De garanties bij deze transactie konden niet worden geladen.",
+      "empty": "Nog geen garanties"
+    }
   },
   "splitEditor": {
     "header": "Splitsingsdetails",
@@ -626,7 +636,8 @@
       "amountRange": "Bedrag van 50 tot 100",
       "datePeriod": "Elke dag in maart 2026",
       "isSplit": "Gesplitste transacties",
-      "hasAttachment": "Heeft een bijlage"
+      "hasAttachment": "Heeft een bijlage",
+      "hasWarranty": "Heeft een garantie"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "Heeft een bijlage",
+        "warranty": "Heeft een garantie",
         "ref": "Heeft een referentienummer",
         "memo": "Heeft een notitie",
         "tag": "Heeft een tag"

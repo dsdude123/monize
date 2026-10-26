@@ -61,11 +61,11 @@ export type ScheduledTransactionMode = 'transaction' | 'split' | 'transfer' | 'i
 
 // Mirrors visibility rules in InvestmentTransactionForm — keep in sync.
 const SECURITY_REQUIRED_ACTIONS: InvestmentAction[] = [
-  'BUY', 'SELL', 'DIVIDEND', 'CAPITAL_GAIN', 'SPLIT', 'REINVEST', 'ADD_SHARES', 'REMOVE_SHARES',
+  'BUY', 'SELL', 'DIVIDEND', 'CAPITAL_GAIN', 'RETURN_OF_CAPITAL', 'SPLIT', 'REINVEST', 'ADD_SHARES', 'REMOVE_SHARES',
 ];
 const QUANTITY_PRICE_ACTIONS: InvestmentAction[] = ['BUY', 'SELL', 'REINVEST'];
 const QUANTITY_ONLY_ACTIONS: InvestmentAction[] = ['ADD_SHARES', 'REMOVE_SHARES', 'SPLIT'];
-const AMOUNT_ONLY_ACTIONS: InvestmentAction[] = ['DIVIDEND', 'INTEREST', 'CAPITAL_GAIN'];
+const AMOUNT_ONLY_ACTIONS: InvestmentAction[] = ['DIVIDEND', 'INTEREST', 'CAPITAL_GAIN', 'RETURN_OF_CAPITAL'];
 const FUNDING_ACCOUNT_ACTIONS: InvestmentAction[] = ['BUY', 'SELL'];
 
 const SCHEDULABLE_INVESTMENT_ACTIONS: InvestmentAction[] = [
@@ -73,6 +73,8 @@ const SCHEDULABLE_INVESTMENT_ACTIONS: InvestmentAction[] = [
   // Money's distribution vocabulary (issue #1149): schedulable like their base.
   'REINVEST_INTEREST', 'REINVEST_CAPITAL_GAIN_SHORT', 'REINVEST_CAPITAL_GAIN_LONG',
   'CAPITAL_GAIN_SHORT', 'CAPITAL_GAIN_LONG', 'REDEEM',
+  // A fund's regular return of capital (issue #1800).
+  'RETURN_OF_CAPITAL',
 ];
 
 const buildScheduledTransactionSchema = (t: (key: string) => string) => z.object({
@@ -319,6 +321,7 @@ export function ScheduledTransactionForm({
   const watchedFrequency = useWatch({ control, name: 'frequency' });
   const watchedCurrencyCode = useWatch({ control, name: 'currencyCode' });
   const watchedIsActive = useWatch({ control, name: 'isActive' });
+  const watchedNextDueDate = useWatch({ control, name: 'nextDueDate' });
   const watchedAutoPost = useWatch({ control, name: 'autoPost' });
 
   // Auto-set currencyCode from the selected account
@@ -1694,6 +1697,7 @@ export function ScheduledTransactionForm({
               currencyCode={watchedCurrencyCode || defaultCurrency}
               onConvertToRegular={handleConvertToRegular}
               onCreateCategory={createCategoryFromTypedName}
+              transactionDate={watchedNextDueDate}
             />
           </div>
 

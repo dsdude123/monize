@@ -316,6 +316,7 @@
     "totalInflows": "Tổng dòng tiền vào",
     "totalOutflows": "Tổng dòng tiền ra",
     "netCashFlow": "Lưu chuyển tiền thuần",
+    "notAvailable": "N/A",
     "monthlyCashFlow": "Lưu chuyển tiền hàng tháng",
     "inflowsByCategory": "Dòng tiền vào theo danh mục",
     "outflowsByCategory": "Dòng tiền ra theo danh mục",
@@ -330,7 +331,31 @@
     "untagged": "Không gắn thẻ",
     "inflows": "Dòng vào có gắn thẻ",
     "outflows": "Dòng ra có gắn thẻ",
-    "sharesExceedNote": "Một dòng được gắn nhiều hơn một giá trị theo khóa này sẽ được tính vào từng giá trị đó, vì vậy tỷ lệ theo từng giá trị có thể cộng lại vượt quá 100%."
+    "inflowsSeries": "Dòng vào có gắn thẻ: {value}",
+    "outflowsSeries": "Dòng ra có gắn thẻ: {value}",
+    "includeTransfers": "Bao gồm chuyển khoản có gắn thẻ",
+    "balance": "Số dư",
+    "balancePercent": "Số dư %",
+    "balancePercentTooltip": "Số dư %: {rate}",
+    "sharesExceedNote": "Một dòng được gắn nhiều hơn một giá trị theo khóa này sẽ được tính vào từng giá trị đó, vì vậy tỷ lệ theo từng giá trị có thể cộng lại vượt quá 100%.",
+    "valueLabel": "Giá trị thẻ",
+    "allValues": "Tất cả giá trị",
+    "selectValue": "Chọn một giá trị",
+    "fundsIncome": "Thu nhập",
+    "fundsTagged": "Chuyển khoản có gắn thẻ: {value}",
+    "fundsAvailable": "Số tiền khả dụng",
+    "fundsSpent": "Đã chi",
+    "fundsLoadFailed": "Không thể tải số liệu chuyển khoản có gắn thẻ.",
+    "notIncome": "Không phải thu nhập",
+    "noNetTagged": "Không có dòng vào ròng có gắn thẻ cho giá trị này trong kỳ này.",
+    "monthlySummaryTitle": "Số dư theo tháng, gồm chuyển khoản có gắn thẻ: {value}",
+    "fundsExpenses": "Chi phí",
+    "fundsPartialNote": "Một số khoản không thể quy đổi (không có tỷ giá cho {currencies}), nên số dư là tổng phụ và Số dư % không được hiển thị.",
+    "fundsPartialNoteGeneric": "Một số khoản không thể đưa vào, nên số dư là tổng phụ và Số dư % không được hiển thị.",
+    "actualVsAvailable": "Thực tế so với khả dụng",
+    "budgetFundsPartialNote": "Một số khoản không thể quy đổi (không có tỷ giá cho {currencies}), nên số tiền khả dụng là tổng phụ.",
+    "budgetFundsPartialNoteGeneric": "Một số khoản không thể đưa vào, nên số tiền khả dụng là tổng phụ.",
+    "fundsSeriesName": "Số tiền khả dụng ({value})"
   },
   "categoryPerformance": {
     "noBudgets": "Không tìm thấy ngân sách. Tạo ngân sách để xem hiệu suất danh mục.",
@@ -764,6 +789,7 @@
     "totalValue": "Tổng giá trị",
     "costBasis": "Cơ sở chi phí",
     "totalGainLoss": "Tổng lãi/lỗ",
+    "gainPartialCaption": "Chỉ tính trên các khoản nắm giữ có giá",
     "return": "Lợi nhuận",
     "viewHoldings": "Vị thế",
     "viewAllocation": "Phân bổ",
@@ -821,6 +847,7 @@
     "actionCapitalGainShort": "Lãi vốn ngắn hạn",
     "actionCapitalGainLong": "Lãi vốn dài hạn",
     "actionRedeem": "Đáo hạn CD/trái phiếu",
+    "actionReturnOfCapital": "Hoàn vốn",
     "colCommission": "Hoa Hồng",
     "colPriceCurrency": "Đơn Vị Tiền Tệ Giá",
     "colAmountCurrency": "Đơn Vị Tiền Tệ Số Tiền",
@@ -1146,6 +1173,11 @@
     "vsMonth": "so với {month}",
     "inMonth": "{amount} trong {month}",
     "netWorthTotal": "Tổng: {amount}",
+    "netWorthSummaryPartial": "Giá trị ròng của bạn trong {currentMonth} là <strong>{netWorth}</strong>. Không thể tính mức thay đổi so với {previousMonth} vì không có tỷ giá cho {pairs}; hãy thêm trên trang Tiền tệ.",
+    "pdfPartialSuffix": "{amount} (chưa đầy đủ)",
+    "pdfNote": "Ghi chú",
+    "pdfNotAvailable": "N/A",
+    "pdfPartialNote": "Tổng chưa đầy đủ: không có tỷ giá cho {pairs}.",
     "netWorthSummary": "Giá trị ròng của bạn trong {currentMonth} là <strong>{netWorth}</strong>, thay đổi <delta>{changeAmount}</delta> so với {previousMonth}.",
     "pdfTitle": "So sánh hàng tháng",
     "pdfSubtitle": "{current} so với {previous}",
@@ -1193,7 +1225,12 @@
     "colNetWorth": "Giá trị ròng",
     "barStyle": "Kiểu cột",
     "barStyleNetWorth": "Tài sản ròng",
-    "barStyleAccountType": "Theo loại tài khoản"
+    "barStyleAccountType": "Theo loại tài khoản",
+    "notAvailable": "N/A",
+    "colNote": "Ghi chú",
+    "partialMonthNote": "Chưa đầy đủ: không có tỷ giá cho {pairs}",
+    "pdfPartialNote": "Tổng chưa đầy đủ: không có tỷ giá cho {pairs}. Hãy thêm trên trang Tiền tệ.",
+    "partialMonth": "Không hiển thị: một số khoản tiền trong tháng này không thể quy đổi, nên giá trị ròng không xác định."
   },
   "portfolioValue": {
     "highestValue": "Giá trị cao nhất",
@@ -1279,6 +1316,7 @@
     "colDate": "Ngày",
     "colShares": "Cổ phiếu",
     "colPrice": "Giá",
+    "returnOfCapitalRow": "Hoàn vốn vượt quá cơ sở chi phí",
     "pdfTitle": "Báo cáo lãi đã thực hiện",
     "pdfSubtitle": "{count} chứng khoán | Lãi ròng: {gain}",
     "csvColSecurity": "Chứng khoán",
@@ -1288,7 +1326,11 @@
     "csvColCostBasis": "Cơ sở chi phí",
     "csvColGainLoss": "Lãi/Lỗ",
     "csvColReturn": "Lợi nhuận %",
-    "csvNoRate": "Không có tỷ giá"
+    "csvNoRate": "Không có tỷ giá",
+    "csvUnknownCost": "Không rõ",
+    "unknownBasisReason": "Không thể tính khoản lãi/lỗ này: vị thế có cổ phiếu được thêm vào mà không có chi phí, nên không biết chi phí của số cổ phiếu đã bán. Hãy mở giao dịch đã thêm chúng và nhập giá.",
+    "knownPart": "Phần đã biết: {amount}",
+    "unknownCostNotice": "{count, plural, one {# giao dịch bán} other {# giao dịch bán}} có chi phí không rõ, vì cổ phiếu được thêm vào mà không có giá. Không có lãi/lỗ nào được đưa ra cho {count, plural, one {giao dịch đó} other {các giao dịch đó}}, nên tổng lãi/lỗ chỉ hiển thị phần đã biết."
   },
   "recurringExpenses": {
     "recurringExpenses": "Chi phí định kỳ",
@@ -1851,6 +1893,13 @@
   "foreignCurrencyFees": {
     "noEligibleAccounts": "Không có tài khoản nào được cấu hình phí giao dịch nước ngoài. Đặt tỷ lệ phí phần trăm cho một tài khoản để theo dõi phí ngoại tệ của tài khoản đó tại đây."
   },
+  "partialData": {
+    "notice": "Một số số liệu chưa đầy đủ: {count, plural, other {# khoản tiền không thể quy đổi sang {displayCurrency} và}} đã bị loại ra. Không có tỷ giá cho {currencies}; hãy thêm trên trang Tiền tệ.",
+    "noticeExcluded": "Một số số liệu chưa đầy đủ: {count, plural, other {# khoản tiền không thể tính được và}} đã bị loại ra.",
+    "pdfNote": "Tổng chưa đầy đủ: không có tỷ giá cho {currencies}",
+    "pdfNoteExcluded": "Tổng chưa đầy đủ: đã loại ra {count, plural, other {# khoản tiền}}",
+    "pdfSuffix": "(chưa đầy đủ)"
+  },
   "sankey": {
     "help": "Tiền vào chảy qua phần giữa tới những gì đã chi tiêu, phần đã tiết kiệm hoặc đầu tư và phần đã trả nợ. Theo mặc định, báo cáo bao gồm các tài khoản thanh toán, tiết kiệm, tiền mặt, thẻ tín dụng và hạn mức tín dụng đang mở của bạn, và chuyển khoản giữa hai tài khoản trong số đó không được hiển thị. Hãy bỏ một tài khoản tiết kiệm khỏi bộ lọc tài khoản để xem bạn đã chuyển bao nhiêu vào đó. Thanh toán thẻ tín dụng không bao giờ là trả nợ: các giao dịch mua mà nó tất toán đã được tính là chi tiêu.",
     "depthLabel": "Mức chi tiết",
@@ -1897,5 +1946,8 @@
       "residualDeficit": "Rút từ số dư",
       "unlinkedAccount": "(tài khoản chưa liên kết)"
     }
+  },
+  "pdfExport": {
+    "generatedAt": "Đã tạo: {timestamp}"
   }
 }

@@ -18,7 +18,6 @@ import {
   LoanScheduleInput,
   RecurringOverpaymentFrequency,
 } from './loan-schedule';
-import { mortgageTypeFromFlags } from './mortgage-type';
 import { MORTGAGE_TYPES } from '@/types/account';
 
 function baseInput(overrides: Partial<LoanScheduleInput> = {}): LoanScheduleInput {
@@ -107,8 +106,8 @@ describe('getPeriodicRate', () => {
     );
   });
 
-  it('uses simple division for Canadian variable-rate mortgages, which are ANNUITY', () => {
-    expect(getPeriodicRate(6, 12, mortgageTypeFromFlags(true, true))).toBeCloseTo(0.005, 10);
+  it('uses simple division for an ANNUITY mortgage', () => {
+    expect(getPeriodicRate(6, 12, 'ANNUITY')).toBeCloseTo(0.005, 10);
   });
 
   it('yields a lower rate than simple division for Canadian fixed', () => {
@@ -142,8 +141,8 @@ describe('effectiveAnnualRate', () => {
     const expected = (Math.pow(1 + 0.05 / 2, 2) - 1) * 100;
     expect(effectiveAnnualRate(5, 12, 'CANADIAN_FIXED')).toBeCloseTo(expected, 10);
     expect(effectiveAnnualRate(5, 26, 'CANADIAN_FIXED')).toBeCloseTo(expected, 10);
-    // A Canadian VARIABLE mortgage is on the nominal convention, like any other.
-    expect(effectiveAnnualRate(5, 26, mortgageTypeFromFlags(true, true))).toBeCloseTo(
+    // ANNUITY is on the nominal convention, compounded at the payment frequency.
+    expect(effectiveAnnualRate(5, 26, 'ANNUITY')).toBeCloseTo(
       (Math.pow(1 + 0.05 / 26, 26) - 1) * 100,
       10,
     );
@@ -246,6 +245,28 @@ describe('generateLoanSchedule', () => {
     expect(result.rows[1].date).toBe('2026-02-15');
   });
 
+  // A26-S15-06: one whole minor unit is owed; less than one is a residue.
+  it('amortizes the last cent: 1,000 at 0 % with a payment of 999.99 takes two rows', () => {
+    const result = generateLoanSchedule(
+      baseInput({ startingBalance: 1000, annualRate: 0, paymentAmount: 999.99 }),
+    );
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0].balance).toBe(0.01);
+    expect(result.rows[1].principal).toBe(0.01);
+    expect(result.rows[1].balance).toBe(0);
+    expect(result.paidOff).toBe(true);
+  });
+
+  it('owes a cent that float subtraction leaves a hair under: 5.10 less 5.09', () => {
+    // 5.1 - 5.09 is 0.009999999999999787 in floating point.
+    const result = generateLoanSchedule(
+      baseInput({ startingBalance: 5.1, annualRate: 0, paymentAmount: 5.09 }),
+    );
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[1].principal).toBe(0.01);
+    expect(result.paidOff).toBe(true);
+  });
+
   it('handles a 0% rate loan', () => {
     const result = generateLoanSchedule(baseInput({ annualRate: 0 }));
     expect(result.paidOff).toBe(true);
@@ -295,14 +316,6 @@ describe('generateLoanSchedule', () => {
     );
     expect(canadian.totalInterest).toBeLessThan(standard.totalInterest);
     expect(canadian.numPayments).toBeLessThanOrEqual(standard.numPayments);
-  });
-
-  it('treats Canadian variable-rate as standard compounding', () => {
-    const variable = generateLoanSchedule(
-      baseInput({ mortgageType: mortgageTypeFromFlags(true, true) }),
-    );
-    const standard = generateLoanSchedule(baseInput());
-    expect(variable.totalInterest).toBe(standard.totalInterest);
   });
 
   it('seeds cumulative totals from prior history', () => {

@@ -9,6 +9,7 @@ import {
 } from '@/hooks/useTransactionSubmitMode';
 import toast from 'react-hot-toast';
 import { usePreferencesStore } from '@/store/preferencesStore';
+import { useAuthStore } from '@/store/authStore';
 
 // ---- Mock data ----
 
@@ -40,8 +41,7 @@ const mockAccounts = [
     scheduledTransactionId: null,
     assetCategoryId: null,
     dateAcquired: null,
-    isCanadianMortgage: false,
-    isVariableRate: false,
+    mortgageType: 'ANNUITY',
     termMonths: null,
     termEndDate: null,
     amortizationMonths: null,
@@ -76,8 +76,7 @@ const mockAccounts = [
     scheduledTransactionId: null,
     assetCategoryId: null,
     dateAcquired: null,
-    isCanadianMortgage: false,
-    isVariableRate: false,
+    mortgageType: 'ANNUITY',
     termMonths: null,
     termEndDate: null,
     amortizationMonths: null,
@@ -112,8 +111,7 @@ const mockAccounts = [
     scheduledTransactionId: null,
     assetCategoryId: null,
     dateAcquired: null,
-    isCanadianMortgage: false,
-    isVariableRate: false,
+    mortgageType: 'ANNUITY',
     termMonths: null,
     termEndDate: null,
     amortizationMonths: null,
@@ -195,6 +193,28 @@ vi.mock('@/lib/attachments', async (importOriginal) => ({
     upload: (...args: any[]) => mockAttachmentUpload(...args),
     delete: vi.fn().mockResolvedValue(undefined),
   },
+}));
+
+// The Warranties line has its own suite; here it only matters where it renders.
+vi.mock('./TransactionWarrantiesLine', () => ({
+  TransactionWarrantiesLine: ({
+    transaction,
+    onAddWarranty,
+    isAdding,
+  }: {
+    transaction?: { id: string };
+    onAddWarranty?: () => void;
+    isAdding?: boolean;
+  }) => (
+    <div data-testid="warranties-line" data-adding={String(Boolean(isAdding))}>
+      {transaction?.id ?? 'new'}
+      {onAddWarranty && (
+        <button type="button" onClick={onAddWarranty}>
+          Add warranty
+        </button>
+      )}
+    </div>
+  ),
 }));
 
 vi.mock('@/lib/transactions', () => ({
@@ -322,6 +342,7 @@ vi.mock('@/lib/format', () => ({
   getCurrencySymbol: () => '$',
   getDecimalPlacesForCurrency: () => 2,
   roundToCents: (v: number) => Math.round(v * 100) / 100,
+  roundMoney: (v: number) => Math.round(v * 10000) / 10000,
   roundToDecimals: (v: number, d: number) => { const f = Math.pow(10, d); return Math.round(v * f) / f; },
   formatAmount: (v: number | undefined | null) => (v === undefined || v === null || isNaN(v)) ? '' : (Math.round(v * 100) / 100).toFixed(2),
   formatAmountWithCommas: (v: number | undefined | null) => (v === undefined || v === null || isNaN(v)) ? '' : (Math.round(v * 100) / 100).toFixed(2),
@@ -547,6 +568,205 @@ describe('TransactionForm', () => {
   // Joint accounts: a joint row belongs to the sharing owner, so every category
   // picker on the form offers the OWNER's list -- the split lines included.
   // =========================================================================
+  describe('the Warranties line', () => {
+    it('renders for a saved transaction', async () => {
+      render(
+        <TransactionForm
+          transaction={createExistingTransaction({ warrantyCount: 1 }) as any}
+          onSuccess={mockOnSuccess}
+          onCancel={mockOnCancel}
+        />
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId('warranties-line')).toHaveTextContent('123e4567-e89b-12d3-a456-426614174000');
+      });
+    });
+
+    it("hands Add warranty to the host with the form's transaction", async () => {
+      const onAddWarranty = vi.fn();
+      const existing = createExistingTransaction();
+      render(
+        <TransactionForm
+          transaction={existing as any}
+          onSuccess={mockOnSuccess}
+          onCancel={mockOnCancel}
+          onAddWarranty={onAddWarranty}
+        />
+      );
+      await waitFor(() => expect(screen.getByTestId('warranties-line')).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: 'Add warranty' }));
+      expect(onAddWarranty).toHaveBeenCalledWith(existing);
+    });
+
+    it('lists without an Add warranty when the host supplies no handler', async () => {
+      render(
+        <TransactionForm
+          transaction={createExistingTransaction({ warrantyCount: 1 }) as any}
+          onSuccess={mockOnSuccess}
+          onCancel={mockOnCancel}
+        />
+      );
+      await waitFor(() => expect(screen.getByTestId('warranties-line')).toBeInTheDocument());
+      expect(screen.queryByRole('button', { name: 'Add warranty' })).not.toBeInTheDocument();
+    });
+
+    // Nothing to list and nothing to do would be a dead end in the window.
+    it('is absent when the row has no warranties and the host cannot add one', async () => {
+      render(
+        <TransactionForm
+          transaction={createExistingTransaction({ warrantyCount: 0 }) as any}
+          onSuccess={mockOnSuccess}
+          onCancel={mockOnCancel}
+        />
+      );
+      await waitFor(() => expect(mockAccountsGetAll).toHaveBeenCalled());
+      await act(async () => {});
+      expect(screen.queryByTestId('warranties-line')).not.toBeInTheDocument();
+    });
+
+    it('is absent for an acting delegate, as the Warranties page is read-only to one', async () => {
+      useAuthStore.setState({ actingAsUserId: 'owner-1' });
+      try {
+        render(
+          <TransactionForm
+            transaction={createExistingTransaction() as any}
+            onSuccess={mockOnSuccess}
+            onCancel={mockOnCancel}
+            onAddWarranty={vi.fn()}
+          />
+        );
+        await waitFor(() => expect(mockAccountsGetAll).toHaveBeenCalled());
+        await act(async () => {});
+        expect(screen.queryByTestId('warranties-line')).not.toBeInTheDocument();
+      } finally {
+        act(() => {
+          useAuthStore.setState({ actingAsUserId: null });
+        });
+      }
+    });
+
+    it('is absent from a new transaction when the host cannot add one after creating it', async () => {
+      // The edit handler alone does not count: it navigates, it does not save.
+      render(<TransactionForm onSuccess={mockOnSuccess} onCancel={mockOnCancel} onAddWarranty={vi.fn()} />);
+      await waitFor(() => expect(mockAccountsGetAll).toHaveBeenCalled());
+      expect(screen.queryByTestId('warranties-line')).not.toBeInTheDocument();
+    });
+
+    describe('on a new transaction', () => {
+      async function renderNew(onAddWarrantyAfterCreate: (created: any) => void) {
+        render(
+          <TransactionForm
+            onSuccess={mockOnSuccess}
+            onCancel={mockOnCancel}
+            defaultAccountId="acc-1"
+            onAddWarranty={vi.fn()}
+            onAddWarrantyAfterCreate={onAddWarrantyAfterCreate}
+          />
+        );
+        await waitFor(() => expect(screen.getByTestId('combobox-input-Payee')).toBeInTheDocument());
+        fireEvent.change(screen.getByTestId('combobox-input-Payee'), { target: { value: 'Employer Inc' } });
+      }
+
+      it('saves it first, then hands Add warranty the row it created instead of closing', async () => {
+        const created = { id: 'tx-new' };
+        mockCreate.mockResolvedValueOnce(created);
+        const onAddWarranty = vi.fn();
+        await renderNew(onAddWarranty);
+        expect(screen.getByTestId('warranties-line')).toHaveTextContent('new');
+        fireEvent.click(screen.getByRole('button', { name: 'Add warranty' }));
+        await waitFor(() => expect(onAddWarranty).toHaveBeenCalledWith(created));
+        expect(mockCreate).toHaveBeenCalledTimes(1);
+        expect(mockOnSuccess).not.toHaveBeenCalled();
+      });
+
+      it('does not hand Add on when the save fails', async () => {
+        mockCreate.mockRejectedValueOnce(new Error('Network error'));
+        const onAddWarranty = vi.fn();
+        await renderNew(onAddWarranty);
+        fireEvent.click(screen.getByRole('button', { name: 'Add warranty' }));
+        await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+        await act(async () => {});
+        expect(onAddWarranty).not.toHaveBeenCalled();
+        expect(mockOnSuccess).not.toHaveBeenCalled();
+      });
+
+      it('leaves a plain Save to close as it always did', async () => {
+        const onAddWarranty = vi.fn();
+        await renderNew(onAddWarranty);
+        fireEvent.click(screen.getByRole('button', { name: /Create Transaction/i }));
+        await waitFor(() => expect(mockOnSuccess).toHaveBeenCalled());
+        expect(onAddWarranty).not.toHaveBeenCalled();
+      });
+
+      // The busy flag is set only after validation resolves, so a second click
+      // before then must be refused by the click guard, not by a disabled button.
+      it('creates the row once when Add is clicked twice', async () => {
+        const created = { id: 'tx-new' };
+        mockCreate.mockResolvedValueOnce(created);
+        const onAddWarranty = vi.fn();
+        await renderNew(onAddWarranty);
+        const add = screen.getByRole('button', { name: 'Add warranty' });
+        fireEvent.click(add);
+        fireEvent.click(add);
+        await waitFor(() => expect(onAddWarranty).toHaveBeenCalledTimes(1));
+        expect(mockCreate).toHaveBeenCalledTimes(1);
+      });
+
+      it('creates the row once when Add is followed by Create', async () => {
+        mockCreate.mockResolvedValueOnce({ id: 'tx-new' });
+        const onAddWarranty = vi.fn();
+        await renderNew(onAddWarranty);
+        fireEvent.click(screen.getByRole('button', { name: 'Add warranty' }));
+        fireEvent.click(screen.getByRole('button', { name: /Create Transaction/i }));
+        await waitFor(() => expect(onAddWarranty).toHaveBeenCalledTimes(1));
+        expect(mockCreate).toHaveBeenCalledTimes(1);
+        expect(mockOnSuccess).not.toHaveBeenCalled();
+      });
+
+      it('shows Add as busy only while Add is saving, not during a plain Create', async () => {
+        let resolveCreate: (value: unknown) => void = () => {};
+        mockCreate.mockReturnValueOnce(new Promise((r) => { resolveCreate = r; }));
+        await renderNew(vi.fn());
+        fireEvent.click(screen.getByRole('button', { name: /Create Transaction/i }));
+        await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+        expect(screen.getByTestId('warranties-line')).toHaveAttribute('data-adding', 'false');
+        await act(async () => {
+          resolveCreate({ id: 'tx-new' });
+        });
+      });
+
+      it('shows Add as busy while it saves', async () => {
+        let resolveCreate: (value: unknown) => void = () => {};
+        mockCreate.mockReturnValueOnce(new Promise((r) => { resolveCreate = r; }));
+        const onAddWarranty = vi.fn();
+        await renderNew(onAddWarranty);
+        fireEvent.click(screen.getByRole('button', { name: 'Add warranty' }));
+        await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+        expect(screen.getByTestId('warranties-line')).toHaveAttribute('data-adding', 'true');
+        await act(async () => {
+          resolveCreate({ id: 'tx-new' });
+        });
+        expect(onAddWarranty).toHaveBeenCalledWith({ id: 'tx-new' });
+      });
+    });
+
+    it("is absent from a joint account's row, as attachments are", async () => {
+      mockAccountsGetAll.mockResolvedValue([
+        ...mockAccounts,
+        { ...mockAccounts[0], id: 'acc-joint', name: 'Shared Chequing', isJoint: true, ownerLabel: 'Sam' },
+      ]);
+      render(
+        <TransactionForm
+          transaction={createExistingTransaction({ accountId: 'acc-joint' }) as any}
+          onSuccess={mockOnSuccess}
+          onCancel={mockOnCancel}
+        />
+      );
+      await waitFor(() => expect(mockGetJointReferenceData).toHaveBeenCalledWith('acc-joint'));
+      expect(screen.queryByTestId('warranties-line')).not.toBeInTheDocument();
+    });
+  });
+
   describe('joint accounts', () => {
     const jointAccount = {
       ...mockAccounts[0],
@@ -2510,22 +2730,67 @@ describe('TransactionForm', () => {
       });
     });
 
-    it('shows mode selector tabs for non-transfer existing transactions', async () => {
-      const existingTransaction = createExistingTransaction({ isTransfer: false });
+    // Switching an existing income, expense or split to Transfer mode created a
+    // second, new transfer and left the edited row in place, under a button
+    // labelled "Update Transfer" (A26-H14). There is no conversion route the
+    // form can call, so an edit does not offer the mode at all.
+    it('does not offer Transfer mode when editing an existing expense', async () => {
+      const existingTransaction = createExistingTransaction({ amount: -50, accountId: 'acc-1' });
 
-      render(
-        <TransactionForm
-          transaction={existingTransaction}
-          onSuccess={mockOnSuccess}
-          onCancel={mockOnCancel}
-        />
-      );
+      await act(async () => {
+        render(
+          <TransactionForm
+            transaction={existingTransaction}
+            onSuccess={mockOnSuccess}
+            onCancel={mockOnCancel}
+          />
+        );
+      });
 
       await waitFor(() => {
-        expect(screen.getByText('Transaction')).toBeInTheDocument();
-        expect(screen.getByText('Split')).toBeInTheDocument();
-        // The "Transfer" button in mode selector is still present for non-transfer transactions
-        expect(screen.getByText('Transfer')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Transaction$/ })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Split$/ })).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('button', { name: /^Transfer$/ })).not.toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Update Transaction/i }));
+      });
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+      expect(mockCreateTransfer).not.toHaveBeenCalled();
+      expect(mockUpdateTransfer).not.toHaveBeenCalled();
+    });
+
+    it('does not offer Transfer mode when editing an existing split', async () => {
+      await act(async () => {
+        render(
+          <TransactionForm
+            transaction={createSplitTransaction()}
+            onSuccess={mockOnSuccess}
+            onCancel={mockOnCancel}
+          />
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /^Split$/ })).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('button', { name: /^Transfer$/ })).not.toBeInTheDocument();
+    });
+
+    it('keeps Transfer mode when duplicating an expense into a new entry', async () => {
+      await act(async () => {
+        render(
+          <TransactionForm
+            duplicateFrom={createExistingTransaction({ amount: -50 })}
+            onSuccess={mockOnSuccess}
+            onCancel={mockOnCancel}
+          />
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /^Transfer$/ })).toBeInTheDocument();
       });
     });
 
@@ -3155,6 +3420,246 @@ describe('TransactionForm', () => {
   // =========================================================================
   // Form initial empty state
   // =========================================================================
+
+  // =========================================================================
+  // A cross-currency transfer opened from its receiving leg (A26-H13): the
+  // "Transfer Amount" field is the SOURCE amount, so it loads the FROM leg's
+  // figure whichever leg the form was opened on, and an unedited save re-sends
+  // exactly what was loaded.
+  // =========================================================================
+  describe('a cross-currency transfer opened from its receiving leg', () => {
+    // USD 100.00 from acc-3 arrived as CAD 135.00 in acc-1; the form is opened
+    // on the CAD (positive, receiving) leg.
+    function createIncomingCadLeg(overrides = {}) {
+      return createExistingTransaction({
+        accountId: 'acc-1',
+        amount: 135,
+        currencyCode: 'CAD',
+        isTransfer: true,
+        linkedTransactionId: 'linked-usd',
+        linkedTransaction: {
+          ...createExistingTransaction({
+            id: 'linked-usd',
+            accountId: 'acc-3',
+            amount: -100,
+            currencyCode: 'USD',
+            isTransfer: true,
+            linkedTransactionId: '123e4567-e89b-12d3-a456-426614174000',
+            payeeId: null,
+            payeeName: null,
+            categoryId: null,
+            category: null,
+          }),
+          account: { id: 'acc-3', name: 'USD Account' },
+        },
+        payeeId: null,
+        payeeName: null,
+        categoryId: null,
+        category: null,
+        ...overrides,
+      });
+    }
+
+    it('loads and re-sends the source amount on an unedited save', async () => {
+      const incoming = createIncomingCadLeg();
+      await act(async () => {
+        render(
+          <TransactionForm transaction={incoming} onSuccess={mockOnSuccess} onCancel={mockOnCancel} />,
+        );
+      });
+      await waitFor(() => expect(screen.getByLabelText('Transfer Amount (USD)')).toBeInTheDocument());
+      expect((screen.getByLabelText('Transfer Amount (USD)') as HTMLInputElement).value).toBe('100.00');
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Update Transfer/i }));
+      });
+
+      await waitFor(() => expect(mockUpdateTransfer).toHaveBeenCalledTimes(1));
+      expect(mockUpdateTransfer.mock.calls[0][1]).toEqual(
+        expect.objectContaining({ fromAccountId: 'acc-3', toAccountId: 'acc-1', amount: 100, toAmount: 135 }),
+      );
+    });
+
+    it('duplicates the transfer with the source amount', async () => {
+      const incoming = createIncomingCadLeg();
+      await act(async () => {
+        render(
+          <TransactionForm duplicateFrom={incoming} onSuccess={mockOnSuccess} onCancel={mockOnCancel} />,
+        );
+      });
+      await waitFor(() => expect(screen.getByLabelText('Transfer Amount (USD)')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Create Transfer/i }));
+      });
+
+      await waitFor(() => expect(mockCreateTransfer).toHaveBeenCalledTimes(1));
+      expect(mockCreateTransfer.mock.calls[0][0]).toEqual(
+        expect.objectContaining({ fromAccountId: 'acc-3', toAccountId: 'acc-1', amount: 100, toAmount: 135 }),
+      );
+    });
+
+    it('saves a reconciled receiving leg unedited without the reconciliation warning', async () => {
+      const incoming = createIncomingCadLeg({ status: TransactionStatus.RECONCILED, isReconciled: true });
+      await act(async () => {
+        render(
+          <TransactionForm transaction={incoming} onSuccess={mockOnSuccess} onCancel={mockOnCancel} />,
+        );
+      });
+      await waitFor(() => expect(screen.getByLabelText('Transfer Amount (USD)')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Update Transfer/i }));
+      });
+
+      await waitFor(() => expect(mockUpdateTransfer).toHaveBeenCalledTimes(1));
+      expect(screen.queryByText('Edit reconciled transaction?')).not.toBeInTheDocument();
+      expect(mockUpdateTransfer.mock.calls[0][1]).toEqual(expect.objectContaining({ amount: 100 }));
+    });
+
+    it('asks before saving a reconciled receiving leg whose source amount was edited', async () => {
+      const incoming = createIncomingCadLeg({ status: TransactionStatus.RECONCILED, isReconciled: true });
+      await act(async () => {
+        render(
+          <TransactionForm transaction={incoming} onSuccess={mockOnSuccess} onCancel={mockOnCancel} />,
+        );
+      });
+      await waitFor(() => expect(screen.getByLabelText('Transfer Amount (USD)')).toBeInTheDocument());
+
+      // 135 is the received figure; as a SOURCE amount it is an edit of 100.
+      const source = screen.getByLabelText('Transfer Amount (USD)');
+      fireEvent.focus(source);
+      fireEvent.change(source, { target: { value: '135.00' } });
+      fireEvent.blur(source);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Update Transfer/i }));
+      });
+
+      await waitFor(() => expect(screen.getByText('Edit reconciled transaction?')).toBeInTheDocument());
+      expect(mockUpdateTransfer).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  // Four-decimal amounts (A26-M37): the server stores decimal(20,4) and writes
+  // sub-cent figures itself (FX conversions, a transfer's implied destination).
+  // The form loads them as stored, so an unedited save re-sends them, and its
+  // split check compares at the server's precision.
+  // =========================================================================
+  describe('four-decimal amounts round-trip', () => {
+    it('re-sends a four-decimal amount after a description-only edit', async () => {
+      const tx = createExistingTransaction({ amount: -3.3333 });
+      await act(async () => {
+        render(<TransactionForm transaction={tx} onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
+      });
+      await waitFor(() => expect(screen.getByLabelText('Amount')).toBeInTheDocument());
+
+      // Tab through the amount (the field shows -3.33), then edit the note.
+      const amount = screen.getByLabelText('Amount');
+      fireEvent.focus(amount);
+      fireEvent.blur(amount);
+      fireEvent.change(screen.getByLabelText('Reference Number'), { target: { value: 'REF-EDITED' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Update Transaction/i }));
+      });
+
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+      expect(mockUpdate.mock.calls[0][1]).toEqual(expect.objectContaining({ amount: -3.3333 }));
+    });
+
+    it('saves a four-decimal split parent unedited', async () => {
+      const tx = createExistingTransaction({
+        amount: -12.3457,
+        isSplit: true,
+        categoryId: null,
+        category: null,
+        splits: [
+          { id: 'sp-1', transactionId: '123e4567-e89b-12d3-a456-426614174000', categoryId: 'cat-1', category: null, transferAccountId: null, transferAccount: null, linkedTransactionId: null, amount: -6.1728, memo: '', createdAt: '2024-01-15T00:00:00Z' },
+          { id: 'sp-2', transactionId: '123e4567-e89b-12d3-a456-426614174000', categoryId: 'cat-2', category: null, transferAccountId: null, transferAccount: null, linkedTransactionId: null, amount: -6.1729, memo: '', createdAt: '2024-01-15T00:00:00Z' },
+        ],
+      });
+      await act(async () => {
+        render(<TransactionForm transaction={tx} onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
+      });
+      await waitFor(() => expect(screen.getByTestId('split-editor')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Update Transaction/i }));
+      });
+
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+      expect(toast.error).not.toHaveBeenCalled();
+      const payload = mockUpdate.mock.calls[0][1];
+      expect(payload.amount).toBe(-12.3457);
+      expect(payload.splits.map((s: { amount: number }) => s.amount)).toEqual([-6.1728, -6.1729]);
+    });
+
+    it('refuses a split set that misses its parent by less than a cent', async () => {
+      const tx = createExistingTransaction({
+        amount: -12.3457,
+        isSplit: true,
+        categoryId: null,
+        category: null,
+        splits: [
+          { id: 'sp-1', transactionId: '123e4567-e89b-12d3-a456-426614174000', categoryId: 'cat-1', category: null, transferAccountId: null, transferAccount: null, linkedTransactionId: null, amount: -6.17, memo: '', createdAt: '2024-01-15T00:00:00Z' },
+          { id: 'sp-2', transactionId: '123e4567-e89b-12d3-a456-426614174000', categoryId: 'cat-2', category: null, transferAccountId: null, transferAccount: null, linkedTransactionId: null, amount: -6.18, memo: '', createdAt: '2024-01-15T00:00:00Z' },
+        ],
+      });
+      await act(async () => {
+        render(<TransactionForm transaction={tx} onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
+      });
+      await waitFor(() => expect(screen.getByTestId('split-editor')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Update Transaction/i }));
+      });
+
+      // -12.35 against -12.3457: the server refuses it, so the form says so
+      // first instead of sending a request it knows will fail.
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(mockUpdate).not.toHaveBeenCalled();
+    });
+
+    it('re-sends a four-decimal transfer amount unedited', async () => {
+      const transferTx = createTransferTransaction() as any;
+      const fourDp = {
+        ...transferTx,
+        amount: -100.1234,
+        linkedTransaction: { ...transferTx.linkedTransaction, amount: 100.1234 },
+      };
+      await act(async () => {
+        render(<TransactionForm transaction={fourDp} onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
+      });
+      await waitFor(() => expect(screen.getByText('From Account')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Update Transfer/i }));
+      });
+
+      await waitFor(() => expect(mockUpdateTransfer).toHaveBeenCalledTimes(1));
+      expect(mockUpdateTransfer.mock.calls[0][1]).toEqual(expect.objectContaining({ amount: 100.1234 }));
+    });
+
+    it('saves a reconciled four-decimal row unedited without the reconciliation warning', async () => {
+      const tx = createExistingTransaction({
+        amount: -3.3333,
+        status: TransactionStatus.RECONCILED,
+        isReconciled: true,
+      });
+      await act(async () => {
+        render(<TransactionForm transaction={tx} onSuccess={mockOnSuccess} onCancel={mockOnCancel} />);
+      });
+      await waitFor(() => expect(screen.getByLabelText('Amount')).toBeInTheDocument());
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Update Transaction/i }));
+      });
+
+      await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+      expect(screen.queryByText('Edit reconciled transaction?')).not.toBeInTheDocument();
+      expect(mockUpdate.mock.calls[0][1]).toEqual(expect.objectContaining({ amount: -3.3333 }));
+    });
+  });
 
   describe('a web address in the description field', () => {
     /**
@@ -5100,7 +5605,7 @@ describe('TransactionForm initialStagedFiles', () => {
 
     // Addressed to the created transaction, with no scan original beside them:
     // a shared file is one file, not half of a scan pair.
-    expect(mockAttachmentUpload.mock.calls[0][0]).toBe('tx-created');
+    expect(mockAttachmentUpload.mock.calls[0][0]).toEqual({ transactionId: 'tx-created' });
     expect(mockAttachmentUpload.mock.calls[0][1].name).toBe('receipt.png');
     expect(mockAttachmentUpload.mock.calls[0][2]).toBeUndefined();
     expect(mockAttachmentUpload.mock.calls[1][1].name).toBe('invoice.pdf');

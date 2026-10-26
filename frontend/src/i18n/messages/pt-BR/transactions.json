@@ -135,6 +135,7 @@
       "toggleTitle": "Retirar o ano das datas para caber mais do beneficiário"
     },
     "attachmentsCount": "{count, plural, one {# anexo} other {# anexos}}",
+    "warrantiesCount": "{count, plural, one {# garantia} other {# garantias}}",
     "today": "Hoje",
     "export": {
       "button": "Exportar",
@@ -431,6 +432,7 @@
       "destinationRequired": "Selecione uma conta de destino",
       "sameAccount": "A conta de origem e a conta de destino devem ser diferentes",
       "negativeTransfer": "O valor da transferência não pode ser negativo",
+      "convertToTransferUnsupported": "Uma transação existente não pode ser convertida aqui em uma transferência. Exclua-a e crie a transferência no lugar dela.",
       "payeeCreated": "Beneficiário \"{name}\" criado",
       "payeeCreateFailed": "Falha ao criar beneficiário",
       "payeeReactivated": "Beneficiário \"{name}\" reativado",
@@ -465,7 +467,15 @@
       },
       "feeCaption": "Inclui uma taxa de transação no exterior de {percent}% ({fee})."
     },
-    "jointSplitDisabled": "Transações divididas em uma conta compartilhada só podem ser gerenciadas pelo proprietário"
+    "jointSplitDisabled": "Transações divididas em uma conta compartilhada só podem ser gerenciadas pelo proprietário",
+    "warranties": {
+      "title": "Garantias",
+      "add": "Adicionar garantia",
+      "expires": "Expira em {date}",
+      "loading": "Carregando garantias",
+      "loadError": "Não foi possível carregar as garantias desta transação.",
+      "empty": "Ainda não há garantias"
+    }
   },
   "splitEditor": {
     "header": "Detalhes das Divisões",
@@ -626,7 +636,8 @@
       "amountRange": "Valor de 50 a 100",
       "datePeriod": "Qualquer dia de março de 2026",
       "isSplit": "Transações divididas",
-      "hasAttachment": "Tem um anexo"
+      "hasAttachment": "Tem um anexo",
+      "hasWarranty": "Tem uma garantia"
     }
   },
   "searchInterpretation": {
@@ -668,6 +679,7 @@
       },
       "has": {
         "attachment": "Tem um anexo",
+        "warranty": "Tem uma garantia",
         "ref": "Tem um número de referência",
         "memo": "Tem uma nota",
         "tag": "Tem uma etiqueta"

@@ -54,7 +54,7 @@ import {
   supportsAccruedInterest,
 } from '@/lib/investment-actions';
 import { useNumberFormat } from '@/hooks/useNumberFormat';
-import { useExchangeRates } from '@/hooks/useExchangeRates';
+import { exchangeRatesApi } from '@/lib/exchange-rates';
 import { useDateFormat } from '@/hooks/useDateFormat';
 import { createLogger } from '@/lib/logger';
 import { useFormSubmitRef } from '@/hooks/useFormSubmitRef';
@@ -81,7 +81,7 @@ export const buildInvestmentTransactionSchema = (t: (key: string) => string) => 
     'BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'CAPITAL_GAIN', 'SPLIT',
     'TRANSFER_IN', 'TRANSFER_OUT', 'REINVEST', 'ADD_SHARES', 'REMOVE_SHARES',
     'REINVEST_INTEREST', 'REINVEST_CAPITAL_GAIN_SHORT', 'REINVEST_CAPITAL_GAIN_LONG',
-    'CAPITAL_GAIN_SHORT', 'CAPITAL_GAIN_LONG', 'REDEEM',
+    'CAPITAL_GAIN_SHORT', 'CAPITAL_GAIN_LONG', 'REDEEM', 'RETURN_OF_CAPITAL',
     'TRANSFER',
   ]),
   transactionDate: z.string().min(1, t('validation.dateRequired')),
@@ -168,7 +168,7 @@ interface InvestmentTransactionFormFieldsProps
 const actionIn = (action: InvestmentAction, list: InvestmentAction[]): boolean =>
   list.includes(baseInvestmentAction(action));
 
-const securityRequiredActions: InvestmentAction[] = ['BUY', 'SELL', 'DIVIDEND', 'CAPITAL_GAIN', 'SPLIT', 'REINVEST', 'ADD_SHARES', 'REMOVE_SHARES'];
+const securityRequiredActions: InvestmentAction[] = ['BUY', 'SELL', 'DIVIDEND', 'CAPITAL_GAIN', 'RETURN_OF_CAPITAL', 'SPLIT', 'REINVEST', 'ADD_SHARES', 'REMOVE_SHARES'];
 
 // Actions that require quantity and price
 const quantityPriceActions: InvestmentAction[] = ['BUY', 'SELL', 'REINVEST'];
@@ -177,7 +177,7 @@ const quantityPriceActions: InvestmentAction[] = ['BUY', 'SELL', 'REINVEST'];
 const quantityOnlyActions: InvestmentAction[] = ['ADD_SHARES', 'REMOVE_SHARES'];
 
 // Actions that only need an amount (no quantity/price)
-const amountOnlyActions: InvestmentAction[] = ['DIVIDEND', 'INTEREST', 'CAPITAL_GAIN'];
+const amountOnlyActions: InvestmentAction[] = ['DIVIDEND', 'INTEREST', 'CAPITAL_GAIN', 'RETURN_OF_CAPITAL'];
 
 // Actions that can have an external funding account (where funds come from/go to)
 const fundingAccountActions: InvestmentAction[] = ['BUY', 'SELL'];
@@ -185,7 +185,7 @@ const fundingAccountActions: InvestmentAction[] = ['BUY', 'SELL'];
 // Actions that deposit cash into an account and can target a destination cash
 // account other than the brokerage's linked cash account (e.g. a dividend paid
 // directly into a chequing account).
-const cashDestinationActions: InvestmentAction[] = ['DIVIDEND', 'INTEREST', 'CAPITAL_GAIN'];
+const cashDestinationActions: InvestmentAction[] = ['DIVIDEND', 'INTEREST', 'CAPITAL_GAIN', 'RETURN_OF_CAPITAL'];
 
 // Actions that post a cash transaction against the cash/funding account.
 // Only these need exchange rate handling when security and cash currencies differ.
@@ -195,6 +195,7 @@ const cashPostingActions: InvestmentAction[] = [
   'DIVIDEND',
   'INTEREST',
   'CAPITAL_GAIN',
+  'RETURN_OF_CAPITAL',
 ];
 
 /**
@@ -260,8 +261,9 @@ function InvestmentTransactionFormFields({
     CAPITAL_GAIN_SHORT: t('transactionForm.actionCapitalGainShort'),
     CAPITAL_GAIN_LONG: t('transactionForm.actionCapitalGainLong'),
     REDEEM: t('transactionForm.actionRedeem'),
+    RETURN_OF_CAPITAL: t('transactionForm.actionReturnOfCapital'),
   };
-  const { defaultCurrency, formatCurrency } = useNumberFormat();
+  const { defaultCurrency, formatCurrency, formatShareQuantity, formatPrice } = useNumberFormat();
   const { formatDate } = useDateFormat();
   const [isLoading, setIsLoading] = useState(false);
   // What the submit button does once a *new* transaction has been created.
@@ -436,7 +438,6 @@ function InvestmentTransactionFormFields({
     watchedSplitOldShares > 0 ? watchedSplitNewShares / watchedSplitOldShares : 0;
 
   const allAccountsSource = allAccounts || accounts;
-  const { getRate: getMarketRate } = useExchangeRates();
 
   // Derive currency from selected account
   const accountCurrency = useMemo(() => {
@@ -610,57 +611,80 @@ function InvestmentTransactionFormFields({
     watchedAccruedInterest,
   ]);
 
-  // Auto-fill the exchange rate with the latest market rate whenever the
-  // currency pair changes, unless the user is editing an existing transaction
-  // (in which case we keep the stored rate) or has manually edited the field.
+  // Set when the person types the rate (or the converted total it derives
+  // from). A typed rate survives a pair or date change; a prefilled one does
+  // not, because it answered a different question.
+  const rateEditedRef = useRef(false);
+
+  // Editing keeps the stored rate on load. `undefined` until the first run that
+  // can ask; then the pair-and-day key the stored rate belongs to, or `null`
+  // once it has been left (a different pair or day asks again).
+  const keptRateKeyRef = useRef<string | null | undefined>(undefined);
+  const hasStoredRate =
+    !!transaction && !!transaction.exchangeRate && transaction.exchangeRate !== 1;
+
+  // When the currencies match there is nothing to convert: keep the rate at 1
+  // so the backend falls back cleanly.
   //
   // Wait until securities have loaded before running: otherwise, when editing
   // an existing cross-currency transaction, the security isn't in the list
   // yet so transactionCurrency falls back to the account currency, making
   // needsConversion transiently false. Without this guard we'd clobber the
-  // stored exchangeRate to 1 here, then replace it with the market default
-  // on the next render after securities finish loading.
+  // stored exchangeRate to 1 here.
   useEffect(() => {
-    if (!securitiesLoaded) return;
-    if (!needsConversion) {
-      // When no conversion is needed, keep the rate at 1 implicitly so the
-      // backend falls back cleanly.
-      if (watchedExchangeRate !== 1) {
-        setValue('exchangeRate', 1, { shouldDirty: false });
-      }
-      return;
+    if (!securitiesLoaded || needsConversion) return;
+    if (watchedExchangeRate !== 1) {
+      setValue('exchangeRate', 1, { shouldDirty: false });
     }
-    // If form already has a non-default rate (either from editing or user
-    // input), don't clobber it.
-    if (watchedExchangeRate && watchedExchangeRate !== 1) {
-      return;
+    rateEditedRef.current = false;
+  }, [securitiesLoaded, needsConversion, watchedExchangeRate, setValue]);
+
+  // Prefill the exchange rate with the rate for the TRADE DATE (INV-FX-001),
+  // never the latest: a BUY dated 2025-01-02 entered today commits the 2025-01-02
+  // rate. Keyed on pair and date, so a date change asks again unless the person
+  // typed a rate. The answer is adopted only while its key is still the current
+  // one (the cleanup cancels a superseded request), and a null answer or a failed
+  // request leaves the field unresolved -- 0, which blocks the commit -- rather
+  // than falling back to the latest rate.
+  useEffect(() => {
+    if (!securitiesLoaded || !needsConversion) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(watchedTransactionDate)) return;
+    if (rateEditedRef.current) return;
+    const rateKey = `${transactionCurrency}->${cashCurrency}@${watchedTransactionDate}`;
+    if (keptRateKeyRef.current === undefined) {
+      keptRateKeyRef.current = hasStoredRate ? rateKey : null;
     }
-    const marketRate = getMarketRate(transactionCurrency, cashCurrency);
-    if (marketRate && marketRate !== 1) {
-      // Rates are NUMERIC(20,10) and every conversion multiplies at that
-      // precision; six is what the field *shows*. Rounding the stored value to
-      // six made the persisted rate disagree with the quote it came from.
-      setValue('exchangeRate', roundFxRate(marketRate), {
-        shouldDirty: false,
+    if (keptRateKeyRef.current === rateKey) return;
+    keptRateKeyRef.current = null;
+    let cancelled = false;
+    // The old answer belonged to another pair or day; do not leave it standing
+    // while the new one is in flight.
+    setValue('exchangeRate', 0, { shouldDirty: false });
+    exchangeRatesApi
+      .getRateForDate(transactionCurrency, cashCurrency, watchedTransactionDate)
+      .then((rate) => {
+        if (cancelled || rateEditedRef.current) return;
+        if (rate && rate > 0) {
+          // Rates are NUMERIC(20,10) and every conversion multiplies at that
+          // precision; six is what the field *shows*.
+          setValue('exchangeRate', roundFxRate(rate), { shouldDirty: false });
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        logger.error('Failed to load the exchange rate for the trade date:', error);
       });
-      return;
-    }
-    // Nothing resolved. The 1 this field carries is the one the branch above
-    // wrote while the currencies still matched -- it means "no conversion", not
-    // "the rate is one", and leaving it here is what let a cross-currency trade
-    // preview at 1:1. Clear it so the state reads as unknown and the commit is
-    // blocked until a rate is supplied.
-    if (watchedExchangeRate !== 0) {
-      setValue('exchangeRate', 0, { shouldDirty: false });
-    }
+    return () => {
+      cancelled = true;
+    };
   }, [
     securitiesLoaded,
     needsConversion,
     transactionCurrency,
     cashCurrency,
-    getMarketRate,
+    watchedTransactionDate,
+    hasStoredRate,
     setValue,
-    watchedExchangeRate,
   ]);
 
   /**
@@ -728,6 +752,7 @@ function InvestmentTransactionFormFields({
     if (!needsConversion || totalAmount === 0) return;
     if (value === undefined || value === null) return;
     const newRate = roundToDecimals(value / totalAmount, 10);
+    rateEditedRef.current = true;
     setValue('exchangeRate', newRate, { shouldDirty: true, shouldValidate: true });
   };
 
@@ -1510,7 +1535,7 @@ function InvestmentTransactionFormFields({
           <div className="text-xs text-gray-600 dark:text-gray-400">
             {t('transactionForm.splitRatioHelp')}{' '}
             <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">
-              {splitRatio > 0 ? splitRatio.toFixed(6) : '–'}
+              {splitRatio > 0 ? formatPrice(splitRatio) : '–'}
             </span>
           </div>
           <NumericInput
@@ -1530,24 +1555,22 @@ function InvestmentTransactionFormFields({
               <div>
                 {t('transactionForm.holdingPreviewBefore', { date: formatDate(watchedTransactionDate) })}{' '}
                 <span className="font-mono">
-                  {splitPreview.currentQty.toFixed(4)}
+                  {formatShareQuantity(splitPreview.currentQty)}
                 </span>{' '}
                 {t('transactionForm.holdingPreviewShares')}{' '}
                 <span className="font-mono">
-                  {currencySymbol}
-                  {splitPreview.currentAvg.toFixed(4)}
+                  {formatCurrency(splitPreview.currentAvg, transactionCurrency, 4)}
                 </span>{' '}
                 {t('transactionForm.holdingPreviewAvgCost')}
               </div>
               <div>
                 {t('transactionForm.holdingPreviewAfter')}{' '}
                 <span className="font-mono">
-                  {splitPreview.newQty.toFixed(4)}
+                  {formatShareQuantity(splitPreview.newQty)}
                 </span>{' '}
                 {t('transactionForm.holdingPreviewShares')}{' '}
                 <span className="font-mono">
-                  {currencySymbol}
-                  {splitPreview.newAvg.toFixed(4)}
+                  {formatCurrency(splitPreview.newAvg, transactionCurrency, 4)}
                 </span>{' '}
                 {t('transactionForm.holdingPreviewAvgCost')}
               </div>
@@ -1564,7 +1587,7 @@ function InvestmentTransactionFormFields({
         </div>
       )}
 
-      {/* Amount - for dividend/interest/capital gain/transfers */}
+      {/* Amount - for dividend/interest/capital gain/return of capital */}
       {isAmountOnly && (
         <CurrencyInput
           label={t('transactionForm.amount', { currency: transactionCurrency })}
@@ -1574,6 +1597,13 @@ function InvestmentTransactionFormFields({
           error={errors.price?.message}
           allowNegative={false}
         />
+      )}
+
+      {/* A return of capital is not income; say what it does instead. */}
+      {watchedAction === 'RETURN_OF_CAPITAL' && (
+        <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+          {t('transactionForm.returnOfCapitalNote')}
+        </div>
       )}
 
       {/* Quantity and cost basis - for a transfer between accounts */}
@@ -1588,6 +1618,8 @@ function InvestmentTransactionFormFields({
               min={0}
               error={errors.quantity?.message}
             />
+            {/* Read-only: the server carries the basis the source held on the
+                transfer date and ignores a figure sent from here (A26-M22). */}
             <NumericInput
               label={t('transactionForm.costPerShare', { currency: transactionCurrency })}
               prefix={currencySymbol}
@@ -1595,6 +1627,7 @@ function InvestmentTransactionFormFields({
               onChange={(value) => setValue('price', value, { shouldValidate: true })}
               decimalPlaces={6}
               min={0}
+              disabled
               error={errors.price?.message}
             />
           </div>
@@ -1603,12 +1636,13 @@ function InvestmentTransactionFormFields({
               <div className="rounded border border-gray-200 bg-white p-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
                 {t('transactionForm.sourceHolds')}{' '}
                 <span className="font-mono">
-                  {Number(selectedTransferHolding.quantity).toFixed(4)}
+                  {formatShareQuantity(Number(selectedTransferHolding.quantity))}
                 </span>{' '}
                 {t('transactionForm.sharesAt')}{' '}
                 <span className="font-mono">
-                  {currencySymbol}
-                  {Number(selectedTransferHolding.averageCost ?? 0).toFixed(4)}
+                  {selectedTransferHolding.averageCost == null
+                    ? '–'
+                    : formatCurrency(Number(selectedTransferHolding.averageCost), transactionCurrency, 4)}
                 </span>{' '}
                 {t('transactionForm.avgCostSuffix')}
               </div>
@@ -1717,6 +1751,7 @@ function InvestmentTransactionFormFields({
                 ) {
                   return;
                 }
+                rateEditedRef.current = true;
                 setValue('exchangeRate', incoming, {
                   shouldDirty: true,
                   shouldValidate: true,
@@ -1780,7 +1815,7 @@ function InvestmentTransactionFormFields({
           )}
           {needsQuantityPrice && (
             <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {t('transactionForm.sharesAtPrice', { shares: watchedQuantity, symbol: currencySymbol, price: watchedPrice.toFixed(6) })}
+              {t('transactionForm.sharesAtPrice', { shares: formatShareQuantity(watchedQuantity), symbol: currencySymbol, price: formatPrice(watchedPrice) })}
               {watchedCommission > 0 && ` ${baseInvestmentAction(watchedAction) === 'SELL' ? '-' : '+'} ${formatCurrency(watchedCommission, transactionCurrency)} ${t('transactionForm.commissionSuffix')}`}
               {supportsAccruedInterest(watchedAction) && watchedAccruedInterest > 0 &&
                 ` + ${formatCurrency(watchedAccruedInterest, transactionCurrency)} ${t('transactionForm.accruedInterestSuffix')}`}

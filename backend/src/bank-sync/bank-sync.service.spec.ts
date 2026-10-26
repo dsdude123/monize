@@ -587,6 +587,7 @@ describe("BankSyncService", () => {
         skipped: 0,
         excluded: 0,
         refused: {
+          missing_identity: 0,
           missing_date: 0,
           future_date: 0,
           invalid_amount: 0,
@@ -614,7 +615,7 @@ describe("BankSyncService", () => {
       });
       // Only the booked, in-currency, in-window row is planned.
       expect(written.plan.planned.map((p) => p.externalKey)).toEqual([
-        "ref:ref-1",
+        "ref:ref-1|2026-09-10|-12.3400:0",
       ]);
     });
 
@@ -750,6 +751,15 @@ describe("BankSyncService", () => {
       );
       const result = await sync();
       expect(result.bankBalance).toBeNull();
+      expect(result).not.toHaveProperty("balanceFailure");
+      expect(service["logger"].warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "could not be read: unavailable: balance endpoint down",
+        ),
+      );
+      expect(service["logger"].warn).toHaveBeenCalledWith(
+        expect.stringContaining(BANK_ACCOUNT_ID),
+      );
       expect(writer.write.mock.calls[0][0].balance).toBeNull();
     });
 
@@ -1058,7 +1068,7 @@ describe("BankSyncService", () => {
         balance: { amount: 1500.5, currencyCode: "PLN" },
       });
       expect(input.explained.plan.planned.map((p) => p.externalKey)).toEqual([
-        "ref:ref-1",
+        "ref:ref-1|2026-09-10|-12.3400:0",
       ]);
       expect(input.explained.entries.map((e) => e.outcome)).toEqual([
         "planned",
@@ -1470,6 +1480,7 @@ describe("BankSyncService", () => {
         skipped: 0,
         excluded: 0,
         refused: {
+          missing_identity: 0,
           missing_date: 0,
           future_date: 0,
           invalid_amount: 0,

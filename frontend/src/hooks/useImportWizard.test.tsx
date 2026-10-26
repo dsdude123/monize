@@ -356,6 +356,22 @@ describe('useImportWizard - QIF file upload', () => {
     expect(result.current.importFiles).toHaveLength(2);
   });
 
+  it('reads a Quicken for Mac .qmtf file as QIF, alongside .qif files', async () => {
+    mockParseQif.mockResolvedValue(baseParsedQif({ categories: [] }));
+    const { result } = renderHook(() => useImportWizard());
+    await waitFor(() => expect(mockGetCurrencies).toHaveBeenCalled());
+
+    await act(async () => {
+      await result.current.handleFileSelect(
+        fileEvent([makeFile('Export.QMTF', '1'), makeFile('b.qif', '2')]),
+      );
+    });
+
+    expect(result.current.fileType).toBe('qif');
+    expect(mockParseQif).toHaveBeenCalledTimes(2);
+    expect(result.current.importFiles).toHaveLength(2);
+  });
+
   it('handles QIF parse error', async () => {
     mockParseQif.mockRejectedValue(new Error('bad'));
     const { result } = renderHook(() => useImportWizard());
@@ -1366,6 +1382,37 @@ describe('useImportWizard - import handlers', () => {
     expect(result.current.bulkImportResult?.totalErrors).toBe(1);
   });
 
+  it('keeps each file\'s skipped rows in the bulk result', async () => {
+    const skippedRow = {
+      date: '2026-01-15', amount: -50, currencyCode: 'CAD', payee: 'Store', reason: 'alreadyImported' as const,
+    };
+    mockGetAllAccounts.mockResolvedValue([baseAccount()]);
+    mockParseQif.mockResolvedValue(baseParsedQif({ categories: [] }));
+    mockImportQif.mockResolvedValueOnce(importResult({ imported: 1 }))
+                  .mockResolvedValueOnce(importResult({ imported: 0, skipped: 1, skippedRows: [skippedRow] }));
+
+    const { result } = renderHook(() => useImportWizard());
+    await waitFor(() => expect(result.current.accounts).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.handleFileSelect(fileEvent([
+        makeFile('a.qif', '1'),
+        makeFile('b.qif', '2'),
+      ]));
+    });
+    act(() => {
+      result.current.setFileAccountId(0, 'acc-1');
+      result.current.setFileAccountId(1, 'acc-1');
+    });
+    await act(async () => {
+      await result.current.handleImport();
+    });
+    expect(result.current.bulkImportResult?.fileResults.map((r) => r.skippedRows)).toEqual([
+      undefined,
+      [skippedRow],
+    ]);
+  });
+
   it('bulk import handles thrown error per file', async () => {
     mockGetAllAccounts.mockResolvedValue([baseAccount()]);
     mockParseQif.mockResolvedValue(baseParsedQif({ categories: [] }));
@@ -1595,15 +1642,23 @@ describe('useImportWizard - derived options', () => {
     expect(result.current.categoryOptions.length).toBeGreaterThan(0);
   });
 
-  it('produces parentCategoryOptions from top-level categories only', async () => {
+  it('produces parentCategoryOptions from every level, labelled with the full path', async () => {
+    // A three-level QIF category is suggested under its deepest existing
+    // level, so a nested category must be selectable as a parent.
     mockGetCategories.mockResolvedValue([
       baseCategory({ id: 'c1', name: 'A' }),
       baseCategory({ id: 'c2', name: 'B', parentId: 'c1' }),
+      baseCategory({ id: 'c3', name: 'C', parentId: 'c2' }),
     ]);
     const { result } = renderHook(() => useImportWizard());
-    await waitFor(() => expect(result.current.categories).toHaveLength(2));
-    expect(result.current.parentCategoryOptions.find(o => o.value === 'c1')).toBeTruthy();
-    expect(result.current.parentCategoryOptions.find(o => o.value === 'c2')).toBeFalsy();
+    await waitFor(() => expect(result.current.categories).toHaveLength(3));
+    expect(result.current.parentCategoryOptions).toEqual([
+      { value: '', label: 'No parent (top-level)' },
+      { value: 'c1', label: 'A' },
+      { value: 'c2', label: 'A: B' },
+      { value: 'c3', label: 'A: B: C' },
+    ]);
+    expect(result.current.categoryOptions.find(o => o.value === 'c3')?.label).toBe('A: B: C');
   });
 
   it('getAccountOptions excludes loan/mortgage/brokerage accounts', async () => {

@@ -35,6 +35,13 @@ export interface SpendingByCategoryParams extends ReportQueryParams {
   accountIds?: string[];
   /** Count a subcategory against its top-level ancestor. Defaults to true. */
   rollupToParent?: boolean;
+  /**
+   * Keep only rows tagged `tagKey:tagValue`
+   * (`docs/specs/report-tag-key-breakdown.md` section 11.4). Send both or
+   * neither; absent renders today's response unchanged.
+   */
+  tagKey?: string;
+  tagValue?: string;
 }
 
 export interface PayeeSpendingItem {
@@ -44,8 +51,22 @@ export interface PayeeSpendingItem {
 }
 
 export interface SpendingByPayeeResponse {
+  /** Rows that could not be converted are in none of the figures. */
   data: PayeeSpendingItem[];
-  totalSpending: number;
+  /**
+   * Total spent, or `null` when a row could not be converted -- a missing rate
+   * makes the total unknowable, never smaller. Render `knownSpending` through
+   * `PartialTotal` in that case, never this under a caption saying "Total".
+   */
+  totalSpending: number | null;
+  /** Sum of `data`; equals `totalSpending` when nothing was excluded. */
+  knownSpending: number;
+  /** Reporting currency every figure is expressed in. */
+  currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 export interface IncomeSourceItem {
@@ -56,8 +77,22 @@ export interface IncomeSourceItem {
 }
 
 export interface IncomeBySourceResponse {
+  /** Rows that could not be converted are in none of the figures. */
   data: IncomeSourceItem[];
-  totalIncome: number;
+  /**
+   * Total income, or `null` when a row could not be converted -- a missing rate
+   * makes the total unknowable, never smaller. Render `knownIncome` through
+   * `PartialTotal` in that case, never this under a caption saying "Total".
+   */
+  totalIncome: number | null;
+  /** Sum of `data`; equals `totalIncome` when nothing was excluded. */
+  knownIncome: number;
+  /** Reporting currency every figure is expressed in. */
+  currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 export interface MonthlyCategorySpending {
@@ -74,7 +109,17 @@ export interface MonthlySpendingItem {
 }
 
 export interface MonthlySpendingTrendResponse {
+  /**
+   * Each month's `totalSpending` and category `total` cover the rows that
+   * converted only, so they stay numbers; `missingCurrencies` says what is out.
+   */
   data: MonthlySpendingItem[];
+  /** Reporting currency every figure is expressed in. */
+  currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 export interface MonthlyIncomeExpenseItem {
@@ -100,6 +145,18 @@ export interface IncomeExpensePeriodItem {
   income: number;
   expenses: number;
   net: number;
+}
+
+/**
+ * One bar of a tag-key bucket: the categorized figures plus the tagged
+ * transfer flows that fell in the period (zero when none). The flows are never
+ * part of `income`, `expenses` or `net`.
+ */
+export interface IncomeExpenseTagPeriodItem extends IncomeExpensePeriodItem {
+  /** Tagged transfer legs in this period, positive side. */
+  taggedInflows: number;
+  /** Tagged transfer legs in this period, negative side, as a positive magnitude. */
+  taggedOutflows: number;
 }
 
 export interface IncomeExpenseTotals {
@@ -138,10 +195,11 @@ export interface IncomeExpenseTagBucket {
   value: string;
   /** True only for the reserved untagged bucket. */
   isUntagged: boolean;
-  data: IncomeExpensePeriodItem[];
+  data: IncomeExpenseTagPeriodItem[];
   totals: IncomeExpenseTotals;
   /**
-   * Transfer legs carrying this bucket's value, positive side. Never folded
+   * Window total of the per-period `taggedInflows` in `data`. Transfer legs
+   * carrying this bucket's value, positive side. Never folded
    * into `income`, `expenses` or `net` -- a transfer is never income.
    */
   taggedInflows: number;
@@ -189,6 +247,12 @@ export interface IncomeVsExpensesParams extends ReportQueryParams {
   /** Day a week bucket starts on, 0 = Sunday through 6 = Saturday. */
   weekStartsOn?: number;
   /**
+   * The tagged-transfer boundary when `accountIds` is empty: the accounts the
+   * picker offers (`lib/transfer-scope.ts`, spec 10.8.1). Bounds only the
+   * tagged flows; income and expenses are not filtered by it.
+   */
+  transferScopeAccountIds?: string[];
+  /**
    * Bare KEY of a `KEY:VALUE` tag (e.g. "scope") to break the report down by
    * (`docs/specs/report-tag-key-breakdown.md`). Absent renders today's
    * response unchanged.
@@ -201,14 +265,34 @@ export interface ReportQueryParams {
   endDate: string;
 }
 
+/** Query parameters Income by Source accepts beyond the window. */
+export interface IncomeBySourceParams extends ReportQueryParams {
+  /** Restrict to these accounts; omit or leave empty for every account. */
+  accountIds?: string[];
+}
+
 /** Query parameters the Cash Flow report accepts beyond the window. */
 export interface CashFlowParams extends ReportQueryParams {
+  /** Restrict to these accounts; omit or leave empty for every account. */
+  accountIds?: string[];
+  /**
+   * The tagged-transfer boundary when `accountIds` is empty: the accounts the
+   * picker offers (`lib/transfer-scope.ts`, spec 10.8.1). Bounds only the
+   * tagged flows; income and expenses are not filtered by it.
+   */
+  transferScopeAccountIds?: string[];
   /**
    * Bare KEY of a `KEY:VALUE` tag (e.g. "scope") to break the report down by
    * (`docs/specs/report-tag-key-breakdown.md`). Absent renders today's
    * response unchanged.
    */
   tagKey?: string;
+}
+
+/** Query parameters Monthly Breakdown accepts beyond the window. */
+export interface MonthlyCategoryBreakdownParams extends ReportQueryParams {
+  /** Restrict to these accounts; omit or leave empty for every account. */
+  accountIds?: string[];
 }
 
 // Monthly category breakdown types
@@ -235,7 +319,12 @@ export interface MonthlyCategoryBreakdownResponse {
   months: string[];
   data: MonthlyBreakdownCategoryRow[];
   transfers: MonthlyBreakdownTransferRow[];
+  /** Reporting currency every figure is expressed in. */
   currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 // Year-over-year types
@@ -249,15 +338,29 @@ export interface YearMonthData {
 export interface YearData {
   year: number;
   months: YearMonthData[];
+  /**
+   * A year's total is `null` when a row of THAT year could not be converted;
+   * the `known*` figure is the part that did and goes through `PartialTotal`.
+   */
   totals: {
-    income: number;
-    expenses: number;
-    savings: number;
+    income: number | null;
+    expenses: number | null;
+    savings: number | null;
+    knownIncome: number;
+    knownExpenses: number;
+    knownSavings: number;
   };
 }
 
 export interface YearOverYearResponse {
+  /** Months are only the part that converted when `missingCurrencies` is non-empty. */
   data: YearData[];
+  /** Reporting currency every figure is expressed in. */
+  currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 // Weekend vs weekday types
@@ -276,13 +379,23 @@ export interface CategoryWeekendWeekday {
 
 export interface WeekendVsWeekdayResponse {
   summary: {
-    weekendTotal: number;
-    weekdayTotal: number;
+    /** `null` when a row could not be converted; see `knownWeekendTotal`. */
+    weekendTotal: number | null;
+    weekdayTotal: number | null;
+    /** The part that did convert; render through `PartialTotal` when the field above is `null`. */
+    knownWeekendTotal: number;
+    knownWeekdayTotal: number;
     weekendCount: number;
     weekdayCount: number;
   };
   byDay: DaySpending[];
   byCategory: CategoryWeekendWeekday[];
+  /** Reporting currency every figure is expressed in. */
+  currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 // Spending anomalies types
@@ -316,6 +429,12 @@ export interface SpendingAnomaliesResponse {
     medium: number;
     low: number;
   };
+  /** Reporting currency every figure is expressed in. */
+  currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 // Tax summary types
@@ -329,10 +448,21 @@ export interface TaxSummaryResponse {
   deductibleExpenses: CategoryTotal[];
   allExpenses: CategoryTotal[];
   totals: {
-    income: number;
-    expenses: number;
-    deductible: number;
+    /** `null` when a row could not be converted; see the `known*` figure. */
+    income: number | null;
+    expenses: number | null;
+    deductible: number | null;
+    /** The part that did convert; render through `PartialTotal` when the field above is `null`. */
+    knownIncome: number;
+    knownExpenses: number;
+    knownDeductible: number;
   };
+  /** Reporting currency every figure is expressed in. */
+  currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 // Recurring expenses types
@@ -365,13 +495,24 @@ export type RecurringExpenseRange = (typeof RECURRING_EXPENSE_RANGES)[number];
 export interface RecurringExpensesResponse {
   data: RecurringExpenseItem[];
   summary: {
-    totalRecurring: number;
-    /** totalRecurring spread over `monthCount` months. */
-    monthlyEstimate: number;
+    /** `null` when a row could not be converted; see `knownTotalRecurring`. */
+    totalRecurring: number | null;
+    /** The part of `totalRecurring` that converted. */
+    knownTotalRecurring: number;
+    /** totalRecurring spread over `monthCount` months; `null` when it is. */
+    monthlyEstimate: number | null;
+    /** The part of `monthlyEstimate` that converted. */
+    knownMonthlyEstimate: number;
     /** Months the window covers (for `all`, since the first matching payment). */
     monthCount: number;
     uniquePayees: number;
   };
+  /** Reporting currency every figure is expressed in. */
+  currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 // Bill payment history types
@@ -400,18 +541,35 @@ export interface BillPaymentHistoryResponse {
   billPayments: BillPaymentItem[];
   monthlyTotals: MonthlyBillTotal[];
   summary: {
-    totalPaid: number;
+    /** `null` when a row could not be converted; see `knownTotalPaid`. */
+    totalPaid: number | null;
+    /** The part of `totalPaid` that converted. */
+    knownTotalPaid: number;
     totalPayments: number;
     uniqueBills: number;
-    monthlyAverage: number;
+    /** `null` when `totalPaid` is; see `knownMonthlyAverage`. */
+    monthlyAverage: number | null;
+    /** The part of `monthlyAverage` that converted. */
+    knownMonthlyAverage: number;
   };
+  /** Reporting currency every figure is expressed in. */
+  currency: string;
+  /** Source currencies with no rate into `currency`. Empty when complete. */
+  missingCurrencies: string[];
+  /** How many aggregate rows were left out, by any cause. */
+  excludedCount: number;
 }
 
 // Uncategorized transactions types
 export interface UncategorizedTransactionItem {
   id: string;
   transactionDate: string;
+  /**
+   * In `currencyCode`: converted into the report currency when a rate exists,
+   * otherwise the original amount in the row's own currency.
+   */
   amount: number;
+  /** The currency `amount` is in; format the row with it, never the report's. */
   currencyCode: string;
   payeeName: string | null;
   description: string | null;
@@ -424,11 +582,20 @@ export interface UncategorizedTransactionsResponse {
   summary: {
     totalCount: number;
     expenseCount: number;
-    expenseTotal: number;
+    /** `null` when a row could not be converted; see `knownExpenseTotal`. */
+    expenseTotal: number | null;
+    knownExpenseTotal: number;
     incomeCount: number;
-    incomeTotal: number;
+    incomeTotal: number | null;
+    knownIncomeTotal: number;
     currencyCode: string;
   };
+  /** Reporting currency the summary totals are expressed in. */
+  currency: string;
+  /** Source currencies with no rate; their rows stay listed in their own currency. */
+  missingCurrencies: string[];
+  /** How many summary rows (one per currency group) were left out of the totals. */
+  excludedCount: number;
 }
 
 // Duplicate transactions types

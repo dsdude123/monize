@@ -23,6 +23,7 @@ describe("ImportEntityCreatorService", () => {
     return {
       imported: 0,
       skipped: 0,
+      skippedRows: [],
       errors: 0,
       errorMessages: [],
       categoriesCreated: 0,
@@ -332,6 +333,88 @@ describe("ImportEntityCreatorService", () => {
       expect(importResult.categoriesCreated).toBe(3);
       expect(categoryMap.get("Taxes:Income Tax")).toBe("cat-2");
       expect(categoryMap.get("Taxes:CPP")).toBe("cat-3");
+    });
+
+    it("creates every level of a colon-delimited parent path", async () => {
+      // A three-level QIF category ("Housing:Mortgage:Interest") used to land
+      // as a top-level category literally named "Housing:Mortgage".
+      manager.findOne.mockResolvedValue(null);
+      categoryIdQueue.push("housing", "mortgage", "interest", "principal");
+
+      const categoryMap = new Map<string, string | null>();
+      const categoriesToCreate: CategoryMappingDto[] = [
+        {
+          originalName: "Housing:Mortgage:Interest",
+          createNew: "Interest",
+          createNewParentCategoryName: "Housing:Mortgage",
+        },
+        {
+          originalName: "Housing:Mortgage:Principal",
+          createNew: "Principal",
+          createNewParentCategoryName: "Housing: Mortgage",
+        },
+      ];
+
+      await service.createCategories(
+        manager as any,
+        userId,
+        categoriesToCreate,
+        categoryMap,
+        importResult,
+      );
+
+      const inserts = manager.query.mock.calls
+        .filter((call: unknown[]) =>
+          String(call[0]).includes("INSERT INTO categories"),
+        )
+        .map((call: unknown[]) => call[1]);
+      expect(inserts).toEqual([
+        [userId, "Housing", null],
+        [userId, "Mortgage", "housing"],
+        [userId, "Interest", "mortgage"],
+        [userId, "Principal", "mortgage"],
+      ]);
+      expect(categoryMap.get("Housing:Mortgage:Interest")).toBe("interest");
+      expect(categoryMap.get("Housing:Mortgage:Principal")).toBe("principal");
+      expect(importResult.categoriesCreated).toBe(4);
+    });
+
+    it("reuses the existing levels of a parent path and creates the rest", async () => {
+      manager.findOne.mockImplementation((_entity: any, opts: any) => {
+        const where = opts?.where ?? {};
+        if (where.name === "Housing" && typeof where.parentId !== "string") {
+          return Promise.resolve({ id: "housing-existing", name: "Housing" });
+        }
+        return Promise.resolve(null);
+      });
+      categoryIdQueue.push("mortgage-new", "interest-new");
+
+      const categoryMap = new Map<string, string | null>();
+      await service.createCategories(
+        manager as any,
+        userId,
+        [
+          {
+            originalName: "Housing:Mortgage:Interest",
+            createNew: "Interest",
+            createNewParentCategoryName: "Housing:Mortgage",
+          },
+        ],
+        categoryMap,
+        importResult,
+      );
+
+      const inserts = manager.query.mock.calls
+        .filter((call: unknown[]) =>
+          String(call[0]).includes("INSERT INTO categories"),
+        )
+        .map((call: unknown[]) => call[1]);
+      expect(inserts).toEqual([
+        [userId, "Mortgage", "housing-existing"],
+        [userId, "Interest", "mortgage-new"],
+      ]);
+      expect(categoryMap.get("Housing:Mortgage:Interest")).toBe("interest-new");
+      expect(importResult.categoriesCreated).toBe(2);
     });
 
     it("should prefer parentCategoryId over createNewParentCategoryName", async () => {
@@ -1055,65 +1138,60 @@ describe("ImportEntityCreatorService", () => {
   });
 
   describe("applyOpeningBalance", () => {
-    it("should update account balances correctly", async () => {
+    // The opening balance moves current_balance by new - old, both read under
+    // the balance-write lock, as one atomic delta at 4dp; the caller's
+    // `account` snapshot supplies only the owner (A26-M13).
+    function lockedOpening(opening: string | null) {
+      manager.query.mockImplementation(async (sql: string) =>
+        sql.includes("SELECT opening_balance")
+          ? [{ opening_balance: opening }]
+          : [],
+      );
+    }
+    const deltaUpdate = () =>
+      manager.query.mock.calls.find(([sql]: [string]) =>
+        sql.includes("SET opening_balance"),
+      );
+
+    it("moves the balance by the change from the locked opening balance, not the snapshot", async () => {
+      lockedOpening("100");
       const account = makeAccount({
-        openingBalance: 100,
-        currentBalance: 500,
+        userId: "user-1",
+        openingBalance: 999,
+        currentBalance: 999,
       } as any);
 
       await service.applyOpeningBalance(manager as any, "acc-1", account, 250);
 
-      expect(manager.update).toHaveBeenCalledWith(Account, "acc-1", {
-        openingBalance: 250,
-        currentBalance: 650,
-      });
+      const [sql, params] = deltaUpdate();
+      expect(sql).toContain(
+        "current_balance = ROUND(CAST(current_balance AS numeric) + $4, 4)",
+      );
+      expect(params).toEqual(["acc-1", "user-1", 250, 150]);
+      expect(manager.update).not.toHaveBeenCalled();
     });
 
-    it("should handle zero opening balance", async () => {
-      const account = makeAccount({
-        openingBalance: 0,
-        currentBalance: 300,
-      } as any);
-
-      await service.applyOpeningBalance(manager as any, "acc-1", account, 100);
-
-      expect(manager.update).toHaveBeenCalledWith(Account, "acc-1", {
-        openingBalance: 100,
-        currentBalance: 400,
-      });
-    });
-
-    it("should handle negative opening balance", async () => {
-      const account = makeAccount({
-        openingBalance: 0,
-        currentBalance: 1000,
-      } as any);
+    it("handles a negative opening balance", async () => {
+      lockedOpening("0");
+      const account = makeAccount({ userId: "user-1" } as any);
 
       await service.applyOpeningBalance(manager as any, "acc-1", account, -500);
 
-      expect(manager.update).toHaveBeenCalledWith(Account, "acc-1", {
-        openingBalance: -500,
-        currentBalance: 500,
-      });
+      expect(deltaUpdate()[1]).toEqual(["acc-1", "user-1", -500, -500]);
     });
 
-    it("should round to two decimal places", async () => {
-      const account = makeAccount({
-        openingBalance: 0,
-        currentBalance: 0,
-      } as any);
+    it("keeps four decimals", async () => {
+      lockedOpening(null);
+      const account = makeAccount({ userId: "user-1" } as any);
 
       await service.applyOpeningBalance(
         manager as any,
         "acc-1",
         account,
-        100.555,
+        100.1234,
       );
 
-      expect(manager.update).toHaveBeenCalledWith(Account, "acc-1", {
-        openingBalance: 100.56,
-        currentBalance: 100.56,
-      });
+      expect(deltaUpdate()[1]).toEqual(["acc-1", "user-1", 100.1234, 100.1234]);
     });
   });
 });

@@ -2,6 +2,8 @@ import { Logger, NotFoundException } from "@nestjs/common";
 import { getRequestContext } from "../../common/request-context";
 import type { JobClaimService } from "../../common/jobs/job-claim.service";
 import { createScopedDbMocks } from "../../test-helpers/scoped-db-testing";
+import { EmailReceiptMailbox } from "../entities/email-receipt-mailbox.entity";
+import { User } from "../../users/entities/user.entity";
 import type { EmailReceiptAiService } from "../ai/email-receipt-ai.service";
 import type {
   FetchSinceResult,
@@ -23,6 +25,7 @@ import {
   pickReceivedAt,
   POLL_LEASE_MS,
 } from "./email-receipt-poll.service";
+import { PROVIDER_CALL_BUDGET_MS } from "../../ai/providers/provider-call-budget";
 
 jest.mock("../../common/db/scoped-db", () =>
   jest
@@ -90,7 +93,27 @@ const view = (over: Partial<EmailReceiptMailboxView> = {}) =>
   ({ id: MAILBOX, enabled: true, ...over }) as EmailReceiptMailboxView;
 
 function setup() {
-  const { manager, dataSource } = createScopedDbMocks();
+  // The owner's own addresses (`loadOwnAddresses`): the mailbox login and the
+  // verified account email the forward fixtures come from.
+  const ownerRepos = {
+    mailboxes: {
+      findOne: jest.fn(async () => ({
+        id: MAILBOX,
+        username: "receipts@example.com",
+      })),
+    },
+    users: {
+      findOne: jest.fn(async () => ({
+        id: USER,
+        email: "alice.example@gmail.example.com",
+        emailVerified: true,
+      })),
+    },
+  };
+  const { manager, dataSource } = createScopedDbMocks([
+    [EmailReceiptMailbox, ownerRepos.mailboxes],
+    [User, ownerRepos.users],
+  ]);
   const state = { inTransaction: false, events: [] as string[] };
   const baseTransaction = dataSource.transaction.getMockImplementation();
   dataSource.transaction.mockImplementation(async (...args: unknown[]) => {
@@ -147,6 +170,16 @@ function setup() {
   const jobClaims = {
     claimLease: jest.fn(async () => TOKEN as string | null),
     releaseLease: jest.fn(async () => undefined),
+    whileLeaseHeld: jest.fn(
+      (
+        _type: unknown,
+        _userId: unknown,
+        _key: unknown,
+        _token: unknown,
+        _ttl: unknown,
+        work: () => Promise<unknown>,
+      ) => work(),
+    ),
   } as unknown as jest.Mocked<JobClaimService>;
   const pipeline = {
     process: jest.fn(async () => ({ unchanged: false }) as never),
@@ -176,6 +209,7 @@ function setup() {
     service,
     manager,
     dataSource,
+    ownerRepos,
     state,
     pending,
     rematch,
@@ -278,7 +312,7 @@ describe("the cron", () => {
 });
 
 describe("the lease (INV-RECEIPT-006)", () => {
-  it("is claimed per mailbox for ten minutes and released by its token", async () => {
+  it("is claimed per mailbox, outlasts a provider call, is renewed while the poll runs and released by its token", async () => {
     const h = setup();
     await poll(h);
     expect(h.jobClaims.claimLease).toHaveBeenCalledWith(
@@ -287,7 +321,20 @@ describe("the lease (INV-RECEIPT-006)", () => {
       MAILBOX,
       POLL_LEASE_MS,
     );
-    expect(POLL_LEASE_MS).toBe(10 * 60_000);
+    // The work budget (8 minutes) plus the slowest provider call that may
+    // start just before it ends (A26-L13); it was 10 minutes, shorter than one
+    // Ollama call.
+    expect(POLL_LEASE_MS).toBeGreaterThanOrEqual(
+      8 * 60_000 + PROVIDER_CALL_BUDGET_MS,
+    );
+    expect(h.jobClaims.whileLeaseHeld).toHaveBeenCalledWith(
+      "email_receipt_poll",
+      USER,
+      MAILBOX,
+      TOKEN,
+      POLL_LEASE_MS,
+      expect.any(Function),
+    );
     expect(h.jobClaims.releaseLease).toHaveBeenCalledWith(
       "email_receipt_poll",
       USER,
@@ -523,6 +570,88 @@ describe("ingestion (INV-RECEIPT-002)", () => {
       expect(p[8]).toEqual(new Date("2026-09-10T09:00:00Z"));
       expect(p[11]).toBe("alice.example@gmail.example.com");
       expect(p[12]).toEqual(new Date("2026-08-10T10:15:00.000Z"));
+    });
+
+    it("from somebody who is not the owner stays theirs: the pasted block is text (A26-H02)", async () => {
+      const h = setup();
+      mockMailText(
+        mail({
+          fromAddress: "someone@evil.example",
+          fromDomain: "evil.example",
+          subject: "Fwd: Order #A-1001 confirmed",
+          text: FORWARD,
+        }),
+      );
+      h.imap.fetchSince.mockResolvedValue(
+        fetched({ messages: [message("41")], highestUid: "41" }),
+      );
+
+      await poll(h);
+
+      const p = (
+        h.manager.query.mock.calls.find((c) =>
+          String(c[0]).includes("INSERT INTO email_receipts"),
+        ) as [string, unknown[]]
+      )[1];
+      expect(p[5]).toBe("someone@evil.example");
+      expect(p[6]).toBe("evil.example");
+      expect(p[11]).toBeNull();
+      expect(p[12]).toBeNull();
+    });
+
+    it("a failure to read the owner's addresses fails the batch: nothing is stored as undecodable and the cursor stays", async () => {
+      const h = setup();
+      h.ownerRepos.users.findOne.mockRejectedValueOnce(new Error("db down"));
+      mockMailText(
+        mail({
+          fromAddress: "alice.example@gmail.example.com",
+          fromDomain: "gmail.example.com",
+          text: FORWARD,
+        }),
+      );
+      h.imap.fetchSince.mockResolvedValue(
+        fetched({ messages: [message("41")], highestUid: "41" }),
+      );
+
+      const outcome = await poll(h);
+
+      expect(outcome.ok).toBe(false);
+      expect(
+        h.manager.query.mock.calls.some((c) =>
+          String(c[0]).includes("INSERT INTO email_receipts"),
+        ),
+      ).toBe(false);
+      expect(h.mailbox.advanceCursor).not.toHaveBeenCalled();
+    });
+
+    it("reads the owner's addresses once for a batch, and not at all for a batch with no forward", async () => {
+      const h = setup();
+      mockMailText(mail());
+      h.imap.fetchSince.mockResolvedValue(
+        fetched({
+          messages: [message("41"), message("42")],
+          highestUid: "42",
+        }),
+      );
+      await poll(h);
+      expect(h.ownerRepos.users.findOne).not.toHaveBeenCalled();
+
+      const g = setup();
+      mockMailText(
+        mail({
+          fromAddress: "alice.example@gmail.example.com",
+          fromDomain: "gmail.example.com",
+          text: FORWARD,
+        }),
+      );
+      g.imap.fetchSince.mockResolvedValue(
+        fetched({
+          messages: [message("43"), message("44")],
+          highestUid: "44",
+        }),
+      );
+      await poll(g);
+      expect(g.ownerRepos.users.findOne).toHaveBeenCalledTimes(1);
     });
 
     it("an email that is not a forward keeps the mailbox's From and has no original date", async () => {
@@ -762,7 +891,9 @@ describe("the automatic AI step", () => {
     const h = setup();
     h.mailbox.loadConnection.mockResolvedValue(loaded({ aiMode: "automatic" }));
     await poll(h);
-    expect(h.ai.runAutomaticStep).toHaveBeenCalledWith(USER);
+    expect(h.ai.runAutomaticStep).toHaveBeenCalledWith(USER, {
+      deadline: expect.any(Number),
+    });
   });
 
   it("runs after the pipeline, so the requests it queued are answered in the same tick", async () => {
@@ -956,7 +1087,9 @@ describe("processStoredNow (the archive import's processing step)", () => {
 
     h.mailbox.getView.mockResolvedValue(view({ aiMode: "automatic" }));
     await h.service.processStoredNow(USER);
-    expect(h.ai.runAutomaticStep).toHaveBeenCalledWith(USER);
+    expect(h.ai.runAutomaticStep).toHaveBeenCalledWith(USER, {
+      deadline: expect.any(Number),
+    });
   });
 
   it("releases the lease when processing throws", async () => {
