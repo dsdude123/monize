@@ -1664,10 +1664,15 @@ describe("TransactionReconciliationService", () => {
 
       await service.bulkReconcile(userId, accountId, ["tx-1"], "2026-02-15");
 
+      // One array parameter: an IN list binds one parameter per id, and
+      // Postgres refuses more than 65,535 in a statement.
       expect(mockQueryBuilder.where).toHaveBeenCalledWith(
-        "transaction.id IN (:...ids)",
+        "transaction.id = ANY(:ids)",
         { ids: ["tx-1"] },
       );
+      expect(mockQueryBuilder.where).toHaveBeenCalledWith("id = ANY(:ids)", {
+        ids: ["tx-1"],
+      });
       expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
         "transaction.userId = :userId",
         { userId },

@@ -566,7 +566,10 @@ export class TransactionReconciliationService {
       const transactions = await m
         .getRepository(Transaction)
         .createQueryBuilder("transaction")
-        .where("transaction.id IN (:...ids)", { ids: transactionIds })
+        // One array parameter, not one per id: Postgres refuses a statement
+        // with more than 65,535 bound parameters, and a first reconciliation
+        // can cover more rows than that.
+        .where("transaction.id = ANY(:ids)", { ids: transactionIds })
         .andWhere("transaction.userId = :userId", { userId })
         .andWhere("transaction.accountId = :accountId", { accountId })
         .orderBy("transaction.id", "ASC")
@@ -609,7 +612,7 @@ export class TransactionReconciliationService {
           status: TransactionStatus.RECONCILED,
           reconciledDate: reconciledDate,
         })
-        .where("id IN (:...ids)", { ids: transactionIds })
+        .where("id = ANY(:ids)", { ids: transactionIds })
         .andWhere("userId = :userId", { userId })
         .execute();
 
