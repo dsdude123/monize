@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_RULE_CONDITION_DEPTH, MAX_RULE_CONDITION_LEAVES, RULE_CONDITION_FIELDS } from './rule-fields';
 import {
   addChild,
@@ -246,5 +246,25 @@ describe('changing the operator of a day of the month', () => {
     expect(createLeaf('status').value).toBe('UNRECONCILED');
     expect(createLeaf('hasAttachment').value).toBe(true);
     expect(createLeaf('dayOfMonth').value).toBeUndefined();
+  });
+});
+
+// The rules page builds its condition tree from these ids as it opens. Over
+// plain HTTP (a LAN install) the browser has no crypto.randomUUID, and the
+// page failed with "crypto.randomUUID is not a function".
+describe('condition ids outside a secure context', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('creates a group and a leaf without crypto.randomUUID', () => {
+    vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) });
+
+    const group = createGroup();
+    const leaf = createLeaf();
+
+    expect(group.uid).toMatch(/^[0-9a-f-]{36}$/);
+    expect(leaf.uid).toMatch(/^[0-9a-f-]{36}$/);
+    expect(group.uid).not.toBe(leaf.uid);
   });
 });

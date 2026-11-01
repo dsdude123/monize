@@ -58,7 +58,7 @@ npm run docs:build         # Regenerate the user docs (website/docs/) from their
 | An investment row's money | the row's own `amountCurrencyCode` / `priceCurrencyCode` / `commissionCurrencyCode`, converted with `convertRowAmount`; a VOID row dropped with `investmentRowHasEffect` | the account's currency, the reader's, or a client-side sum across rows |
 | CSV | `exportToCsv` / `exportCsvSections` (`lib/csv-export.ts`) | a second `text/csv` Blob |
 | Link to the user documentation (`PageHeader` `helpUrl`, an inline guide link) | `docsUrl(key)` (`lib/docs-links.ts`) | a docs or wiki URL literal |
-| Random id | `crypto.randomUUID()` | `Math.random()` |
+| Random id | `randomUuid()` (`lib/uuid.ts`) | `Math.random()`, or a bare `crypto.randomUUID()`, which plain HTTP lacks |
 | Chart colour | `chartColors` tokens (`lib/chart-colors.ts`) | a hex literal in a `fill`, `stroke` or `stopColor` |
 | Widget title that opens the fuller view | `titleHref` on `WidgetCard`, `href` on `WidgetHeading` | a button or link hand-rolled around the heading |
 | Month grid | `MonthGrid` + `monthGridDays` (`lib/calendar-month.ts`); occurrence placement stays `buildScheduledCalendarDays` + `ScheduledCalendarGrid` until the bills grid migrates | a third month grid, or a `Date` built from a calendar date |

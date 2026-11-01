@@ -16,6 +16,7 @@ import {
   RULE_OPERATOR_SHAPES,
 } from '@/lib/rule-fields';
 import type { RuleField, RuleOperator } from '@/types/transaction-rule';
+import { randomUuid } from '@/lib/uuid';
 
 export type GroupMatch = 'all' | 'any';
 
@@ -49,7 +50,7 @@ export type EditorNode = EditorLeaf | EditorGroup;
 /** Child indices from the root; `[]` is the root itself. */
 export type NodePath = readonly number[];
 
-export const newUid = (): string => crypto.randomUUID();
+export const newUid = (): string => randomUuid();
 
 export function createGroup(match: GroupMatch = 'all', children: readonly EditorNode[] = []): EditorGroup {
   return { kind: 'group', uid: newUid(), match, not: false, children };

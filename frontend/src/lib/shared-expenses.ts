@@ -14,11 +14,12 @@ import type {
   SharedGroupDetail,
   SharedPerson,
 } from "@/types/shared-expense";
+import { randomUuid } from "./uuid";
 
 const root = "/shared-expenses";
 const groupPath = (id: string) => `${root}/groups/${id}`;
 export const sharedCommand = (expectedRevision = 0): SharedCommand => ({
-  operationId: crypto.randomUUID(),
+  operationId: randomUuid(),
   expectedRevision,
 });
 
