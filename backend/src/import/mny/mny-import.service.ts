@@ -27,7 +27,8 @@ import {
   MnyImportJobService,
   importAlreadyRunningException,
 } from "./mny-import-job.service";
-import { MnyParsedFile, MnyParserService } from "./mny-parser.service";
+import { MnyParsedFile } from "./mny-parser.service";
+import { MnyMarketRateService } from "./mny-market-rates.service";
 import { MnyStagingService } from "./mny-staging.service";
 import {
   MnyAccountVerification,
@@ -117,7 +118,7 @@ export class MnyImportService {
   constructor(
     private dataSource: DataSource,
     private staging: MnyStagingService,
-    private parser: MnyParserService,
+    private parser: MnyMarketRateService,
     private jobs: MnyImportJobService,
     private postProcessing: ImportPostProcessingService,
     @Inject(forwardRef(() => UsersService))
@@ -269,7 +270,7 @@ export class MnyImportService {
     const loadedAt = Date.now();
     sampleRss();
 
-    const parsed = this.parser.parse({
+    const parsed = await this.parser.parse({
       buffer: bytes,
       options,
       // Staged bytes are stored decrypted, so the password is spent on the
@@ -641,7 +642,9 @@ export class MnyImportService {
       });
 
       // One balance write from the file-computed totals; post-processing then
-      // recomputes the same numbers from the rows as a cross-check.
+      // recomputes the same numbers from the rows as a cross-check. A reused
+      // account is skipped: it holds rows the file knows nothing about, so its
+      // balance is the ledger's, recomputed after the commit.
       await writeAccountBalances(
         manager,
         new Map(
@@ -651,7 +654,8 @@ export class MnyImportService {
               balance,
             ])
             .filter(
-              (entry): entry is [string, number] => entry[0] !== undefined,
+              (entry): entry is [string, number] =>
+                entry[0] !== undefined && !accounts.reusedIds.has(entry[0]),
             ),
         ),
       );
@@ -683,6 +687,7 @@ export class MnyImportService {
         pricesImported,
         exchangeRatesImported,
         affectedAccountIds: new Set([
+          ...accounts.reusedIds,
           ...transactions.affectedAccountIds,
           ...investments.affectedAccountIds,
           // Accounts a structural rule action credited: recomputed and

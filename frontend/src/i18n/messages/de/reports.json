@@ -4,6 +4,7 @@
     "subtitle": "Einblicke in Ihre finanzielle Situation gewinnen",
     "searchPlaceholder": "Berichte nach Name oder Beschreibung suchen...",
     "allReports": "Alle Berichte",
+    "categoryWithCount": "{label} ({count})",
     "removeFavourite": "Aus Favoriten entfernen",
     "addFavourite": "Zu Favoriten hinzufügen",
     "tableReport": "Bericht",
@@ -38,6 +39,7 @@
       "account-balances": "Kontosalden",
       "cash-flow": "Kapitalflussrechnung",
       "tax-summary": "Steuerübersicht",
+      "payroll-deductions": "Lohnabzüge",
       "year-over-year": "Jahresvergleich",
       "debt-payoff-timeline": "Schuldentilgungs-Zeitplan",
       "loan-amortization": "Tilgungsplan",
@@ -87,6 +89,7 @@
       "account-balances": "Sehen Sie, was jedes Konto an einem beliebigen Stichtag wert war -- gruppiert und sortiert, wie Sie möchten.",
       "cash-flow": "Detaillierte Übersicht über Mittelzuflüsse und -abflüsse über alle Konten.",
       "tax-summary": "Jahresübersicht steuerlich abzugsfähiger Ausgaben und steuerpflichtiger Einnahmen.",
+      "payroll-deductions": "Lohnabzüge nach Kategorie: das Jahr gegenüber jedem Höchstbetrag, Gehaltsabrechnung für Gehaltsabrechnung und jedes erfasste Jahr.",
       "year-over-year": "Vergleichen Sie das aktuelle Jahr mit Vorjahren, um den Fortschritt zu verfolgen.",
       "debt-payoff-timeline": "Visualisieren Sie Ihren Schuldenabbau mit Prognosen für die Tilgungsdaten.",
       "loan-amortization": "Detaillierte Zahlungspläne für Hypotheken und Darlehen mit Tilgungs-/Zinsaufschlüsselung.",
@@ -135,7 +138,8 @@
   },
   "reportPage": {
     "notFound": "Bericht nicht gefunden",
-    "notFoundDesc": "Der angeforderte Bericht existiert nicht."
+    "notFoundDesc": "Der angeforderte Bericht existiert nicht.",
+    "viewLabel": "Ansicht"
   },
   "error": {
     "defaultMessage": "Berichtsdaten konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
@@ -459,6 +463,7 @@
     "generating": "Bericht wird erstellt...",
     "noData": "Keine Daten für die gewählten Kriterien gefunden",
     "transactionCount": "{count, plural, one {# Buchung} other {# Buchungen}}",
+    "truncatedNotice": "Dieser Bericht hat das Zeilenlimit erreicht und zeigt nur die ältesten Zeilen, daher sind seine Zahlen unvollständig. Grenzen Sie den Zeitraum oder die Filter ein, um alle zu sehen.",
     "toasts": {
       "loadFailed": "Bericht konnte nicht geladen werden",
       "executeFailed": "Bericht konnte nicht ausgeführt werden"
@@ -512,8 +517,6 @@
     "viewMonthly": "Monatlich",
     "viewDaily": "Täglich",
     "viewBySecurity": "Nach Wertpapier",
-    "displayChart": "Diagramm",
-    "displayTable": "Tabelle",
     "showLabel": "Anzeigen:",
     "seriesDividends": "Dividenden",
     "seriesInterest": "Zinsen",
@@ -1249,7 +1252,6 @@
     "incompleteTooltip": "Für einige Tage in diesem Zeitraum fehlt ein Kurs, ein Wechselkurs oder ein Kassenbestand, daher werden die davon abhängigen Zahlen nicht angezeigt.",
     "measuredFromClose": "Seit dem Handelsschluss am {date}",
     "notAvailable": "k. A.",
-    "intradayUnavailable": "Detaillierte Intraday-Kurse nicht verfügbar",
     "intradayUnavailableTitle": "Intraday-Ansicht für diese Kontokombination nicht verfügbar",
     "intradayUnavailableDesc": "Eine oder mehrere Positionen verwenden einen Kursanbieter (MSN Money), der keine Intraday-Daten bereitstellt{skipped}. Wechseln Sie zu einem längeren Zeitraum, um Tages-Schnappschüsse zu sehen.",
     "intradayUnavailableSkipped": ": {symbols}",
@@ -1300,8 +1302,6 @@
     "costBasis": "Einstandswert",
     "realizedGainLoss": "Realisierter Gewinn/Verlust",
     "securitiesSold": "Verkaufte Wertpapiere",
-    "viewChart": "Diagramm",
-    "viewTable": "Tabelle",
     "noTransactions": "Keine Verkaufsbuchungen für diesen Zeitraum gefunden.",
     "noGainsLosses": "Keine Gewinne oder Verluste anzuzeigen.",
     "bySecurityTitle": "Realisierte Gewinne nach Wertpapier",
@@ -1337,7 +1337,7 @@
     "sixMonthTotal": "6-Monats-Summe",
     "monthlyEstimate": "Monatliche Schätzung",
     "identifiedPayees": "erkannte Zahlungsempfänger",
-    "minOccurrencesLabel": "Mindestanzahl Vorkommen:",
+    "minOccurrencesLabel": "Mindestanzahl Vorkommen",
     "inLast6Months": "(in den letzten 6 Monaten)",
     "noRecurring": "Keine wiederkehrenden Ausgaben mit {count}+ Vorkommen in den letzten 6 Monaten gefunden.",
     "failedToLoad": "Wiederkehrende Ausgaben konnten nicht geladen werden.",
@@ -1475,6 +1475,8 @@
     "totalReturn": "Gesamtrendite",
     "annualizedReturn": "Annualisierte Rendite",
     "needs1YearNote": "Benötigt mindestens 1 Jahr Daten",
+    "annualizedNeedsSingleBuyNote": "Nur bei einem einzigen Kauf ohne spätere Aktivität angezeigt",
+    "missingPrice": "Kein Kurs für {symbol}",
     "priceHistory": "Kursverlauf – {symbol}",
     "buyTransaction": "Kaufbuchung",
     "sellTransaction": "Verkaufsbuchung",
@@ -1624,6 +1626,48 @@
     "pdfIncomeExpensesDeductions": "Einnahmen: {income} | Ausgaben: {expenses} | Abzüge: {deductions}",
     "pdfTotalsLabel": "Gesamteinnahmen / Ausgaben / Abzüge"
   },
+  "payrollDeductions": {
+    "year": "Jahr",
+    "yearHelp": "Das Jahr einer Kategorie ist der Zeitraum, der im ausgewählten Jahr am Rücksetzdatum ihrer Regel beginnt. Bei einer Rücksetzung am 1. Januar ist das das Kalenderjahr.",
+    "emptyTitle": "Noch keine Regeln für Lohnabzüge",
+    "emptyDescription": "Legen Sie unter Werkzeuge, Steuern, Lohnabzüge einen Jahreshöchstbetrag für die Abzugszeilen Ihrer Gehaltsabrechnung fest, dann erscheinen diese Kategorien hier.",
+    "emptyAction": "Lohnabzüge öffnen",
+    "summaryTitle": "Übersicht für {year}",
+    "summaryHelp": "Was jede Abzugskategorie in ihrem Zeitraum eingezogen hat, über alle Konten, in der Währung der Buchung. Eine Regel kennt nur den Höchstbetrag, mit dem sie jetzt begrenzt; Höchstbetrag und Restbetrag werden daher für einen noch nicht abgeschlossenen Zeitraum angezeigt, die eines früheren Jahres sind nicht erfasst.",
+    "colCategory": "Kategorie",
+    "colBills": "Buchungen",
+    "colPeriod": "Zeitraum",
+    "colPaid": "Gezahlt",
+    "colMaximum": "Höchstbetrag",
+    "colRemaining": "Verbleibend",
+    "colPercent": "Vom Höchstbetrag",
+    "colPaycheques": "Gehaltsabrechnungen",
+    "colAverage": "Durchschnitt pro Abrechnung",
+    "colReached": "Höchstbetrag erreicht",
+    "colDate": "Datum",
+    "colPayee": "Empfänger",
+    "colTotal": "Summe",
+    "colYear": "Jahr",
+    "periodRange": "{start} bis {end}",
+    "toDate": "bisher",
+    "notRecorded": "Nicht erfasst",
+    "notReached": "Nicht erreicht",
+    "outsidePeriod": "Außerhalb des Zeitraums",
+    "otherCurrency": "Andere Währung",
+    "noPaycheque": "Keine",
+    "noPayee": "Kein Empfänger",
+    "foreignRows": "{count, plural, one {# Zeile} other {# Zeilen}} in einer anderen Währung nicht gezählt",
+    "paychequesTitle": "Gehaltsabrechnung für Gehaltsabrechnung, {year}",
+    "paychequesHelp": "Jede Transaktion, die im ausgewählten Jahr in ihrem Zeitraum einer berichteten Kategorie abgezogen hat, älteste zuerst. Jede Spalte ergibt den Gezahlt-Wert der Kategorie in der Übersicht.",
+    "paychequesEmpty": "{year} wurde diesen Kategorien nichts abgezogen.",
+    "totalRow": "Summe",
+    "mixedCurrencies": "Nicht addiert: Die Kategorien haben mehr als eine Währung.",
+    "historyTitle": "{category} nach Jahr",
+    "historyTitleCurrency": "{category} ({currency}) nach Jahr",
+    "historyHelp": "Was diese Kategorie in jedem erfassten Zeitraum eingezogen hat, neueste zuerst, über alle Konten, in der Währung der Buchung.",
+    "csvSummary": "Übersicht",
+    "csvPaycheques": "Gehaltsabrechnungen"
+  },
   "uncategorizedTransactions": {
     "totalUncategorized": "Nicht kategorisiert gesamt",
     "uncategorizedExpenses": "Nicht kategorisierte Ausgaben",
@@ -1655,8 +1699,6 @@
     "activeBills": "Aktive Rechnungen",
     "overdue": "Überfällig",
     "thisMonth": "Diesen Monat",
-    "autoPostsTitle": "Wird bei Fälligkeit automatisch gebucht",
-    "manualPostTitle": "Erfordert manuelle Buchung",
     "autoLabel": "Auto",
     "manualLabel": "Manuell",
     "overdueLabel": "Überfällig",
@@ -1790,6 +1832,7 @@
     "removeAriaLabel": "{title} aus dem Vergleich entfernen",
     "removeTitle": "Aus dem Vergleich entfernen",
     "runFailed": "Durchlauf fehlgeschlagen",
+    "never": "Nie",
     "errors": {
       "loadScenarioFailed": "Szenario konnte nicht geladen werden.",
       "simulationFailed": "Simulation fehlgeschlagen."
@@ -1803,7 +1846,6 @@
     "backToReports": "Zurück zu Berichten",
     "deleteButton": "Bericht löschen",
     "deleteConfirmMessage": "Möchten Sie \"{name}\" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
-    "deleting": "Wird gelöscht...",
     "toasts": {
       "loadFailed": "Bericht konnte nicht geladen werden",
       "updated": "Bericht aktualisiert",
@@ -1898,7 +1940,11 @@
     "noticeExcluded": "Einige Werte sind unvollständig: {count, plural, one {# Betrag konnte nicht ermittelt werden und ist} other {# Beträge konnten nicht ermittelt werden und sind}} nicht enthalten.",
     "pdfNote": "Unvollständige Summe: kein Wechselkurs für {currencies}",
     "pdfNoteExcluded": "Unvollständige Summe: {count, plural, one {# Betrag} other {# Beträge}} nicht enthalten",
-    "pdfSuffix": "(unvollständig)"
+    "pdfSuffix": "(unvollständig)",
+    "knownValue": "Bekannter Wert",
+    "weightingIntro": "Die Prozentwerte beziehen sich nur auf die Positionen, die bewertet werden konnten.",
+    "weightingNoPrice": "Kein Kurs für {symbols}: Kurs auf der Seite des Wertpapiers aktualisieren oder hinzufügen.",
+    "weightingNoRate": "Kein Wechselkurs für {pairs}: Auf der Seite Währungen hinzufügen."
   },
   "sankey": {
     "help": "Eingegangenes Geld fließt durch die Mitte in das, wofür es ausgegeben, gespart oder investiert wurde, und in die Tilgung von Schulden. Standardmäßig umfasst der Bericht Ihre offenen Giro-, Spar-, Bargeld-, Kreditkarten- und Kreditrahmenkonten, und eine Überweisung zwischen zwei dieser Konten wird nicht angezeigt. Nehmen Sie ein Sparkonto aus dem Kontofilter heraus, um zu sehen, was Sie darauf übertragen haben. Eine Kreditkartenzahlung ist nie eine Schuldenzahlung: Die damit beglichenen Käufe sind bereits als Ausgaben gezählt.",
@@ -1944,7 +1990,9 @@
       "uncategorizedExpense": "Nicht kategorisierte Ausgaben",
       "residualUnspent": "Nicht ausgegeben",
       "residualDeficit": "Aus Guthaben entnommen",
-      "unlinkedAccount": "(nicht verknüpftes Konto)"
+      "unlinkedAccount": "(nicht verknüpftes Konto)",
+      "classSharedSettlements": "Gemeinsame Abrechnungen",
+      "inflowSharedSettlements": "Aus gemeinsamen Abrechnungen"
     }
   },
   "pdfExport": {

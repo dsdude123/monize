@@ -123,6 +123,8 @@
       "createdTransaction": "Buchung {payee} {amount} erstellt",
       "updatedTransaction": "Buchung {payee} {amount} aktualisiert",
       "deletedTransaction": "Buchung {payee} {amount} gelöscht",
+      "convertedToTransfer": "Transaktion {payee} {amount} in eine Überweisung umgewandelt",
+      "convertedToTransaction": "Überweisung {payee} {amount} in eine Transaktion umgewandelt",
       "bulkUpdatedTransactions": "{count, plural, one {# Buchung} other {# Buchungen}} massenweise aktualisiert",
       "createdTransfer": "Überweisung {amount} von {from} nach {to} erstellt",
       "createdInvestmentTransaction": "{action}-Transaktion erstellt",
@@ -132,18 +134,12 @@
       "updatedSecurityTransfer": "Wertpapierübertragung aktualisiert",
       "ranTransactionRule": "Regel „{name}“ auf {count, plural, one {# Buchung} other {# Buchungen}} angewendet"
     },
-    "timeAgo": {
-      "justNow": "gerade eben",
-      "minutes": "vor {count} Min.",
-      "hours": "vor {count} Std.",
-      "days": "vor {count} T."
-    },
     "undonePrefix": "Rückgängig gemacht: {description}",
     "redonePrefix": "Wiederholt: {description}"
   },
   "pageHeader": {
-    "helpAriaLabel": "Monize-Wiki für Hilfe zu diesem Bereich öffnen",
-    "helpTooltip": "Monize-Wiki für Hilfe zu diesem Bereich öffnen"
+    "helpAriaLabel": "Monize-Dokumentation für Hilfe zu diesem Bereich öffnen",
+    "helpTooltip": "Monize-Dokumentation für Hilfe zu diesem Bereich öffnen"
   },
   "bootSplash": {
     "loading": "Monize wird geladen",

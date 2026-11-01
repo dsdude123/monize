@@ -106,9 +106,27 @@ export interface SectorWeightingItem {
   percentage: number;
 }
 
-export interface SectorWeightingResult {
+/**
+ * Completeness of a weighting result. Optional for the rolling-deploy reason
+ * `lastPrice` is: absent means no information, and every reader tests
+ * `valuationComplete === false`.
+ */
+export interface WeightingCompleteness {
+  /** Value of the holdings that were priced and converted; the base of every percentage. */
+  knownSubtotal?: number;
+  valuationComplete?: boolean;
+  pricesComplete?: boolean;
+  fxComplete?: boolean;
+  unpricedSecurityIds?: string[];
+  unpricedSymbols?: string[];
+  /** "SEC->REPORTING" pairs with no rate. */
+  missingRatePairs?: string[];
+}
+
+export interface SectorWeightingResult extends WeightingCompleteness {
   items: SectorWeightingItem[];
-  totalPortfolioValue: number;
+  /** null while `valuationComplete` is false; percentages are then over `knownSubtotal`. */
+  totalPortfolioValue: number | null;
   totalDirectValue: number;
   totalEtfValue: number;
   unclassifiedValue: number;
@@ -122,9 +140,10 @@ export interface CountryWeightingItem {
   percentage: number;
 }
 
-export interface CountryWeightingResult {
+export interface CountryWeightingResult extends WeightingCompleteness {
   items: CountryWeightingItem[];
-  totalPortfolioValue: number;
+  /** null while `valuationComplete` is false; percentages are then over `knownSubtotal`. */
+  totalPortfolioValue: number | null;
   totalDirectValue: number;
   totalEtfValue: number;
   unclassifiedValue: number;
@@ -141,9 +160,10 @@ export interface AssetClassWeightingItem {
   percentage: number;
 }
 
-export interface AssetClassWeightingResult {
+export interface AssetClassWeightingResult extends WeightingCompleteness {
   items: AssetClassWeightingItem[];
-  totalPortfolioValue: number;
+  /** null while `valuationComplete` is false; percentages are then over `knownSubtotal`. */
+  totalPortfolioValue: number | null;
   totalDirectValue: number;
   totalEtfValue: number;
   /**
@@ -641,7 +661,8 @@ export interface SecurityDetailPosition {
 export interface SecurityDetailActivity {
   firstTransactionDate: string | null;
   lastTransactionDate: string | null;
-  totalInvested: number;
+  /** Null when an acquiring row has no price to state its cost. */
+  totalInvested: number | null;
   totalSold: number;
   dividends: number;
   fees: number;
@@ -748,6 +769,14 @@ export interface SecurityDetail {
   activity: SecurityDetailActivity;
   hasTransactions: boolean;
   isPositionClosed: boolean;
+  /** The server's daily move (`resolveDailyPriceChange`); null when it refuses one. */
+  dailyChange?: {
+    currentPrice: number;
+    previousPrice: number;
+    dailyChange: number;
+    dailyChangePercent: number;
+    priceDate: string;
+  } | null;
 }
 
 export interface CreateInvestmentTransactionData {
@@ -959,6 +988,12 @@ export interface RealizedGainEntry {
    */
   costBasis: number | null;
   realizedGain: number | null;
+  /**
+   * Why `costBasis` and `realizedGain` are null: the basis holds a lot of
+   * unknown cost, or amounts in two currencies that could not be converted
+   * (`mixed_basis_currency`). `null` when they are figures.
+   */
+  basisGap?: string | null;
 }
 
 /**
@@ -994,6 +1029,10 @@ export interface CapitalGainEntry {
    * unknown, never the proceeds measured against a zero basis.
    */
   realizedGain: number | null;
+  /** False when a disposal this period drew on a basis of unknown cost. Read as `=== false`. */
+  realizedGainComplete?: boolean;
+  /** The gains that are known, when `realizedGainComplete` is false. */
+  realizedGainKnownSubtotal?: number | null;
   unrealizedGain: number | null;
   totalCapitalGain: number | null;
 }

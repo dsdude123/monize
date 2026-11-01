@@ -35,6 +35,8 @@ import { useFinancialToday } from '@/hooks/useFinancialToday';
 import { usePreferencesStore } from '@/store/preferencesStore';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useInvestmentData } from '@/hooks/useInvestmentData';
+import { usePortfolioPeriodResults } from '@/hooks/usePortfolioPeriodResults';
+import { PORTFOLIO_PERIOD_PRESETS } from '@/types/net-worth';
 import { useBrokerageFilterOptions } from '@/hooks/useBrokerageFilterOptions';
 import { useOnUndoRedo } from '@/hooks/useOnUndoRedo';
 import { useOnAiAction } from '@/hooks/useOnAiAction';
@@ -47,6 +49,7 @@ import {
   type InvestmentTransactionView,
 } from '@/components/investments/InvestmentViewToggle';
 import { PAGE_SIZE } from '@/lib/constants';
+import { docsUrl } from '@/lib/docs-links';
 
 const TransactionForm = dynamic(() => import('@/components/transactions/TransactionForm').then(m => m.TransactionForm), { ssr: false });
 
@@ -207,6 +210,24 @@ function InvestmentsContent() {
     );
   }, [data.selectedAccountIds, data.selectableAccounts, tc, getAccountDisplayName]);
 
+  // One account in view reports in its own currency, everywhere on the page.
+  const singleAccountCurrency =
+    data.selectedAccountIds.length === 1
+      ? data.accounts.find(a => a.id === data.selectedAccountIds[0])?.currencyCode ?? null
+      : null;
+
+  // Asked once for the page: "Portfolio performance" lists every window, and
+  // the value chart's figures for any range the batch covers are the same
+  // answer. Two requests valued the same history twice, on the same event
+  // loop, at the same moment (#1888).
+  const periodResults = usePortfolioPeriodResults({
+    periods: PORTFOLIO_PERIOD_PRESETS.join(','),
+    accountIds:
+      data.selectedAccountIds.length > 0 ? data.selectedAccountIds.join(',') : undefined,
+    displayCurrency: singleAccountCurrency ?? undefined,
+    reloadKey: data.writeRefreshKey,
+  });
+
   return (
     <PageLayout>
       <main className="px-4 sm:px-6 lg:px-12 pt-6 pb-8">
@@ -214,7 +235,7 @@ function InvestmentsContent() {
           <PageHeader
             title={t('page.title')}
             subtitle={t('page.subtitle')}
-            helpUrl="https://github.com/kenlasko/monize/wiki/Investments"
+            helpUrl={docsUrl('investments')}
             actions={
               <>
                 <div className="flex items-stretch gap-3 w-full sm:w-auto">
@@ -249,7 +270,7 @@ function InvestmentsContent() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <PortfolioSummaryCard
               summary={data.portfolioSummary}
-              isLoading={data.isLoading}
+              isLoading={data.isSummaryLoading}
               singleAccountCurrency={
                 data.selectedAccountIds.length === 1
                   ? data.accounts.find(a => a.id === data.selectedAccountIds[0])?.currencyCode ?? null
@@ -262,7 +283,7 @@ function InvestmentsContent() {
             />
             <AssetAllocationChart
               allocation={data.portfolioSummary ? { allocation: data.portfolioSummary.allocation, totalValue: data.portfolioSummary.totalPortfolioValue } : null}
-              isLoading={data.isLoading}
+              isLoading={data.isSummaryLoading}
               singleAccountCurrency={
                 data.selectedAccountIds.length === 1
                   ? data.accounts.find(a => a.id === data.selectedAccountIds[0])?.currencyCode ?? null
@@ -284,23 +305,17 @@ function InvestmentsContent() {
             <InvestmentValueChart
               accountIds={data.selectedAccountIds}
               refreshKey={data.writeRefreshKey}
-              displayCurrency={
-                data.selectedAccountIds.length === 1
-                  ? data.accounts.find(a => a.id === data.selectedAccountIds[0])?.currencyCode ?? null
-                  : null
-              }
+              displayCurrency={singleAccountCurrency}
               titleSuffix={accountFilterLabel}
+              periodResults={periodResults}
             />
             {/* What the INVESTMENTS earned over each trailing period, with
                 deposits, withdrawals and idle cash taken out. */}
             <PortfolioPerformanceCard
               accountIds={data.selectedAccountIds}
               reloadKey={data.writeRefreshKey}
-              displayCurrency={
-                data.selectedAccountIds.length === 1
-                  ? data.accounts.find(a => a.id === data.selectedAccountIds[0])?.currencyCode ?? null
-                  : null
-              }
+              displayCurrency={singleAccountCurrency}
+              periodResults={periodResults}
             />
           </div>
 
@@ -321,7 +336,7 @@ function InvestmentsContent() {
           <div className="mb-6">
             <GroupedHoldingsList
               holdingsByAccount={data.portfolioSummary?.holdingsByAccount || []}
-              isLoading={data.isLoading}
+              isLoading={data.isSummaryLoading}
               totalPortfolioValue={data.portfolioSummary?.totalPortfolioValue ?? null}
               valuationComplete={data.portfolioSummary?.valuationComplete}
               onSecurityClick={data.handleSecurityClick}
@@ -369,7 +384,6 @@ function InvestmentsContent() {
                   isLoading={data.isLoading}
                   onDelete={handleDeleteTransaction}
                   onEdit={data.handleEditTransaction}
-                  onNewTransaction={data.handleNewTransaction}
                   onStatusChanged={data.handleFormCreateAndNew}
                   filters={data.transactionFilters}
                   onFiltersChange={data.handleFiltersChange}
@@ -421,13 +435,10 @@ function InvestmentsContent() {
                   />
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <button onClick={data.openCashCreate} className="inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 sm:min-w-[14rem]">
-                    <span className="sm:hidden">{t('page.newCashTransactionShort')}</span>
-                    <span className="hidden sm:inline">{t('page.newCashTransaction')}</span>
-                  </button>
                   <CashFilterToggleButton
                     activeCount={data.activeCashFilterCount}
                     onClick={() => data.setShowCashFilters(!data.showCashFilters)}
+                    expanded={data.showCashFilters}
                   />
                 </div>
               </div>
@@ -491,11 +502,7 @@ function InvestmentsContent() {
         onClose={closeInvestmentTransactionModal}
         maxWidth={investmentFormNeedsConversion ? '3xl' : 'xl'}
         className="p-6"
-        {...data.modalProps}
-      >
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          {data.editingTransaction ? t('page.editTransaction') : t('page.newInvestmentTransaction')}
-        </h2>
+        {...data.modalProps} title={data.editingTransaction ? t('page.editTransaction') : t('page.newInvestmentTransaction')}>
         <InvestmentTransactionForm
           key={`${data.editingTransaction?.id ?? 'new'}-${createOnDate ?? ''}`}
           accounts={data.accounts}
@@ -514,10 +521,7 @@ function InvestmentsContent() {
       <UnsavedChangesDialog {...data.unsavedChangesDialog} />
 
       {/* Cash Transaction Form Modal */}
-      <Modal isOpen={data.showCashForm} onClose={data.closeCash} maxWidth="6xl" className="p-6" {...data.cashModalProps}>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
-          {data.editingCashTransaction ? t('page.editTransaction') : t('page.newTransaction')}
-        </h2>
+      <Modal isOpen={data.showCashForm} onClose={data.closeCash} maxWidth="6xl" className="p-6 !max-w-[69rem]" {...data.cashModalProps} title={data.editingCashTransaction ? t('page.editTransaction') : t('page.newTransaction')}>
         <TransactionForm
           key={`${data.editingCashTransaction?.id || 'new-cash'}-${createOnDate ?? ''}`}
           transaction={data.editingCashTransaction}

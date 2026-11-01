@@ -1,4 +1,9 @@
 import {
+  validateSharedSnapshot,
+  prepareSharedRestore,
+  claimRestoredSharedGroups,
+} from "./shared-backup";
+import {
   BadRequestException,
   Injectable,
   Logger,
@@ -12,6 +17,10 @@ import { gunzip } from "zlib";
 import { promisify } from "util";
 import { withScopedDb } from "../common/db/scoped-db";
 import { withPreserveTimestamps } from "../common/db/with-context";
+import { recalculateUserCurrentBalances } from "../accounts/accounts.service";
+import { todayInTimezoneOrUtc } from "../common/date-utils";
+import { preferredCurrency } from "../common/default-currency.util";
+import { getEffectiveTimezoneOfUser } from "../common/users-by-timezone.util";
 import { UserMaintenanceService } from "../common/jobs/user-maintenance.service";
 import { EncryptionService } from "../common/encryption/encryption.service";
 import { OidcReauthService } from "../auth/oidc/oidc-reauth.service";
@@ -192,7 +201,9 @@ export class BackupRestoreService {
         // A reference outside the file is how a crafted backup reached another
         // user's rows (restore-references.ts); the remap below can only close
         // the graph over ids it recognises, so recognition comes first.
-        const references = resolveRestoreReferences(rawData);
+        const references = resolveRestoreReferences(
+          validateSharedSnapshot(rawData),
+        );
         for (const { table, column, rows } of references.severed) {
           this.logger.warn(
             `Backup for user ${userId}: ${rows} ${table}.${column} value(s) ` +
@@ -234,7 +245,10 @@ export class BackupRestoreService {
         // untouched. `resolveRestoreReferences` above is what closes both, and
         // the Phase-3 UPDATEs are additionally scoped to this user's rows.
         const idRemap = this.buildBackupIdRemap(recovery.data);
-        const data = this.remapBackupIds(recovery.data, idRemap);
+        const data = prepareSharedRestore(
+          this.remapBackupIds(recovery.data, idRemap),
+          userId,
+        );
         this.rehashGemSignalFingerprints(data, idRemap);
 
         this.logger.log(`Starting backup restore for user ${userId}`);
@@ -365,6 +379,8 @@ export class BackupRestoreService {
                   );
                 }
 
+                await claimRestoredSharedGroups(manager, data, userId);
+
                 // Phase 2c: rows from an artifact older than a migration that
                 // changed what a value means get that migration's backfill; the
                 // migration itself ran once, long before these rows arrived.
@@ -377,6 +393,14 @@ export class BackupRestoreService {
                 // INV-BOND-007: whatever the file said, a row keeps a series
                 // only of its own security's program.
                 await clearForeignSeriesOfUser(manager, userId);
+
+                // The file's current_balance is as of the backup day; a row
+                // dated after it and on or before today is in no stored figure.
+                // Same derivation as the recalculation cron, so it is idempotent.
+                const today = todayInTimezoneOrUtc(
+                  await getEffectiveTimezoneOfUser(manager, userId),
+                );
+                await recalculateUserCurrentBalances(manager, userId, today);
 
                 // The staged objects now have their metadata rows: drop their
                 // upload intents in the same transaction, so both commit or both
@@ -785,6 +809,13 @@ export class BackupRestoreService {
       else assetsByStrategy.set(key, [asset]);
     }
 
+    // The hash carries the reporting currency; the backup's own preference row
+    // is the one the signals were stamped under.
+    const reportingCurrency = preferredCurrency({
+      defaultCurrency: data.user_preferences?.[0]?.default_currency as
+        string | undefined,
+    });
+
     /** The backup's snake_case rows in the shape the hash function wants. */
     const fingerprintOf = (
       strategy: Record<string, unknown>,
@@ -803,6 +834,7 @@ export class BackupRestoreService {
               securityId: securityIdOf(asset),
             }) as GemStrategyAsset,
         ),
+        reportingCurrency,
       );
 
     for (const strategy of data.gem_strategies ?? []) {

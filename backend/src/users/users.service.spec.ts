@@ -444,6 +444,23 @@ describe("UsersService", () => {
       );
     });
 
+    it("rejects email change for an SSO account while password login is off", async () => {
+      usersRepository.findOne.mockResolvedValueOnce({
+        ...mockUser,
+        authProvider: "oidc",
+        passwordHash: "some-hash",
+      });
+
+      await expect(
+        service.updateProfile("user-1", {
+          email: "new@example.com",
+          currentPassword: "anything",
+        }),
+      ).rejects.toThrow(
+        "Cannot change email for accounts without a local password",
+      );
+    });
+
     describe("email change with SMTP configured", () => {
       let hashedPassword: string;
 
@@ -1312,6 +1329,22 @@ describe("UsersService", () => {
       ).rejects.toThrow("No password set for this account");
     });
 
+    it("refuses an SSO account that kept its password while SSO password sign-in is off", async () => {
+      usersRepository.findOne.mockResolvedValue({
+        ...mockUser,
+        authProvider: "oidc",
+        passwordHash: await bcrypt.hash("OldPass123!", 10),
+      });
+
+      await expect(
+        service.changePassword("user-1", {
+          currentPassword: "OldPass123!",
+          newPassword: "NewPass456!",
+        }),
+      ).rejects.toThrow("No password set for this account");
+      expect(usersRepository.save).not.toHaveBeenCalled();
+    });
+
     it("throws when user not found", async () => {
       usersRepository.findOne.mockResolvedValue(null);
 
@@ -1454,7 +1487,12 @@ describe("UsersService", () => {
         passwordHash: hashedPassword,
       });
       // isActingDelegate -> account_delegates lookup returns a row.
-      mockDataSource.query.mockResolvedValue([{ "?column?": 1 }]);
+      mockDataSource.query.mockImplementation(async (sql: string) =>
+        sql.includes("FROM account_delegates") &&
+        sql.trimStart().startsWith("SELECT")
+          ? [{ "?column?": 1 }]
+          : [],
+      );
 
       const result = await service.deleteAccount("user-1", {
         password: "CorrectPass123!",
@@ -2097,9 +2135,11 @@ describe("UsersService", () => {
         ...mockUser,
         passwordHash: hashedPassword,
       });
-      // Make every query return [null, undefined] so the ?? 0 right-hand side
-      // is exercised across all the deleted.<x> = result[1] ?? 0 lines.
-      mockQueryRunner.query.mockResolvedValue([null, undefined]);
+      // DELETEs omit their count so every deleted.<x> = result[1] ?? 0
+      // fallback is exercised; SELECTs still return ordinary empty row sets.
+      mockQueryRunner.query.mockImplementation(async (sql: string) =>
+        sql.trimStart().startsWith("DELETE") ? [null, undefined] : [],
+      );
 
       const r = await service.deleteData("user-1", {
         password: "CorrectPass123!",

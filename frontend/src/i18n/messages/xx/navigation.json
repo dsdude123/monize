@@ -13,6 +13,7 @@
   "rules": "[XX-Rules-XX]",
   "warranties": "[XX-Warranties-XX]",
   "emailReceipts": "[XX-Email Receipts-XX]",
+  "taxes": "[XX-Taxes-XX]",
   "securities": "[XX-Securities-XX]",
   "currencies": "[XX-Currencies-XX]",
   "import": "[XX-Import Transactions-XX]",
@@ -37,5 +38,6 @@
     "label": "[XX-Search transactions-XX]",
     "open": "[XX-Open search-XX]",
     "submit": "[XX-Search-XX]"
-  }
+  },
+  "sharedExpenses": "[XX-Shared Expenses-XX]"
 }

@@ -35,7 +35,7 @@
     "createFailed": "De herinnering kon niet worden ingesteld",
     "dialogTitle": "Herinner mij",
     "dialogDescription": "Ontvang deze melding later opnieuw totdat je actie onderneemt.",
-    "modeLabel": "Hoe vaak",
+    "modeLabel": "Frequentie",
     "modeRepeat": "Herhalen tot ik stop",
     "modeOnce": "Nog een keer",
     "intervalLabelRepeat": "Herinner mij elke",
@@ -203,5 +203,13 @@
     "expiringMessage": "De garantie voor {name} verloopt op {date}. Open hem om de documenten te bekijken of een claim vast te leggen.",
     "todayTitle": "{name}: garantie verloopt vandaag",
     "todayMessage": "De garantie voor {name} verloopt vandaag, {date}. Open hem om de documenten te bekijken of een claim vast te leggen."
+  },
+  "payrollDeduction": {
+    "resetTitle": "{category}: bevestig het maximum voor volgend jaar",
+    "resetMessage": "De inhouding {category} op {bill} wordt op {date} opnieuw ingesteld. Werk het jaarmaximum bij als het verandert; anders geldt {amount} opnieuw."
+  },
+  "shared": {
+    "title": "Gedeelde uitgaven",
+    "message": "Een gedeelde groep is bijgewerkt. Open Monize om de wijziging te bekijken."
   }
 }

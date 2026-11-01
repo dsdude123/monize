@@ -42,6 +42,7 @@
     "institutionNotFound": "找不到機構",
     "updateClosed": "無法更新已關閉的科目",
     "changeCurrencyWithTransactions": "無法更改有交易記錄的科目貨幣。",
+    "changeCurrencyWithBalanceOrSchedules": "無法變更有期初餘額或排程交易的帳戶的貨幣。",
     "alreadyClosed": "科目已關閉",
     "closeNonZeroBalance": "無法關閉結餘不為零的科目。目前結餘：{{ currentBalance }}",
     "closeWithFutureTransactions": "無法關閉含有未來日期交易的帳戶。此帳戶有 {{ count }} 筆日期晚於今天的交易；請先刪除或作廢這些交易。",
@@ -100,7 +101,8 @@
     "unsupportedInvestmentAction": "不支援的投資操作：{{ action }}",
     "unsupportedBulkAction": "不支援的批次操作：{{ action }}",
     "unsupportedSimpleAction": "不支援的操作：{{ action }}",
-    "unsupportedTableForReinsert": "不支援重新插入的資料表：{{ tableName }}"
+    "unsupportedTableForReinsert": "不支援重新插入的資料表：{{ tableName }}",
+    "undoConversion": "此變更將交易轉換為轉帳或從轉帳轉換回交易，因此無法自動復原。請將其轉換回原狀。"
   },
   "admin": {
     "passwordOrInviteNotBoth": "請提供密碼或電子郵件邀請，不能兩者同時提供。",
@@ -114,6 +116,11 @@
     "deleteLastAdmin": "無法刪除最後一個管理員帳戶。",
     "cannotResetOwnPassword": "您無法透過管理面板重設自己的密碼",
     "noLocalPassword": "無法重設沒有本機密碼的帳戶密碼",
+    "cannotUnlinkOwnSso": "您無法透過管理面板解除自己的 SSO 帳戶綁定",
+    "notSsoAccount": "此帳戶不是 SSO 帳戶",
+    "unlinkSsoNeedsEmail": "此帳戶沒有電子郵件地址，因此無法使用密碼登入",
+    "localAuthDisabled": "此伺服器已關閉密碼登入",
+    "ssoPasswordLoginDisabled": "SSO 帳戶的密碼登入已關閉。請改用「解除 SSO 綁定」。",
     "cannotResetOwnTwoFactor": "您無法透過管理面板重設自己的雙重驗證",
     "twoFactorNotEnabled": "此使用者尚未設定雙重驗證。"
   },
@@ -308,6 +315,11 @@
     "noOpenPeriod": "沒有可關閉的開放期間",
     "categoryIdsNotOwned": "找不到類別 ID 或類別不屬於使用者：{{ ids }}"
   },
+  "payrollDeductions": {
+    "notFound": "找不到薪資扣款規則 {{ id }}",
+    "duplicate": "此帳單已有該類別的規則",
+    "expectedRequired": "帳單中沒有此類別的項目；請輸入每次發薪的預期金額"
+  },
   "categories": {
     "notFound": "找不到 ID 為 {{ id }} 的類別",
     "cannotModifySystem": "無法修改系統類別",
@@ -469,6 +481,7 @@
   },
   "import": {
     "noAccountBlocks": "在 QIF 檔案中找不到科目區塊。此檔案可能不是多科目匯出。",
+    "accountTypeRequired": "匯入前請為以下科目選擇科目類型：{{ accounts }}",
     "importFailed": "匯入在 {{ imported }} 筆交易後失敗：{{ message }}",
     "investmentFileNeedsBrokerageAccount": "此檔案包含投資交易，但選定的科目不是投資經紀科目。請為此匯入選擇經紀科目。",
     "regularFileNeedsCashAccount": "此檔案包含一般銀行交易，但選定的科目是投資經紀科目。請選擇現金科目（包括投資現金科目）進行匯入。",
@@ -481,7 +494,7 @@
     "mnyNoFile": "未上傳 Money 檔案",
     "mnyFileTruncated": "這個 Money 檔案似乎不完整。上傳可能被中斷，請重試。",
     "mnyNotAMoneyFile": "這個檔案不是 Microsoft Money (.mny) 檔案",
-    "mnyUnsupportedVersion": "這個檔案由 Money 97 或 98 建立，Monize 無法讀取。請先以免費的 Money Plus Sunset 版本開啟並儲存一次，然後匯入結果。",
+    "mnyUnsupportedVersion": "這個檔案由 Monize 無法讀取的 Microsoft Money 版本建立。請先以免費的 Money Plus Sunset 版本開啟並儲存一次，然後匯入結果。",
     "mnyPasswordRequired": "這個 Money 檔案受密碼保護。請輸入密碼以繼續。",
     "mnyPasswordIncorrect": "這個密碼無法開啟 Money 檔案。請檢查後重試。",
     "mnyUnreadableDatabase": "這個 Money 檔案已解密，但無法讀取其內容。檔案可能已損壞。",
@@ -489,9 +502,12 @@
     "mnyStagedFileInUse": "此 Money 檔案正在匯入。請等待匯入完成後再捨棄它。",
     "mnyImportAlreadyRunning": "已有匯入正在進行。請等待完成後再開始新的匯入。",
     "mnyAlreadyImported": "此檔案已於 {{ date }} 匯入(匯入 {{ jobId }}),其紀錄仍在您的帳戶中。再次匯入會造成重複。如需取代,請重新開始並選擇取代現有資料。",
+    "mnyExistingAccountClosed": "現有帳戶「{{ name }}」已關閉，因此無法將 Money 檔案合併至其中。請重新開啟或重新命名該帳戶，然後再次匯入。",
+    "mnyExistingAccountCurrency": "現有帳戶「{{ name }}」使用 {{ existing }}，但 Money 檔案中的帳戶使用 {{ file }}。請重新命名其中一個，然後再次匯入。",
     "mnyJobNotFound": "找不到匯入工作",
     "mnyFileTooLarge": "這個 Money 檔案超過 {{ limit }} MB 的匯入上限。",
-    "noRateForSplitTransfer": "{{ date }} 沒有 {{ pair }} 的匯率：一筆分割行轉帳到另一種貨幣的帳戶。請為該貨幣對與日期新增匯率，然後重新匯入。"
+    "noRateForSplitTransfer": "{{ date }} 沒有 {{ pair }} 的匯率：一筆分割行轉帳到另一種貨幣的帳戶。請為該貨幣對與日期新增匯率，然後重新匯入。",
+    "accountClosed": "此帳戶已關閉。請重新開啟或選擇其他帳戶。"
   },
   "monteCarlo": {
     "scenarioNotFound": "找不到情境 {{ id }}",
@@ -767,6 +783,7 @@
     "notATransfer": "交易不是轉帳",
     "splitTransferLegAccountLocked": "此轉帳屬於分割交易的一部分。請改為在來源交易中編輯分割以變更其帳戶。",
     "splitTransferLegStatusLocked": "此轉帳屬於拆分交易的一部分。請編輯其所屬的拆分交易來作廢或還原它，使兩側一併變更。",
+    "investmentCashLegLocked": "此交易是投資交易的現金部分。請改為修改或刪除投資交易，讓兩邊一起變更。",
     "investmentCashLegStatusLocked": "此交易是某筆投資交易的現金側。請透過變更該投資交易的狀態來作廢或還原它，使兩側一併變更。",
     "notFoundById": "找不到 ID 為 {{ id }} 的交易",
     "bulkUpdateNoFields": "至少需要提供一個更新欄位",
@@ -786,7 +803,11 @@
     "transferRateUnavailable": "無法確定 {{ from }} -> {{ to }} 的匯率。請提供 exchangeRate 或目標金額，以便正確記錄該轉帳。",
     "transferAmountsMustAgreeOnZero": "轉帳必須在兩側移動非零金額，或兩側皆為零",
     "transferImpliedRateInvalid": "目標金額相對於來源金額意味著無法使用的匯率",
-    "externalIdNotThisTransfer": "此 externalId 已被來源科目中一筆並非轉帳至此目的科目的交易使用"
+    "externalIdNotThisTransfer": "此 externalId 已被來源科目中一筆並非轉帳至此目的科目的交易使用",
+    "alreadyATransfer": "此交易已經是一筆轉帳。請直接編輯該轉帳。",
+    "convertTransferCrossOwner": "無法轉換涉及其他擁有者帳戶的轉帳。請刪除它並新建所需的項目。",
+    "splitTransferLegConvertLocked": "此轉帳屬於一筆拆分交易。請在來源交易中編輯拆分來移除它。",
+    "transferCounterpartChanged": "編輯期間此轉帳的另一方已變更。請重新載入後再試一次。"
   },
   "users": {
     "userNotFound": "找不到使用者",

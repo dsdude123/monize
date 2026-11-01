@@ -143,6 +143,7 @@ export function useImportWizard() {
   const [multiAccountData, setMultiAccountData] = useState<ParsedQifMultiAccountResponse | null>(null);
   const [multiAccountContent, setMultiAccountContent] = useState<string>('');
   const [multiAccountCurrency, setMultiAccountCurrency] = useState(defaultCurrency);
+  const [multiAccountTypeChoices, setMultiAccountTypeChoices] = useState<Record<string, string>>({});
 
   // CSV-specific state
   const [fileType, setFileType] = useState<ImportFileType>('qif');
@@ -478,7 +479,8 @@ export function useImportWizard() {
           const content = await fileArray[0].text();
 
           // Quick check: does this file contain multiple !Account sections or !Type:Cat?
-          const accountMatches = content.match(/^!Account$/gm);
+          // Headers are matched in any case: Quicken for Mac writes !ACCOUNT and !TYPE:Cat.
+          const accountMatches = content.match(/^!Account[ \t]*$/gim);
           const hasCatSection = /^!Type:Cat\s*$/im.test(content);
 
           if ((accountMatches && accountMatches.length > 1) || hasCatSection) {
@@ -489,6 +491,7 @@ export function useImportWizard() {
               setMultiAccountData(multiResult);
               setMultiAccountContent(content);
               setMultiAccountCurrency(defaultCurrency);
+              setMultiAccountTypeChoices({});
               if (multiResult.detectedDateFormat) {
                 setDateFormat(multiResult.detectedDateFormat);
               }
@@ -914,8 +917,15 @@ export function useImportWizard() {
     setLookupPickerCandidates([]);
   }, []);
 
+  const handleMultiAccountAccountTypeChange = useCallback((accountName: string, accountType: string) => {
+    setMultiAccountTypeChoices((prev) => ({ ...prev, [accountName]: accountType }));
+  }, []);
+
   const handleMultiAccountImport = async () => {
     if (!multiAccountContent || !multiAccountData) return;
+    const chosenAccountTypes = Object.entries(multiAccountTypeChoices)
+      .filter(([, accountType]) => accountType)
+      .map(([accountName, accountType]) => ({ accountName, accountType }));
 
     setIsLoading(true);
     try {
@@ -924,6 +934,7 @@ export function useImportWizard() {
         currencyCode: multiAccountCurrency,
         dateFormat,
         securityMappings: securityMappings.length > 0 ? securityMappings : undefined,
+        accountTypes: chosenAccountTypes.length > 0 ? chosenAccountTypes : undefined,
       });
 
       setImportResult(result);
@@ -1188,6 +1199,7 @@ export function useImportWizard() {
     setMultiAccountData(null);
     setMultiAccountContent('');
     setMultiAccountCurrency(defaultCurrency);
+    setMultiAccountTypeChoices({});
     setCsvHeaders([]);
     setCsvSampleRows([]);
     setCsvColumnValues([]);
@@ -1266,6 +1278,7 @@ export function useImportWizard() {
     scrollContainerRef, dateFormat, setDateFormat, defaultCurrency,
     // Multi-account QIF
     multiAccountData, multiAccountCurrency, setMultiAccountCurrency, handleMultiAccountImport,
+    multiAccountTypeChoices, handleMultiAccountAccountTypeChange,
     // CSV-specific exports
     fileType,
     csvHeaders, csvSampleRows, csvColumnValues,

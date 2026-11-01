@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { useTranslations } from 'next-intl';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -18,21 +17,28 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { UnsavedChangesDialog } from '@/components/ui/UnsavedChangesDialog';
 import { ReconcileTable } from '@/components/reconcile/ReconcileTable';
-import { sumAmounts, type ReconcileSortField } from '@/components/reconcile/reconcile-rows';
+import {
+  carryReconcileSelection,
+  initialReconcileSelection,
+  sumAmounts,
+  type ReconcileSortField,
+} from '@/components/reconcile/reconcile-rows';
 import { transactionsApi } from '@/lib/transactions';
 import { scheduledTransactionsApi } from '@/lib/scheduled-transactions';
 import { getLocalDateString } from '@/lib/utils';
 import { accountsApi } from '@/lib/accounts';
+import { buildAccountDropdownOptions } from '@/lib/account-utils';
 import { Account } from '@/types/account';
 import { ScheduledTransaction } from '@/types/scheduled-transaction';
-import { ReconciliationData, Transaction, TransactionStatus } from '@/types/transaction';
+import { ReconciliationData, Transaction } from '@/types/transaction';
 import { useNumberFormat } from '@/hooks/useNumberFormat';
+import { useDateFormat } from '@/hooks/useDateFormat';
 import { useSortableTable } from '@/hooks/useSortableTable';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useFormModal } from '@/hooks/useFormModal';
 import { usePreferencesStore } from '@/store/preferencesStore';
 import { nextCycleStatus } from '@/lib/transaction-status-cycle';
-import { getCurrencySymbol, withCurrencyCode } from '@/lib/format';
+import { getCurrencySymbol, roundToCents, withCurrencyCode } from '@/lib/format';
 import { getErrorMessage } from '@/lib/errors';
 import { notifyReconciliationChanged } from '@/lib/reconciliationSignal';
 
@@ -68,6 +74,29 @@ function reconciliationKey(
   return `${accountId}|${statementDate}|${statementBalance ?? ''}`;
 }
 
+/**
+ * The account's ledger balance at the end of `date`, as a statement would show
+ * it: the figure the statement ending balance is pre-filled with. Rounded to
+ * cents, because the field compares what is typed against the cents-rounded
+ * value it holds, and plain 0 rather than -0. Null when the lookup failed or
+ * answered nothing: unknown, not zero, so the field is left for the user.
+ */
+async function fetchLedgerBalance(accountId: string, date: string): Promise<number | null> {
+  try {
+    const points = await accountsApi.getDailyBalances({
+      startDate: date,
+      endDate: date,
+      accountIds: accountId,
+    });
+    const point = points.find((p) => p.accountId === accountId && p.date === date);
+    if (!point) return null;
+    const balance = roundToCents(Number(point.balance));
+    return balance === 0 ? 0 : balance;
+  } catch {
+    return null;
+  }
+}
+
 export default function ReconcilePage() {
   return (
     <ProtectedRoute>
@@ -83,6 +112,7 @@ function ReconcileContent() {
   const searchParams = useSearchParams();
   const preselectedAccountId = searchParams.get('accountId');
   const { formatCurrency, defaultCurrency } = useNumberFormat();
+  const { formatDate } = useDateFormat();
   const reconciledLocked = usePreferencesStore(
     (s) => s.preferences?.lockReconciledTransactions ?? false,
   );
@@ -124,6 +154,13 @@ function ReconcileContent() {
     activeKeyRef.current = activeKey;
   }, [activeKey]);
 
+  // The ids the list on screen holds, for the reload to tell a row that has
+  // newly appeared from one the user has already ticked or unticked.
+  const listedIdsRef = useRef<readonly string[]>([]);
+  useEffect(() => {
+    listedIdsRef.current = reconciliationData?.transactions.map((tx) => tx.id) ?? [];
+  }, [reconciliationData]);
+
   // Load accounts
   useEffect(() => {
     const loadAccounts = async () => {
@@ -141,6 +178,42 @@ function ReconcileContent() {
     loadAccounts();
   }, [t]);
 
+  // Every prefill request and every typed balance takes a ticket; a ledger
+  // balance is adopted only while its ticket is still the newest. So an answer
+  // for an account or date the user has since left, or one arriving after they
+  // typed their own figure, cannot overwrite what is on screen.
+  const balanceTicketRef = useRef(0);
+
+  // An account arriving from the accounts list is pre-filled at the initial
+  // statement date, today's -- the state's own initial value.
+  useEffect(() => {
+    if (!preselectedAccountId) return;
+    const ticket = ++balanceTicketRef.current;
+    const prefill = async () => {
+      const balance = await fetchLedgerBalance(preselectedAccountId, getLocalDateString());
+      if (balance !== null && balanceTicketRef.current === ticket) setStatementBalance(balance);
+    };
+    prefill();
+  }, [preselectedAccountId]);
+
+  /** Pre-fill the statement ending balance for a newly chosen account or date. */
+  const prefillStatementBalance = async (accountId: string, date: string) => {
+    const ticket = ++balanceTicketRef.current;
+    if (!accountId || !date) return;
+    const balance = await fetchLedgerBalance(accountId, date);
+    if (balance !== null && balanceTicketRef.current === ticket) setStatementBalance(balance);
+  };
+
+  const handleAccountChange = (accountId: string) => {
+    setSelectedAccountId(accountId);
+    void prefillStatementBalance(accountId, statementDate);
+  };
+
+  const handleStatementDateChange = (date: string) => {
+    setStatementDate(date);
+    void prefillStatementBalance(selectedAccountId, date);
+  };
+
   const selectedAccount = useMemo(
     () => accounts.find((a) => a.id === selectedAccountId),
     [accounts, selectedAccountId]
@@ -157,6 +230,8 @@ function ReconcileContent() {
   // flips the sign (same absolute value), respect their choice -- mirrors the
   // sign-handling pattern in TransactionForm.
   const handleStatementBalanceChange = (value: number | undefined) => {
+    // The user's own figure outranks a ledger balance still on its way.
+    balanceTicketRef.current += 1;
     if (value === undefined || value === 0 || !isLiability) {
       // A typed "-0" parses to negative zero, and Intl formats -0 with a
       // leading minus -- an entered zero is stored as plain 0 either way.
@@ -190,14 +265,7 @@ function ReconcileContent() {
         statementBalance
       );
       setReconciliationData(data);
-
-      // Pre-select all cleared transactions
-      const clearedIds = new Set(
-        data.transactions
-          .filter((t) => t.status === TransactionStatus.CLEARED)
-          .map((t) => t.id)
-      );
-      setSelectedTransactionIds(clearedIds);
+      setSelectedTransactionIds(initialReconcileSelection(data.transactions, statementDate));
 
       setStep('reconcile');
     } catch (error) {
@@ -208,14 +276,8 @@ function ReconcileContent() {
   };
 
   /**
-   * Refetch the list after a write from inside the reconcile step.
-   *
-   * Selection is carried across by id: a row the user had ticked stays ticked
-   * if it is still listed, a row that has gone (deleted, or edited past the
-   * statement date) drops out rather than leaving a phantom in the selected
-   * total, and a row that has newly appeared is ticked only when it arrives
-   * CLEARED -- the same rule the initial load uses, so an added transaction
-   * behaves the way one already on the statement would.
+   * Refetch the list after a write from inside the reconcile step. Selection
+   * is carried across by id (`carryReconcileSelection`).
    */
   const reloadReconciliationData = useCallback(async () => {
     if (statementBalance === undefined) return;
@@ -227,20 +289,14 @@ function ReconcileContent() {
         statementBalance,
       );
       if (activeKeyRef.current !== originKey) return;
+      const previouslyListed = new Set(listedIdsRef.current);
       setReconciliationData(data);
       // The header reminder counts outstanding rows across every account, and
       // an add, a delete or a status change here moves that count.
       notifyReconciliationChanged();
-      setSelectedTransactionIds((prev) => {
-        const next = new Set<string>();
-        for (const transaction of data.transactions) {
-          const wasListed = prev.has(transaction.id);
-          if (wasListed || transaction.status === TransactionStatus.CLEARED) {
-            next.add(transaction.id);
-          }
-        }
-        return next;
-      });
+      setSelectedTransactionIds((prev) =>
+        carryReconcileSelection(prev, previouslyListed, data.transactions, statementDate),
+      );
     } catch (error) {
       toast.error(getErrorMessage(error, t('toasts.loadDataFailed')));
     }
@@ -374,6 +430,15 @@ function ReconcileContent() {
     }
   };
 
+  const handleReconcileAnother = () => {
+    setStep('setup');
+    setReconciliationData(null);
+    setSelectedTransactionIds(new Set());
+    setStatementBalance(undefined);
+    setPaymentBill(null);
+    void prefillStatementBalance(selectedAccountId, statementDate);
+  };
+
   const handleCancel = () => {
     setStep('setup');
     setReconciliationData(null);
@@ -418,25 +483,28 @@ function ReconcileContent() {
             label={t('setup.accountLabel')}
             options={[
               { value: '', label: t('setup.accountPlaceholder') },
-              ...accounts.map((a) => ({
-                value: a.id,
+              // Favourites first, then A-Z, as every account picker orders them.
+              ...buildAccountDropdownOptions(
+                accounts,
+                () => true,
                 // Each option is in its own account's currency, not the one
                 // already selected.
-                label: `${a.name} (${withCurrencyCode(
-                  formatCurrency(Number(a.currentBalance), a.currencyCode),
-                  a.currencyCode,
-                  defaultCurrency,
-                )})`,
-              })),
+                (a) =>
+                  `${a.name} (${withCurrencyCode(
+                    formatCurrency(Number(a.currentBalance), a.currencyCode),
+                    a.currencyCode,
+                    defaultCurrency,
+                  )})`,
+              ),
             ]}
             value={selectedAccountId}
-            onChange={(e) => setSelectedAccountId(e.target.value)}
+            onChange={(e) => handleAccountChange(e.target.value)}
           />
 
           <DateInput
             label={t('setup.statementDateLabel')}
             value={statementDate}
-            onDateChange={(date) => setStatementDate(date)}
+            onDateChange={handleStatementDateChange}
             onChange={() => {}}
           />
 
@@ -478,8 +546,13 @@ function ReconcileContent() {
       // carries px-4 there, and stacking the two halved the table's width on a
       // phone. From `sm` up the doubled inset is the intended, roomier look.
       <div className="sm:px-6 lg:px-12">
-        {/* Summary Bar */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+        {/* Summary Bar. Pinned under the app header (which slides away on
+            scroll, hence the offset) so the difference stays in view while the
+            user works down a long statement. */}
+        <div
+          data-testid="reconcile-summary"
+          className="sticky top-[calc(4rem-var(--app-header-offset,0px))] z-20 bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6"
+        >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400 uppercase">{t('summary.statementBalance')}</p>
@@ -618,7 +691,7 @@ function ReconcileContent() {
           {t('complete.title')}
         </h2>
         <p className="text-gray-600 dark:text-gray-400 mb-6">
-          {t('complete.message', { date: format(new Date(statementDate), 'MMMM d, yyyy') })}
+          {t('complete.message', { date: formatDate(statementDate) })}
         </p>
 
         {/* Revolving-credit payment prompt: offer to update or create the
@@ -663,15 +736,7 @@ function ReconcileContent() {
           <Button variant="outline" onClick={() => router.push('/accounts')}>
             {t('complete.backToAccounts')}
           </Button>
-          <Button
-            onClick={() => {
-              setStep('setup');
-              setReconciliationData(null);
-              setSelectedTransactionIds(new Set());
-              setStatementBalance(undefined);
-              setPaymentBill(null);
-            }}
-          >
+          <Button onClick={handleReconcileAnother}>
             {t('complete.reconcileAnother')}
           </Button>
         </div>

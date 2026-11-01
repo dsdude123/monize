@@ -10,7 +10,10 @@ import { withUserContext } from "@/common/db/with-context";
 import { BankSyncCredential } from "@/bank-sync/entities/bank-sync-credential.entity";
 import { SimplefinCredentialsService } from "@/bank-sync/simplefin-credentials.service";
 import { SimplefinRequestBudgetService } from "@/bank-sync/simplefin-request-budget.service";
-import { testEncryption } from "@/bank-sync/bank-sync-testing";
+import {
+  simplefinAccessUrl,
+  testEncryption,
+} from "@/bank-sync/bank-sync-testing";
 import {
   createEnforcedIntegrationModule,
   createTestUserDirect,
@@ -29,8 +32,15 @@ describe("SimpleFIN storage and quota under real PostgreSQL/RLS", () => {
   let alice: string;
   let bob: string;
   let credentialId: string;
-  const access =
-    "https://demo-user:demo-password@beta-bridge.simplefin.org/simplefin/test";
+  const accessWith = (secret: string) =>
+    simplefinAccessUrl(
+      "https://beta-bridge.simplefin.org/simplefin/test",
+      "demo-user",
+      secret,
+    );
+  const access = accessWith("demo-opaque");
+  const rotatedAccess = accessWith("new-opaque");
+  const otherAccess = accessWith("other-opaque");
   const scoped = <T>(userId: string, fn: () => Promise<T>) =>
     withUserContext(userId, fn);
 
@@ -95,7 +105,7 @@ describe("SimpleFIN storage and quota under real PostgreSQL/RLS", () => {
       "SELECT access_url_enc, private_key_enc, application_id FROM bank_sync_credentials WHERE id=$1",
       [credentialId],
     );
-    expect(rows[0].access_url_enc).not.toContain("demo-password");
+    expect(rows[0].access_url_enc).not.toContain("demo-opaque");
     expect(rows[0].private_key_enc).toBeNull();
     expect(rows[0].application_id).toBeNull();
     await expect(scoped(bob, () => resolve(alice))).rejects.toThrow();
@@ -172,23 +182,14 @@ describe("SimpleFIN storage and quota under real PostgreSQL/RLS", () => {
   });
   it("keeps the old credential when replacement was not confirmed", async () => {
     await expect(
-      scoped(alice, () =>
-        service.storeClaimedAccessUrl(
-          alice,
-          access.replace("demo-password", "new-password"),
-        ),
-      ),
+      scoped(alice, () => service.storeClaimedAccessUrl(alice, rotatedAccess)),
     ).rejects.toMatchObject({ status: 409 });
     expect((await scoped(alice, () => resolve(alice))).accessUrl).toBe(access);
   });
   it("preserves the credential ID and spent budget across confirmed replacement", async () => {
     await scoped(alice, () => budget.reserve(alice, credentialId));
     await scoped(alice, () =>
-      service.storeClaimedAccessUrl(
-        alice,
-        access.replace("demo-password", "new-password"),
-        true,
-      ),
+      service.storeClaimedAccessUrl(alice, rotatedAccess, true),
     );
     expect((await scoped(alice, () => resolve(alice))).credentialId).toBe(
       credentialId,
@@ -256,12 +257,7 @@ describe("SimpleFIN storage and quota under real PostgreSQL/RLS", () => {
       .delete({ userId: bob });
     const results = await Promise.allSettled([
       scoped(bob, () => service.storeClaimedAccessUrl(bob, access)),
-      scoped(bob, () =>
-        service.storeClaimedAccessUrl(
-          bob,
-          access.replace("demo-password", "other-password"),
-        ),
-      ),
+      scoped(bob, () => service.storeClaimedAccessUrl(bob, otherAccess)),
     ]);
     expect(
       results.filter((result) => result.status === "fulfilled"),

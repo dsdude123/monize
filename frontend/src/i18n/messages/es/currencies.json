@@ -4,6 +4,7 @@
     "subtitle": "Gestiona las divisas utilizadas en tus cuentas y valores",
     "refreshRates": "Actualizar tipos",
     "refreshing": "Actualizando...",
+    "statusFilterLabel": "Estado",
     "newCurrency": "+ Nueva divisa",
     "searchPlaceholder": "Buscar por código o nombre...",
     "statusAll": "Todas ({count})",
@@ -70,9 +71,9 @@
       "activate": "Activar",
       "deleteCurrency": "Eliminar divisa"
     },
-    "usageTooltip": "{accounts} cuenta(s), {securities} valor(es)",
     "usageAccounts": "{count, plural, one {# cta} other {# ctas}}",
     "usageSecurities": "{count, plural, one {# val} other {# vals}}",
+    "rateHelp": "Lo que vale una unidad de cada moneda en {currency}.",
     "empty": {
       "title": "Sin divisas",
       "subtitle": "Comienza añadiendo una divisa."

@@ -4,6 +4,7 @@
     "subtitle": "Hasilkan wawasan tentang kesehatan keuangan Anda",
     "searchPlaceholder": "Cari laporan berdasarkan nama atau keterangan...",
     "allReports": "Semua Laporan",
+    "categoryWithCount": "{label} ({count})",
     "removeFavourite": "Hapus dari favorit",
     "addFavourite": "Tambah ke favorit",
     "tableReport": "Laporan",
@@ -38,6 +39,7 @@
       "account-balances": "Saldo Akun",
       "cash-flow": "Laporan Arus Kas",
       "tax-summary": "Ringkasan Pajak",
+      "payroll-deductions": "Potongan Gaji",
       "year-over-year": "Perbandingan Tahun ke Tahun",
       "debt-payoff-timeline": "Linimasa Pelunasan Utang",
       "loan-amortization": "Jadwal Amortisasi Pinjaman",
@@ -87,6 +89,7 @@
       "account-balances": "Lihat nilai setiap akun pada tanggal mana pun yang Anda pilih, dikelompokkan dan diurutkan sesuai keinginan Anda.",
       "cash-flow": "Tampilan terperinci uang yang masuk dan keluar di semua akun.",
       "tax-summary": "Ringkasan tahunan pengeluaran yang dapat dikurangkan dari pajak dan pendapatan kena pajak.",
+      "payroll-deductions": "Potongan gaji per kategori: tahun dibandingkan setiap batas maksimum, per slip gaji, dan setiap tahun yang tercatat.",
       "year-over-year": "Bandingkan tahun ini dengan tahun-tahun sebelumnya untuk melacak kemajuan keuangan.",
       "debt-payoff-timeline": "Visualisasikan kemajuan pengurangan utang Anda dengan proyeksi tanggal pelunasan.",
       "loan-amortization": "Jadwal pembayaran terperinci untuk hipotek dan pinjaman dengan rincian pokok vs bunga.",
@@ -135,7 +138,8 @@
   },
   "reportPage": {
     "notFound": "Laporan Tidak Ditemukan",
-    "notFoundDesc": "Laporan yang diminta tidak ada."
+    "notFoundDesc": "Laporan yang diminta tidak ada.",
+    "viewLabel": "Tampilan"
   },
   "error": {
     "defaultMessage": "Gagal memuat data laporan. Silakan coba lagi.",
@@ -459,6 +463,7 @@
     "generating": "Membuat laporan...",
     "noData": "Tidak ada data ditemukan untuk kriteria yang dipilih",
     "transactionCount": "{count, plural, one {# transaksi} other {# transaksi}}",
+    "truncatedNotice": "Laporan ini mencapai batas baris dan hanya menampilkan baris terlama, sehingga angkanya parsial. Persempit periode atau filter untuk melihat semuanya.",
     "toasts": {
       "loadFailed": "Gagal memuat laporan",
       "executeFailed": "Gagal menjalankan laporan"
@@ -512,8 +517,6 @@
     "viewMonthly": "Bulanan",
     "viewDaily": "Harian",
     "viewBySecurity": "Per Keamanan Dokumen",
-    "displayChart": "Grafik",
-    "displayTable": "Tabel",
     "showLabel": "Tampilkan:",
     "seriesDividends": "Dividen",
     "seriesInterest": "Bunga",
@@ -1249,7 +1252,6 @@
     "incompleteTooltip": "Beberapa hari dalam periode ini tidak memiliki harga, kurs, atau saldo kas, sehingga angka yang bergantung pada setiap hari tidak ditampilkan.",
     "measuredFromClose": "Sejak penutupan perdagangan pada {date}",
     "notAvailable": "T/A",
-    "intradayUnavailable": "Harga intraday terperinci tidak tersedia",
     "intradayUnavailableTitle": "Tampilan intraday tidak tersedia untuk campuran akun ini",
     "intradayUnavailableDesc": "Satu atau lebih kepemilikan menggunakan penyedia kuotasi (MSN Money) yang tidak mengekspos data intraday{skipped}. Beralih ke rentang yang lebih panjang untuk melihat snapshot harian.",
     "intradayUnavailableSkipped": ": {symbols}",
@@ -1300,8 +1302,6 @@
     "costBasis": "Dasar Biaya",
     "realizedGainLoss": "Keuntungan/Kerugian yang Direalisasi",
     "securitiesSold": "Keamanan Dokumen Dijual",
-    "viewChart": "Grafik",
-    "viewTable": "Tabel",
     "noTransactions": "Tidak ada transaksi jual ditemukan untuk periode ini.",
     "noGainsLosses": "Tidak ada keuntungan atau kerugian untuk ditampilkan.",
     "bySecurityTitle": "Keuntungan yang Direalisasi per Keamanan Dokumen",
@@ -1337,7 +1337,7 @@
     "sixMonthTotal": "Total 6 Bulan",
     "monthlyEstimate": "Perkiraan Bulanan",
     "identifiedPayees": "penerima teridentifikasi",
-    "minOccurrencesLabel": "Kejadian minimum:",
+    "minOccurrencesLabel": "Kejadian minimum",
     "inLast6Months": "(dalam 6 bulan terakhir)",
     "noRecurring": "Tidak ada pengeluaran berulang ditemukan dengan {count}+ kejadian dalam 6 bulan terakhir.",
     "failedToLoad": "Gagal memuat data pengeluaran berulang.",
@@ -1475,6 +1475,8 @@
     "totalReturn": "Total Imbal Hasil",
     "annualizedReturn": "Imbal Hasil Disetahunkan",
     "needs1YearNote": "Membutuhkan data 1+ tahun",
+    "annualizedNeedsSingleBuyNote": "Hanya ditampilkan untuk satu pembelian tanpa aktivitas setelahnya",
+    "missingPrice": "Tidak ada harga untuk {symbol}",
     "priceHistory": "Riwayat Harga - {symbol}",
     "buyTransaction": "Transaksi beli",
     "sellTransaction": "Transaksi jual",
@@ -1624,6 +1626,48 @@
     "pdfIncomeExpensesDeductions": "Pendapatan: {income} | Pengeluaran: {expenses} | Pengurangan: {deductions}",
     "pdfTotalsLabel": "Total Pendapatan / Pengeluaran / Pengurangan"
   },
+  "payrollDeductions": {
+    "year": "Tahun",
+    "yearHelp": "Tahun sebuah kategori adalah periode yang dimulai pada tahun yang dipilih pada tanggal reset aturannya. Untuk reset pada 1 Januari, itu adalah tahun kalender.",
+    "emptyTitle": "Belum ada aturan potongan gaji",
+    "emptyDescription": "Tetapkan batas maksimum tahunan pada baris potongan slip gaji Anda di Alat, Pajak, Potongan Gaji, dan kategori tersebut akan dilaporkan di sini.",
+    "emptyAction": "Buka Potongan Gaji",
+    "summaryTitle": "Ringkasan {year}",
+    "summaryHelp": "Apa yang dipungut setiap kategori potongan dalam periodenya, di semua akun, dalam mata uang tagihan. Aturan hanya menyimpan batas maksimum yang dipakainya sekarang, jadi batas maksimum dan sisa ditampilkan untuk periode yang belum ditutup, dan milik tahun sebelumnya tidak tercatat.",
+    "colCategory": "Kategori",
+    "colBills": "Tagihan",
+    "colPeriod": "Periode",
+    "colPaid": "Dibayar",
+    "colMaximum": "Maksimum",
+    "colRemaining": "Tersisa",
+    "colPercent": "Dari maksimum",
+    "colPaycheques": "Slip gaji",
+    "colAverage": "Rata-rata per slip gaji",
+    "colReached": "Maksimum tercapai",
+    "colDate": "Tanggal",
+    "colPayee": "Penerima",
+    "colTotal": "Total",
+    "colYear": "Tahun",
+    "periodRange": "{start} hingga {end}",
+    "toDate": "sejauh ini",
+    "notRecorded": "Tidak tercatat",
+    "notReached": "Belum tercapai",
+    "outsidePeriod": "Di luar periodenya",
+    "otherCurrency": "Mata uang lain",
+    "noPaycheque": "Tidak ada",
+    "noPayee": "Tanpa penerima",
+    "foreignRows": "{count, plural, one {# baris} other {# baris}} dalam mata uang lain tidak dihitung",
+    "paychequesTitle": "Per slip gaji, {year}",
+    "paychequesHelp": "Setiap transaksi yang memotong ke kategori yang dilaporkan dalam periodenya untuk tahun yang dipilih, dari yang terlama. Setiap kolom berjumlah sama dengan angka dibayar kategori di ringkasan.",
+    "paychequesEmpty": "Tidak ada potongan ke kategori ini pada {year}.",
+    "totalRow": "Total",
+    "mixedCurrencies": "Tidak dijumlahkan: kategori menggunakan lebih dari satu mata uang.",
+    "historyTitle": "{category} per tahun",
+    "historyTitleCurrency": "{category} ({currency}) per tahun",
+    "historyHelp": "Apa yang dipungut kategori ini di setiap periode yang tercatat, terbaru lebih dulu, di semua akun, dalam mata uang tagihan.",
+    "csvSummary": "Ringkasan",
+    "csvPaycheques": "Slip gaji"
+  },
   "uncategorizedTransactions": {
     "totalUncategorized": "Total Belum Dikategorikan",
     "uncategorizedExpenses": "Pengeluaran Belum Dikategorikan",
@@ -1655,8 +1699,6 @@
     "activeBills": "Tagihan Aktif",
     "overdue": "Terlambat",
     "thisMonth": "Bulan Ini",
-    "autoPostsTitle": "Diposting otomatis saat jatuh tempo",
-    "manualPostTitle": "Memerlukan posting manual",
     "autoLabel": "Otomatis",
     "manualLabel": "Manual",
     "overdueLabel": "Terlambat",
@@ -1790,6 +1832,7 @@
     "removeAriaLabel": "Hapus {title} dari perbandingan",
     "removeTitle": "Hapus dari perbandingan",
     "runFailed": "Jalankan gagal",
+    "never": "Belum pernah",
     "errors": {
       "loadScenarioFailed": "Gagal memuat skenario.",
       "simulationFailed": "Simulasi gagal."
@@ -1803,7 +1846,6 @@
     "backToReports": "Kembali ke Laporan",
     "deleteButton": "Hapus Laporan",
     "deleteConfirmMessage": "Apakah Anda yakin ingin menghapus \"{name}\"? Tindakan ini tidak dapat dibatalkan.",
-    "deleting": "Menghapus...",
     "toasts": {
       "loadFailed": "Gagal memuat laporan",
       "updated": "Laporan diperbarui",
@@ -1898,7 +1940,11 @@
     "noticeExcluded": "Sebagian angka bersifat parsial: {count, plural, other {# jumlah tidak dapat dihitung dan}} tidak disertakan.",
     "pdfNote": "Total parsial: tidak ada kurs untuk {currencies}",
     "pdfNoteExcluded": "Total parsial: {count, plural, other {# jumlah}} tidak disertakan",
-    "pdfSuffix": "(parsial)"
+    "pdfSuffix": "(parsial)",
+    "knownValue": "Nilai yang Diketahui",
+    "weightingIntro": "Persentase hanya mencakup posisi yang dapat dinilai.",
+    "weightingNoPrice": "Tidak ada harga untuk {symbols}: perbarui atau tambahkan harga di halaman sekuritas.",
+    "weightingNoRate": "Tidak ada kurs untuk {pairs}: tambahkan di halaman Mata Uang."
   },
   "sankey": {
     "help": "Uang yang masuk mengalir melalui bagian tengah ke tempat uang itu dibelanjakan, yang ditabung atau diinvestasikan, dan yang membayar utang. Secara bawaan, laporan mencakup rekening giro, tabungan, tunai, kartu kredit, dan jalur kredit Anda yang masih terbuka, dan transfer antara dua di antaranya tidak ditampilkan. Keluarkan rekening tabungan dari filter rekening untuk melihat berapa yang Anda pindahkan ke sana. Pembayaran kartu kredit tidak pernah dianggap pembayaran utang: pembelian yang dilunasinya sudah dihitung sebagai pengeluaran.",
@@ -1944,7 +1990,9 @@
       "uncategorizedExpense": "Pengeluaran tanpa kategori",
       "residualUnspent": "Tidak terpakai",
       "residualDeficit": "Diambil dari saldo",
-      "unlinkedAccount": "(rekening tidak tertaut)"
+      "unlinkedAccount": "(rekening tidak tertaut)",
+      "classSharedSettlements": "Penyelesaian bersama",
+      "inflowSharedSettlements": "Dari penyelesaian bersama"
     }
   },
   "pdfExport": {

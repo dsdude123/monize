@@ -346,7 +346,7 @@ describe('SecurityPerformanceReport', () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to load report data/)).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: /Try again/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Try Again/ })).toBeInTheDocument();
   });
 
   it('exports pdf in chart view', async () => {
@@ -664,6 +664,50 @@ describe('SecurityPerformanceReport', () => {
     });
     expect(screen.getByText('Needs 1+ year of data')).toBeInTheDocument();
     expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('shows an unpriced holding as unknown, with no return or percentage', async () => {
+    const unpriced = { ...mockHoldings[0], currentPrice: null, marketValue: null, gainLoss: null, gainLossPercent: null };
+    mockGetSecurities.mockResolvedValue(mockSecurities);
+    mockGetPortfolioSummary.mockResolvedValue({ holdings: [unpriced] });
+    mockGetSecurityPrices.mockResolvedValue([]);
+    mockGetTransactions.mockResolvedValue({ data: [], pagination: { hasMore: false } });
+
+    render(<SecurityPerformanceReport />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: SELECT_PLACEHOLDER })).toBeInTheDocument();
+    });
+    await selectSecurity('AAPL - Apple Inc.');
+
+    await waitFor(() => {
+      expect(screen.getByText('Total Return')).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('No price for AAPL').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/-100/)).not.toBeInTheDocument();
+  });
+
+  it('omits the annualized return when later activity follows the first buy', async () => {
+    mockGetSecurities.mockResolvedValue(mockSecurities);
+    mockGetPortfolioSummary.mockResolvedValue({ holdings: mockHoldings });
+    mockGetSecurityPrices.mockResolvedValue([]);
+    mockGetTransactions.mockResolvedValue({
+      data: [
+        { id: 'tx-1', transactionDate: '2020-01-01', action: 'BUY', quantity: 5, price: 150, totalAmount: 750, securityId: 's-1', security: { symbol: 'AAPL', name: 'A' }, accountId: 'acc-1' },
+        { id: 'tx-2', transactionDate: '2025-01-01', action: 'BUY', quantity: 5, price: 150, totalAmount: 750, securityId: 's-1', security: { symbol: 'AAPL', name: 'A' }, accountId: 'acc-1' },
+      ],
+      pagination: { hasMore: false },
+    });
+
+    render(<SecurityPerformanceReport />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: SELECT_PLACEHOLDER })).toBeInTheDocument();
+    });
+    await selectSecurity('AAPL - Apple Inc.');
+
+    await waitFor(() => {
+      expect(screen.getByText('Annualized Return')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Shown only for a single buy with no later activity')).toBeInTheDocument();
   });
 
   it('shows multiple accounts indicator when accountCount > 1', async () => {

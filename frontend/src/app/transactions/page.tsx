@@ -96,6 +96,7 @@ import { preferredCurrency } from '@/lib/default-currency';
 import { ViewModeToggle } from '@/components/ui/ViewModeToggle';
 import { useViewMode } from '@/store/viewModeStore';
 import { useFinancialToday } from '@/hooks/useFinancialToday';
+import { docsUrl } from '@/lib/docs-links';
 
 const logger = createLogger('Transactions');
 
@@ -1292,7 +1293,7 @@ function TransactionsContent() {
         <PageHeader
           title={t('page.title')}
           subtitle={t('page.subtitle')}
-          helpUrl="https://github.com/kenlasko/monize/wiki/Transactions"
+          helpUrl={docsUrl('transactions')}
           actions={
             <Button
               {...tourAnchor(TOUR_ANCHORS.transactionsNewButton)}
@@ -1485,10 +1486,7 @@ function TransactionsContent() {
         <AccountFormModal formModal={accountModal} onSaved={loadAllData} />
 
         {/* Category Edit Modal (same form as the Categories page) */}
-        <Modal isOpen={categoryModal.showForm} onClose={categoryModal.close} {...categoryModal.modalProps} maxWidth="lg" className="p-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            {t('page.editModal.editCategoryTitle')}
-          </h2>
+        <Modal isOpen={categoryModal.showForm} onClose={categoryModal.close} {...categoryModal.modalProps} maxWidth="lg" className="p-6" title={t('page.editModal.editCategoryTitle')}>
           <CategoryForm
             category={categoryModal.editingItem}
             categories={categories}
@@ -1501,10 +1499,7 @@ function TransactionsContent() {
         <UnsavedChangesDialog {...categoryModal.unsavedChangesDialog} />
 
         {/* Form Modal */}
-        <Modal isOpen={showForm} onClose={handleClose} {...modalProps} maxWidth="6xl" className="p-6 !max-w-[69rem]">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            {editingTransaction ? t('page.editModal.editTitle') : duplicatingFrom ? t('page.editModal.duplicateTitle') : t('page.editModal.newTitle')}
-          </h2>
+        <Modal isOpen={showForm} onClose={handleClose} {...modalProps} maxWidth="6xl" className="p-6 !max-w-[69rem]" title={editingTransaction ? t('page.editModal.editTitle') : duplicatingFrom ? t('page.editModal.duplicateTitle') : t('page.editModal.newTitle')}>
           <TransactionForm
             key={`${editingTransaction?.id || 'new'}-${duplicatingFrom?.id || ''}-${filters.filterAccountIds.join(',')}-${createOnDate || ''}-${formKey}`}
             transaction={editingTransaction}
@@ -1534,10 +1529,7 @@ function TransactionsContent() {
 
         {/* Schedule as Recurring Modal */}
         {showScheduleForm && (
-          <Modal isOpen={showScheduleForm} onClose={handleScheduleFormClose} maxWidth="6xl" className="p-6 !max-w-[69rem]" pushHistory>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-              {t('page.editModal.scheduleTitle')}
-            </h2>
+          <Modal isOpen={showScheduleForm} onClose={handleScheduleFormClose} maxWidth="6xl" className="p-6 !max-w-[69rem]" pushHistory title={t('page.editModal.scheduleTitle')}>
             <ScheduledTransactionForm
               key={`schedule-${schedulingFrom?.id || 'new'}`}
               templateTransaction={schedulingFrom}
@@ -1549,8 +1541,7 @@ function TransactionsContent() {
 
         {/* Payee Edit Modal */}
         {editingPayee && (
-          <Modal isOpen={showPayeeForm} onClose={handlePayeeFormCancel} maxWidth="lg" className="p-6" pushHistory>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">{t('page.editModal.editPayeeTitle')}</h2>
+          <Modal isOpen={showPayeeForm} onClose={handlePayeeFormCancel} maxWidth="lg" className="p-6" pushHistory title={t('page.editModal.editPayeeTitle')}>
             <PayeeForm
               payee={editingPayee}
               categories={categories}
@@ -1609,6 +1600,7 @@ function TransactionsContent() {
           setFiltersExpanded={filters.setFiltersExpanded}
           activeFilterCount={filters.activeFilterCount}
           filteredAccounts={filters.filteredAccounts}
+          accountStatusCounts={filters.accountStatusCounts}
           selectedAccounts={filters.selectedAccounts}
           selectedCategories={filters.selectedCategories}
           selectedPayees={filters.selectedPayees}

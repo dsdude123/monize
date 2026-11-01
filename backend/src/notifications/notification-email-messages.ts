@@ -1,5 +1,7 @@
 /** English fallbacks for notification email copy; kept in parity with the catalog by tests. */
 export const NOTIFICATION_EMAIL_MESSAGES = {
+  "shared.title": "Shared expenses",
+  "shared.message": "A shared group has an update. Open Monize to review it.",
   "priceMovement.title": "Price change alert: {{ symbol }} ({{ percent }}%)",
   "priceMovement.message":
     "{{ symbol }}: {{ percent }}% compared with the previous available session.",
@@ -62,6 +64,9 @@ export const NOTIFICATION_EMAIL_MESSAGES = {
   "warranty.todayTitle": "{{ name }}: warranty expires today",
   "warranty.todayMessage":
     "The warranty for {{ name }} expires today, {{ date }}. Open to review its documents or record a claim.",
+  "payrollDeduction.resetTitle": "{{ category }}: confirm next year's maximum",
+  "payrollDeduction.resetMessage":
+    "The {{ category }} deduction on {{ bill }} resets on {{ date }}. Update the yearly maximum if it changes; otherwise {{ amount }} applies again.",
   "portfolioMovement.titleUp": "Investments up {{ percent }}%",
   "portfolioMovement.titleDown": "Investments down {{ percent }}%",
   "portfolioMovement.messageUp":

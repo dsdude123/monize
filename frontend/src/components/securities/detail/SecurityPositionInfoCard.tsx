@@ -32,7 +32,6 @@ export function SecurityPositionInfoCard({
     marketValue: position.marketValue,
     costBasis: position.costBasis,
     dividends: activity.dividends,
-    fees: activity.fees,
     realizedGain: activity.realizedGain,
     realizedGainCurrency: activity.realizedGainCurrency,
     realizedSaleCount: activity.realizedSaleCount,
@@ -52,8 +51,8 @@ export function SecurityPositionInfoCard({
   // already drops a row whose value is null (KeyValueList), so use that -- the
   // Status row saying "Never held" is the whole answer.
   const untraded = !detail.hasTransactions;
-  const lifetimeTotal = (amount: number): string | null =>
-    untraded ? null : formatCurrency(amount, currency);
+  const lifetimeTotal = (amount: number | null): string | null =>
+    untraded || amount === null ? null : formatCurrency(amount, currency);
 
   const rows: KeyValueRow[] = [
     {
@@ -110,7 +109,24 @@ export function SecurityPositionInfoCard({
         ) : activity.realizedGainComplete === false ? (
           // A sale drew on shares of unknown cost: its gain is unknown, which
           // is not the same statement as "sold across currencies".
-          <UnknownAmount reasonText={t('positionInfo.realizedUnknownReason')} />
+          // The sales whose cost is known are a part of the total, shown as
+          // that and never in the figure's place.
+          <>
+            <UnknownAmount
+              reasonText={t('positionInfo.realizedUnknownReason')}
+            />
+            {activity.realizedGainKnownSubtotal != null &&
+              activity.realizedGainCurrency !== null && (
+                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                  {t('positionInfo.realizedKnownPart', {
+                    amount: formatCurrency(
+                      activity.realizedGainKnownSubtotal,
+                      activity.realizedGainCurrency,
+                    ),
+                  })}
+                </span>
+              )}
+          </>
         ) : activity.realizedSaleCount > 0 ? (
           <span className="text-gray-500 dark:text-gray-400">
             {t('positionInfo.realizedMixed', {

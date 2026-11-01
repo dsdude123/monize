@@ -11,6 +11,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { TwoFactorSetup } from '@/components/auth/TwoFactorSetup';
 import { BackupCodesDisplay } from '@/components/auth/BackupCodesDisplay';
@@ -37,6 +39,8 @@ interface SecuritySectionProps {
   user: User;
   preferences: UserPreferences;
   force2fa: boolean;
+  /** Instance flag: an SSO account with a local password is treated like a local one for 2FA. */
+  oidcPasswordLogin?: boolean;
   onPreferencesUpdated: (prefs: UserPreferences) => void;
 }
 
@@ -54,12 +58,14 @@ function isDisableCodeComplete(code: string): boolean {
   return /^(\d{6}|[a-f0-9]{4}-[a-f0-9]{4})$/.test(code);
 }
 
-export function SecuritySection({ user, preferences, force2fa, onPreferencesUpdated }: SecuritySectionProps) {
+export function SecuritySection({ user, preferences, force2fa, oidcPasswordLogin = false, onPreferencesUpdated }: SecuritySectionProps) {
   const t = useTranslations('settings.security');
   const tc = useTranslations('common');
   const updatePreferencesStore = usePreferencesStore((state) => state.updatePreferences);
   const router = useRouter();
   const { formatDate } = useDateFormat();
+  // An SSO user stays on the SSO-only view unless the instance lets the local password sign in.
+  const ssoOnly = user.authProvider === 'oidc' && !(oidcPasswordLogin && user.hasPassword);
 
   const {
     register,
@@ -185,8 +191,8 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
 
   // Each time the devices are (re)read below, they show as loading from this
   // render on ("info from previous render"), not from inside the effect.
-  const canLoadDevices = twoFactorEnabled && user.hasPassword && user.authProvider !== 'oidc';
-  const devicesKey = `${twoFactorEnabled}|${user.hasPassword}|${user.authProvider}`;
+  const canLoadDevices = twoFactorEnabled && user.hasPassword && !ssoOnly;
+  const devicesKey = `${twoFactorEnabled}|${user.hasPassword}|${ssoOnly}`;
   const [devicesLoadKey, setDevicesLoadKey] = useState<string | null>(null);
   if (devicesLoadKey !== devicesKey) {
     setDevicesLoadKey(devicesKey);
@@ -209,10 +215,10 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
   };
 
   useEffect(() => {
-    if (twoFactorEnabled && user.hasPassword && user.authProvider !== 'oidc') {
+    if (twoFactorEnabled && user.hasPassword && !ssoOnly) {
       loadTrustedDevices();
     }
-  }, [twoFactorEnabled, user.hasPassword, user.authProvider]);
+  }, [twoFactorEnabled, user.hasPassword, ssoOnly]);
 
   const handleRevokeDevice = async (id: string) => {
     try {
@@ -243,10 +249,11 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
       {user.authProvider === 'oidc' && (
         <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <p className="text-sm text-blue-700 dark:text-blue-300">
-            {t('ssoNotice')}
+            {oidcPasswordLogin ? t('ssoPasswordFallbackNotice') : t('ssoNotice')}
           </p>
         </div>
       )}
+      {!ssoOnly && (
       <form onSubmit={handleSubmit(onSubmitPassword)}>
         <div className="space-y-4">
           <Input
@@ -282,19 +289,20 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
           />
         </div>
         <div className="mt-4 flex justify-end">
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? t('changingPasswordButton') : t('changePasswordButton')}
+          <Button type="submit" isLoading={isSubmitting}>
+            {t('changePasswordButton')}
           </Button>
         </div>
       </form>
+      )}
 
       {/* Two-Factor Authentication. `id` is the target of the sign-in-by-backup-code
           redirect (`/settings#two-factor`), which useScrollSpy scrolls to. */}
       <div id="two-factor" className="border-t border-gray-200 dark:border-gray-700 mt-6 pt-6 scroll-mt-32 lg:scroll-mt-22">
-        <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-3">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
           {t('twoFactor.heading')}
         </h3>
-        {user.authProvider === 'oidc' ? (
+        {ssoOnly ? (
           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <p className="text-sm text-blue-700 dark:text-blue-300">
               {t('twoFactor.ssoUnavailable')}
@@ -375,12 +383,12 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
       {/* 2FA Disable Modal */}
       <Modal isOpen={showTwoFactorDisable} onClose={() => { setShowTwoFactorDisable(false); setDisableCode(''); }}>
         <div className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {t('twoFactor.disableModal.title')}
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            {t('twoFactor.disableModal.description')}
-          </p>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              {t('twoFactor.disableModal.title')}
+            </h2>
+            <InfoTooltip text={t('twoFactor.disableModal.description')} usePortal />
+          </div>
           <Input
             label={t('twoFactor.disableModal.verificationCodeLabel')}
             type="text"
@@ -395,7 +403,7 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
               variant="outline"
               onClick={() => { setShowTwoFactorDisable(false); setDisableCode(''); }}
             >
-              Cancel
+              {tc('cancel')}
             </Button>
             <Button
               variant="danger"
@@ -460,9 +468,9 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
       {/* Backup Code Verification Modal */}
       <Modal isOpen={showBackupCodeVerify} onClose={() => { setShowBackupCodeVerify(false); setBackupCodeVerifyCode(''); }}>
         <div className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             {t('backupCodes.regenerateModal.title')}
-          </h3>
+          </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
             {t('backupCodes.regenerateModal.description')}
           </p>
@@ -481,7 +489,7 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
               variant="outline"
               onClick={() => { setShowBackupCodeVerify(false); setBackupCodeVerifyCode(''); }}
             >
-              Cancel
+              {tc('cancel')}
             </Button>
             <Button
               onClick={handleGenerateBackupCodes}
@@ -494,14 +502,14 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
       </Modal>
 
       {/* Backup Codes */}
-      {twoFactorEnabled && user.authProvider !== 'oidc' && (
+      {twoFactorEnabled && !ssoOnly && (
         <div className="border-t border-gray-200 dark:border-gray-700 mt-6 pt-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
                 {t('backupCodes.heading')}
               </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 {t('backupCodes.description')}
               </p>
             </div>
@@ -529,10 +537,10 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
       </Modal>
 
       {/* Trusted Devices */}
-      {twoFactorEnabled && user.authProvider !== 'oidc' && (
+      {twoFactorEnabled && !ssoOnly && (
         <div className="border-t border-gray-200 dark:border-gray-700 mt-6 pt-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
               {t('trustedDevices.heading')}
             </h3>
             {trustedDevices.length > 0 && (
@@ -573,13 +581,15 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
                       )}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-0.5">
-                      {device.ipAddress && <p>IP: {device.ipAddress}</p>}
+                      {device.ipAddress && (
+                        <p>{t('trustedDevices.ipAddress', { ip: device.ipAddress })}</p>
+                      )}
                       <p>
-                        Added {formatDate(new Date(device.createdAt))}
-                        {' \u00B7 '}
-                        Last used {formatDate(new Date(device.lastUsedAt))}
-                        {' \u00B7 '}
-                        Expires {formatDate(new Date(device.expiresAt))}
+                        {t('trustedDevices.dates', {
+                          added: formatDate(new Date(device.createdAt)),
+                          lastUsed: formatDate(new Date(device.lastUsedAt)),
+                          expires: formatDate(new Date(device.expiresAt)),
+                        })}
                       </p>
                     </div>
                   </div>
@@ -596,25 +606,15 @@ export function SecuritySection({ user, preferences, force2fa, onPreferencesUpda
             </div>
           )}
 
-          {/* Revoke All Confirmation Modal */}
-          <Modal isOpen={showRevokeAllConfirm} onClose={() => setShowRevokeAllConfirm(false)}>
-            <div className="p-6 space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {t('trustedDevices.revokeAllModal.title')}
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                {t('trustedDevices.revokeAllModal.description')}
-              </p>
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setShowRevokeAllConfirm(false)}>
-                  Cancel
-                </Button>
-                <Button variant="danger" onClick={handleRevokeAllDevices}>
-                  {t('trustedDevices.revokeAllButton')}
-                </Button>
-              </div>
-            </div>
-          </Modal>
+          <ConfirmDialog
+            isOpen={showRevokeAllConfirm}
+            title={t('trustedDevices.revokeAllModal.title')}
+            message={t('trustedDevices.revokeAllModal.description')}
+            confirmLabel={t('trustedDevices.revokeAllButton')}
+            variant="danger"
+            onConfirm={handleRevokeAllDevices}
+            onCancel={() => setShowRevokeAllConfirm(false)}
+          />
         </div>
       )}
     </div>

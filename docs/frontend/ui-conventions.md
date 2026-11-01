@@ -9,6 +9,7 @@ Paths beginning with `src/` or `scripts/`, and layer configuration filenames, ar
 - All interactive components use `'use client'`. Server components are the default for pages/layouts.
 - Use dynamic imports for heavy components: `dynamic(() => import('./Chart'), { ssr: false })`.
 - `ProtectedRoute` (`components/auth/ProtectedRoute.tsx`) wraps authenticated pages.
+- `PageLayout` (`components/layout/PageLayout.tsx`) supplies the background; each page supplies its `main` landmark and responsive content padding. The shared-expense review journey scopes its navigation to that landmark.
 - **No `setState` in `useEffect`** — ESLint rule `react-hooks/set-state-in-effect` is enforced. To reset child state when a prop changes, use the "info from previous render" pattern (track the prop in `useState` and update during render).
 - **Dialogs use `Modal`** (`components/ui/Modal.tsx`) — handles Escape, focus trap, body scroll lock, focus restore, and stacked-modal popstate. Opt into `pushHistory` so the browser back button also closes. `ConfirmDialog` forwards `pushHistory` for stacked confirm flows.
 - **Leaving the page from inside a `pushHistory` modal** closes the modal first, then navigates through `afterModalHistoryPop` (`lib/after-modal-history-pop.ts`), never a bare link and never a fixed `setTimeout`. The closing modal pops its entry with an asynchronous `history.back()`, which undoes any push that lands before it; a guessed delay loses that race on a slow render, so the helper waits for the pop itself.
@@ -31,6 +32,8 @@ Both are resolved server-side in one walk up the ancestry: read `category.effect
 
 `components/ui/BrandLogo.tsx` renders a cached favicon with the neutral badge fallback, and owns the one rule that matters: the bytes always come from our own backend, never a third party, so drawing a logo cannot leak which institutions or payees a user has. `InstitutionLogo` and `PayeeLogo` are thin wrappers naming the `/:id/logo` route, gated on `hasLogo` so icon-less rows issue no requests. A 404 lands on `onError` and shows the same badge. A third entity gets a wrapper, not a second component.
 
+**A transparent logo that would vanish into the card gets a plain fill, decided from its pixels.** On load, `lib/logo-backing.ts` redraws the logo at 32px and reads only the round chip: an icon that is less than 15% see-through paints its own background and is left alone; otherwise the most populated colour bucket of its ink is compared with the default palette's light and dark cards, and below 2:1 contrast it gets `dark:bg-white` (dark ink, filled in dark mode only) or `bg-gray-800` (light ink, filled in light mode only), inset by a tenth of the size. The fill is CSS-variant driven, so a theme switch needs no re-read; every load re-reads the pixels (a refetched logo keeps its URL), and the last answer per URL is kept only so a remount paints its fill first time. A logo the canvas cannot read keeps no fill. The threshold is deliberately below the 3:1 non-text floor: a brand orange on white is legible, only a near-match is not.
+
 **Hiding a logo responsively is spelled `max-sm:hidden`, never a bare `hidden`.** Tailwind emits `.hidden` *first* among the display utilities, so on the fallback badge -- whose own classes include `inline-flex` -- a caller's `hidden sm:inline-flex` never hides anything: the letter circles stayed visible on mobile while the favicons vanished. A `max-*` variant sorts after every base utility and wins below its breakpoint. The brand-logo guard in `ui-conventions.test.ts` fails on a bare `hidden` token in any logo call site's `className`.
 
 ## A status pill is `Badge`; table chrome is `Table.tsx`
@@ -40,6 +43,8 @@ Both are resolved server-side in one walk up the ancestry: read `category.effect
 A warranty's status pill is `WarrantyStatusBadge` (`components/warranties/WarrantyStatusBadge.tsx`), fed by the server's `status` and `daysLeft`; no component compares a warranty's dates itself (WTY-002).
 
 `components/ui/Table.tsx` is constants (`TABLE_CLASS`, `TH_CLASS`, `TD_CLASS`) plus thin `Th`/`Td` cells, not a `<Table>` wrapper -- these tables are hand-laid with colspans and sticky cells. `SortableHeader` deliberately stays off `TH_CLASS` (about twenty-five report tables draw a lighter header, and folding it in would restyle every report).
+
+**A list's header cell is `Th` / `TH_CLASS`**, never a hand-copied `text-xs font-medium text-gray-500 uppercase tracking-wider` string or a local `HEADER_CLASS`. A sortable one is a `<th aria-sort>` in `TH_CLASS` holding a `<button>` with `SortIcon`: a `<th onClick>` is not reachable from the keyboard. `SortableHeader` reaches the same result the other way, a focusable `<th>` (`tabIndex={0}`, Enter and Space through `onKeyDown`) carrying `aria-sort`, and stays the report header. `SortableTh` (`components/ui/Table.tsx`) is that list cell, written once. Lists that still hand-copy the string are listed debt in `screens-and-dialogs.md`, not a pattern.
 
 ## The card shadow is `--shadow-card`; the bare `shadow` reads no token
 
@@ -51,7 +56,9 @@ Tailwind v4 trap: the bare `shadow` utility is a legacy alias with the stock val
 
 ## A dialog is titled through `Modal`, never by a hand-rolled heading
 
-`Modal` takes `title` (and optional `description`, `footer`, `padding`), draws the standard header and wires `aria-labelledby` -- before it, none of the 74 hand-rolled headings reached the dialog, so every dialog announced itself as an unnamed region. `padding` defaults to `none` and leaves children unwrapped, because several call sites make the panel their own scroll or flex parent. A genuinely bespoke header (ConfirmDialog's icon) stays on the baseline deliberately.
+`Modal` takes `title` (and optional `description`, drawn as an `InfoTooltip` beside the title, `footer`, `padding`), draws the standard heading and wires `aria-labelledby` -- before it, none of the 74 hand-rolled headings reached the dialog, so every dialog announced itself as an unnamed region. `padding` defaults to `none` and leaves children unwrapped, because several call sites make the panel their own scroll or flex parent. A genuinely bespoke header (ConfirmDialog's icon) stays on the baseline deliberately.
+
+What the header looks like is `screens-and-dialogs.md`: the reference is the New Transaction dialog (large bold title, no X, no full-width divider), and `Modal`'s `title` heading is drawn that way. There is no X, so a titled dialog draws its own Cancel or Close in every state. A confirmation (`ConfirmDialog`, `UnsavedChangesDialog`) is the one exempt kind -- icon, smaller title, the question as a paragraph -- and its buttons are still `Button` variants (`screens-and-dialogs.md`, "A confirmation is its own kind of dialog").
 
 ## An empty list renders `EmptyState`
 
@@ -135,7 +142,7 @@ What a calendar may do with what it draws is `frontend/src/components/calendar/c
 
 ## A screen's Table / Calendar choice is `viewModeStore`, not a URL parameter
 
-`store/viewModeStore.ts` holds `{ view, layers }` per surface (`transactions`, `investments`) under one localStorage key, the density store's pattern, and `components/ui/ViewModeToggle.tsx` is the segmented control that moves it. It wears `InvestmentViewToggle`'s chrome deliberately, because the two sit side by side in the Investments toolbar, and both take it from `components/ui/segmented-control.ts` (`SEGMENTED_GROUP_CLASS`, `segmentClass`) rather than each spelling the classes out -- which is how the two last drifted apart by a `motion-reduce:transition-none`. A guard in `frontend/src/test/ui-conventions.test.ts` holds the chrome in one place. Which view a screen is on is a fact about the screen, so a laptop and a desktop signed into the same account need not agree; it is not a `user_preferences` column and not a URL parameter, which would impose the sender's reading habit on whoever opens a shared link. `useViewMode(surface)` binds the actions to one surface so a caller cannot write to the other, and `LayerOf<S>` narrows `toggleLayer` and `isLayerOn` to that surface's own layers, so asking the investments calendar for a `balances` layer is a type error rather than a toggle that silently does nothing. At least one layer is always on: a calendar with every layer off is a month of empty boxes, which reads as a page that failed rather than as a choice.
+`store/viewModeStore.ts` holds `{ view, layers }` per surface (`transactions`, `investments`, `bills`; Bills & Deposits calls its table "the list" and offers no layer switch) under one localStorage key, the density store's pattern, and `components/ui/ViewModeToggle.tsx` is the segmented control that moves it. It wears `InvestmentViewToggle`'s chrome deliberately, because the two sit side by side in the Investments toolbar, and both take it from `components/ui/segmented-control.ts` (`SEGMENTED_GROUP_CLASS`, `segmentClass`) rather than each spelling the classes out -- which is how the two last drifted apart by a `motion-reduce:transition-none`. A guard in `frontend/src/test/ui-conventions.test.ts` holds the chrome in one place. Which view a screen is on is a fact about the screen, so a laptop and a desktop signed into the same account need not agree; it is not a `user_preferences` column and not a URL parameter, which would impose the sender's reading habit on whoever opens a shared link. `useViewMode(surface)` binds the actions to one surface so a caller cannot write to the other, and `LayerOf<S>` narrows `toggleLayer` and `isLayerOn` to that surface's own layers, so asking the investments calendar for a `balances` layer is a type error rather than a toggle that silently does nothing. At least one layer is always on: a calendar with every layer off is a month of empty boxes, which reads as a page that failed rather than as a choice.
 
 The switch is drawn as two icons, not two words, and the words survive as each button's `aria-label` and `title`. It sits in one corner of the screen in both views: the right-hand end of `CalendarToolbar`'s row, grouped with the legend behind one `sm:ml-auto` (two `ml-auto` siblings would SPLIT the free space between them rather than both moving right), and in table mode `ListTopToolbar`'s `infoAfter`, immediately right of the "Showing 1-25 of 90" line, so what the reader is looking at and the control that changes its shape read as one statement while the right-hand end stays with the controls that act on the list as drawn (export, density) and, after them, the pager. A bar drawn without paging props -- the empty register -- has no count line, so there the switch stays last of the buttons. Neither component renders it; each takes it as a `viewToggle` node, because which surface it switches is the page's business. On the Investments page `InvestmentTransactionList` keeps `viewToggle` for the brokerage/cash switch beside its heading and takes the Table/Calendar one as `viewModeToggle`, which only reaches the strip when that list owns its paging.
 
@@ -174,6 +181,10 @@ server will refuse is worse than an absent one.
 
 Clicking an attachment previews it; Download is a footer action of the preview.
 A warranty's documents are `AttachmentsSection` with a warranty parent (`{ warrantyId }`, wrapped by `WarrantyDocumentsSection`), never a second uploader; a new warranty's are its staged mode with `stagedFor="warranty"`, which `WarrantyForm` uploads once the warranty exists.
+When a staged uploader sits beside an existing shared-document list, its
+`pendingHint` describes the upload step even with no pending files; an empty
+selection does not mean the group has no saved attachments. The shared-expense
+file journey checks that distinction after saving and reloading a document.
 Four rules the viewer holds, each with a test:
 
 - **Bytes come through `attachmentsApi.fetchBytes`**, never a bare `<img src>`
@@ -274,7 +285,7 @@ The login page pre-fills `DEMO_USER_EMAIL` / `DEMO_USER_PASSWORD` from that modu
 
 ## A detail page returns to its list above the title, and switches with the caret beside it
 
-Every detail page carries the same two controls: a chevron and "Back to <List>" on the line *above* the title, and `EntitySwitcher`'s caret immediately after the title. The way back is not an action on the thing being viewed, so it does not belong among the buttons on the right. For reports the pair is `BackToReportsLink` and `ReportDetailHeader` (`components/reports/`); `ReportSwitcher` builds the route itself so no call site spells it out. `ui-conventions.test.ts` scans for a hand-rolled back-chevron-to-`/reports`.
+Every detail page carries the same two controls: a chevron and "Back to <List>" on the line *above* the title, and `EntitySwitcher`'s caret immediately after the title. The way back is not an action on the thing being viewed, so it does not belong among the buttons on the right. For reports the pair is `BackToReportsLink` and `ReportDetailHeader` (`components/reports/`), and a settings sub-page uses `BackToSettingsLink` (`components/settings/`); `ReportSwitcher` builds the route itself so no call site spells it out. `ui-conventions.test.ts` scans for a hand-rolled back-chevron-to-`/reports`.
 
 **Two switchers on one line means at least one says its name.** `EntitySwitcher` takes `triggerText` (the GEM report's scenario picker reads "Scenario ⌄"); the bare caret stays the default when it is the only one.
 
@@ -303,6 +314,8 @@ Whether a picker *offers* to create is a property of the surface, not the field:
 ## An account balance is coloured by its sign -- `balanceColor`, never by account type
 
 `balanceColor` (`lib/format.ts`) is the one rule: negative is red, everything else neutral. Do not add `|| isLiability` (or any `accountType` test) -- a credit card at a credit balance is not in the red, and the sign already carries the meaning. `gainLossColor` is the sibling for a *change* in value (green when up), not for a balance.
+
+**A colour that means something comes from one place.** An amount is coloured by `balanceColor` or `gainLossColor`, which use green and red; never emerald, rose or another hue for the same meaning. A status pill is `Badge`. A warning is amber, not yellow.
 
 ## A header panel is `fixed` inside a transformed ancestor -- give it a height, never a bottom anchor
 
@@ -391,6 +404,29 @@ What the shared row encodes, for the two places that still compose by hand:
 phone by default, and `phoneColumns={2}` halves the scroll for a legend of short
 names (the spending-by-category legend). A name that has to truncate at half
 width loses its end silently, so check the longest one before asking for two.
+
+## A control alone on a phone line fills it
+
+On a phone a list page's toolbar wraps: the search takes the first line and
+each filter after it lands on a line of its own. A control that keeps its
+desktop width there leaves most of its line empty and reads as left-aligned
+debris, so **whatever ends up alone on a line below `sm` is `w-full sm:w-auto`**:
+the search input, a `Select`, a filter's segmented control (Payees, Categories,
+Securities, Currencies, Warranties, Insights) and a disclosure button standing
+alone under a list (Payroll Deductions' "Show year-to-date" and "Show previous
+periods").
+
+- **A segmented control in a list toolbar is `SEGMENTED_TOOLBAR_GROUP_CLASS`
+  with `toolbarSegmentClass`** (`components/ui/segmented-control.ts`), not
+  `w-full` appended to `SEGMENTED_GROUP_CLASS` at the call site. The pill alone
+  stretching leaves its segments bunched at the left of a wide grey bar; the
+  segments `grow` to share the line and stop growing from `sm` up, where the
+  pill is its own width again. The pill is a flex item of the toolbar's
+  `flex-wrap` row, which is what lets `w-full` take the line.
+- **Not a control that shares its line.** The plain `SEGMENTED_GROUP_CLASS`
+  stays for a switch beside other controls on one row (the Investments toolbar's
+  view switches, a report's view toggle, a dialog's mode switch): stretching it
+  there pushes its neighbour onto a new line.
 
 ## A `<details>` disclosure is controlled, because jsdom half-implements it
 
@@ -529,6 +565,78 @@ stored `body_text` that is really HTML is drawn the same way (`looksLikeHtml`). 
 
 The parser closes the outer element at the inner tag, so the click target ends where the nested control begins and the server's HTML stops matching React's -- a hydration mismatch. Fix it at the call site by making the two **siblings**: a wrapper carrying the border and hover, with the navigation button and the nested control side by side. Do not demote the inner control to a focusable `<span>` -- its implicit role is generic, screen readers drop its `aria-label`, and the result is a tab stop announcing nothing. `ui-conventions.test.ts` scans for this; changing a shared component's trigger element is a change to every call site, and the guard tells you which.
 
+A link that looks like a button -- a back or cancel link -- is a `Link` styled with `buttonClassName(...)` (`components/ui/Button.tsx`), never `<Link><Button>`.
+
+## An icon is a heroicon from the outline set
+
+Icons come from `@heroicons/react/24/outline`. The `24/solid` set is only for a filled state, such as the favourite star in `SecurityDetailHeader.tsx`. Never an inline `<svg>` that copies a heroicon path.
+
+Size: `h-4 w-4` in a button or a row (`h-3.5 w-3.5` in a dense row, as `RowActions` does), `h-5 w-5` in a header. The icon sits to the left of its text, and the gap is the container's (`inline-flex items-center gap-1`), not `mr-*` on the icon.
+
+## Figures are tabular app-wide
+
+`body { font-variant-numeric: tabular-nums }` in `app/globals.css` already makes every digit fixed-width, so do not add `tabular-nums` to a cell. Amount, rate and quantity columns are `text-right`. The class survives on existing elements, and two tests pin it (`ColumnChooserMenu.test.tsx` on the hidden-column count, `TransactionsCalendarView.test.tsx` on a calendar chip's amount); a change that removes a redundant class updates the assertion that pins it rather than leaving a test that checks for a no-op.
+
+## `title` is not an information channel
+
+A `title` attribute shows only on a mouse hover, so a phone, a keyboard and most screen readers never get it. An icon-only button has an `aria-label`. Information a user needs (a full amount, what a rate means, a warning) is visible or in an `InfoTooltip`. The one use left for `title` is repeating text the screen already shows in full elsewhere or has cut short (below).
+
+**A truncated name carries its full text.** Put `title` with the full name on the element that is cut, and on a phone wrap (`break-words`) or clamp (`line-clamp-2`) rather than cutting to one line with `truncate`, as `SecurityList.tsx` does.
+
+## A date a person reads goes through `useDateFormat()`
+
+Format a date with `useDateFormat()` (`useChartDateFormat` on a chart axis) and a relative time ("3 hours ago") with `useRelativeTime()`. Never `toLocaleDateString`, `toLocaleString`, `Intl.DateTimeFormat` or a date-fns `format` with a fixed English pattern: each ignores the user's date format preference (`forms-and-formatting.md`).
+
 ## Bank Sync provider default
 
 The Bank Sync settings page defaults to SimpleFIN when at least one active connection has an account linked to an open Monize account and every such connection uses SimpleFIN. Pending, expired, revoked, failed, unlinked and closed-account-only connections do not decide the default. Automatic sync selects the cadence and is not an enablement test. Empty, loading and failed reads retain Enable Banking; a manual provider selection wins over subsequent reads for the current visit. Regression coverage is in `frontend/src/app/settings/bank-sync/page.test.tsx`.
+
+## Shared-expense forms and stacked dialogs
+
+`components/shared-expenses/useSharedEntryPreview.ts` requests a server preview
+after a typing pause. Save reads only the response whose group, entry and draft
+key match the current inputs; preview failures retain the same key and expose
+retry. Keep the accepted fingerprint on a failed save so a lost response can be
+retried with the original command. The entry-editor tests exercise both response
+orders and the save retry. The split editor offers remainder helpers only for
+a positive remainder and keeps extras behind an explicit disclosure.
+
+The entry, split and private-booking forms use `Modal` with `fixedHeight` and
+`fullScreenOnPhone` so the title and footer stay visible while their body scrolls.
+The browser journeys assert that the title and acceptance action remain in the
+viewport after scrolling to the proposal on desktop and a 360px phone.
+
+A repeated money field uses a `useId()` identity, not its translated label:
+`components/shared-expenses/SharedPrimitives.tsx` supplies one to `CurrencyInput`.
+Several payments can have the same caption while their labels still target their
+own fields. `components/shared-expenses/SharedBooking.test.tsx` exercises the
+separate payment parts.
+
+`Modal` owns its history entry through effect replay. Its unmount cleanup waits
+for a microtask and checks the mounted lifetime token before calling
+`history.back()`, so React Strict Mode does not consume the page behind a new
+modal. Nested review leaves the parent modal open until the review finishes.
+`components/ui/Modal.test.tsx` covers the replay; the shared-expense Playwright
+journeys cover cancelling a document-created entry and retrying staged uploads.
+
+A portalled `Combobox` follows its anchor with `placePopover` before paint and on
+scroll/resize. A delayed scroll event from focusing a low field must not close
+its options before selection. Its resize handler checks that an event target is
+a `Node` before asking whether the list contains it; a window resize targets the
+window. `components/ui/Combobox.test.tsx` covers both events and option selection.
+
+Shared entry attachments stay in the expense form through `useSharedEntrySave`.
+Save closes after the entry and selected uploads succeed. A partial failure keeps
+the saved entry and failed file operation IDs, so Retry does not write a second
+expense. `components/shared-expenses/useSharedEntrySave.test.tsx` covers lost
+responses and partial uploads.
+The group-only delivery offers no personal booking controls; compatibility reads
+and unlink remain in `SharedPrivateFinances`.
+
+Shared overview and entry rows use `SharedGroupTable` and `SharedEntryTable`,
+with `Th`/`Td`, `CellLabel` with `CAPTION_CLASS`, CSS-wrapped phone rows and
+`useLongPress` plus `activateOnKey` and `INTERACTIVE_ROW_FOCUS_CLASS` from
+`components/ui/interactive-row.ts`. `FilterPanelHeader` is shared with Transactions; filter state and
+request keys stay in each page. `components/shared-expenses/SharedTables.test.tsx` holds stale-row refusal
+and collapsed-filter state. Money uses the square `CurrencyPickerButton` beside
+`CurrencyInput` through `SharedMoneyInput`; dependent portions have a bound currency.
