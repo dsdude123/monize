@@ -42,6 +42,7 @@
     "institutionNotFound": "金融機関が見つかりません",
     "updateClosed": "閉鎖された口座は更新できません",
     "changeCurrencyWithTransactions": "取引のある口座の通貨は変更できません。",
+    "changeCurrencyWithBalanceOrSchedules": "開始残高または予定取引がある口座の通貨は変更できません。",
     "alreadyClosed": "口座はすでに閉鎖されています",
     "closeNonZeroBalance": "残高がゼロでない口座は閉鎖できません。現在の残高：{{ currentBalance }}",
     "closeWithFutureTransactions": "将来の日付の取引がある口座は閉鎖できません。今日より後の日付の取引が {{ count }} 件あります。先に削除または無効化してください。",
@@ -100,7 +101,8 @@
     "unsupportedInvestmentAction": "サポートされていない投資アクション：{{ action }}",
     "unsupportedBulkAction": "サポートされていない一括アクション：{{ action }}",
     "unsupportedSimpleAction": "サポートされていないアクション：{{ action }}",
-    "unsupportedTableForReinsert": "再挿入のためのサポートされていないテーブル：{{ tableName }}"
+    "unsupportedTableForReinsert": "再挿入のためのサポートされていないテーブル：{{ tableName }}",
+    "undoConversion": "この変更は取引を振替に、または振替から変換したため、自動的に元に戻せません。代わりに元の形に変換し直してください。"
   },
   "admin": {
     "passwordOrInviteNotBoth": "パスワードまたはメール招待のどちらかを指定してください。両方は指定できません。",
@@ -114,6 +116,11 @@
     "deleteLastAdmin": "最後の管理者アカウントは削除できません。",
     "cannotResetOwnPassword": "管理パネルから自分のパスワードをリセットすることはできません",
     "noLocalPassword": "ローカルパスワードのないアカウントのパスワードはリセットできません",
+    "cannotUnlinkOwnSso": "管理パネルから自分のSSOアカウントを解除することはできません",
+    "notSsoAccount": "このアカウントはSSOアカウントではありません",
+    "unlinkSsoNeedsEmail": "このアカウントにはメールアドレスがないため、パスワードでサインインできません",
+    "localAuthDisabled": "このサーバーではパスワードによるサインインが無効です",
+    "ssoPasswordLoginDisabled": "SSOアカウントではパスワードによるサインインが無効です。代わりに「SSOを解除」を使用してください。",
     "cannotResetOwnTwoFactor": "管理パネルから自分の二要素認証をリセットすることはできません",
     "twoFactorNotEnabled": "このユーザーは二要素認証を設定していません。"
   },
@@ -308,6 +315,11 @@
     "noOpenPeriod": "閉鎖するオープン期間がありません",
     "categoryIdsNotOwned": "カテゴリIDが見つからないか、ユーザーが所有していません：{{ ids }}"
   },
+  "payrollDeductions": {
+    "notFound": "給与控除ルール {{ id }} が見つかりません",
+    "duplicate": "この請求にはそのカテゴリのルールが既にあります",
+    "expectedRequired": "この請求にはこのカテゴリの行がありません。給与ごとの予定額を入力してください"
+  },
   "categories": {
     "notFound": "ID {{ id }} のカテゴリが見つかりません",
     "cannotModifySystem": "システムカテゴリは変更できません",
@@ -469,6 +481,7 @@
   },
   "import": {
     "noAccountBlocks": "QIFファイルに口座ブロックが見つかりません。このファイルはマルチアカウントエクスポートではない可能性があります。",
+    "accountTypeRequired": "インポートする前に、次の口座の種類を選択してください: {{ accounts }}",
     "importFailed": "{{ imported }} 件の取引後にインポートが失敗しました：{{ message }}",
     "investmentFileNeedsBrokerageAccount": "このファイルには投資取引が含まれていますが、選択した口座は投資証券口座ではありません。このインポートには証券口座を選択してください。",
     "regularFileNeedsCashAccount": "このファイルには通常の銀行取引が含まれていますが、選択した口座は投資証券口座です。このインポートには現金口座（投資現金口座を含む）を選択してください。",
@@ -481,7 +494,7 @@
     "mnyNoFile": "Money ファイルがアップロードされていません",
     "mnyFileTruncated": "この Money ファイルは不完全なようです。アップロードが中断された可能性があります。もう一度お試しください。",
     "mnyNotAMoneyFile": "このファイルは Microsoft Money (.mny) ファイルではありません",
-    "mnyUnsupportedVersion": "このファイルは Money 97 または 98 で作成されており、Monize では読み取れません。無償の Money Plus Sunset エディションで一度開いて保存し、その結果をインポートしてください。",
+    "mnyUnsupportedVersion": "このファイルは Monize で読み取れないバージョンの Microsoft Money で作成されています。無償の Money Plus Sunset エディションで一度開いて保存し、その結果をインポートしてください。",
     "mnyPasswordRequired": "この Money ファイルはパスワードで保護されています。続行するにはパスワードを入力してください。",
     "mnyPasswordIncorrect": "そのパスワードでは Money ファイルを開けません。確認してもう一度お試しください。",
     "mnyUnreadableDatabase": "この Money ファイルは復号できましたが、内容を読み取れませんでした。破損している可能性があります。",
@@ -489,9 +502,12 @@
     "mnyStagedFileInUse": "この Money ファイルはインポート中です。破棄する前にインポートの完了をお待ちください。",
     "mnyImportAlreadyRunning": "インポートが既に実行中です。完了してから次を開始してください。",
     "mnyAlreadyImported": "このファイルは {{ date }} にすでにインポートされており(インポート {{ jobId }})、そのレコードはまだアカウントにあります。もう一度インポートすると重複します。置き換えるには、最初からやり直して既存のデータを置き換える設定を選んでください。",
+    "mnyExistingAccountClosed": "既存の口座「{{ name }}」は閉鎖されているため、Money ファイルを統合できません。口座を再開するか名前を変更してから、もう一度インポートしてください。",
+    "mnyExistingAccountCurrency": "既存の口座「{{ name }}」は {{ existing }} を使用していますが、Money ファイルの口座は {{ file }} を使用しています。どちらかの名前を変更してから、もう一度インポートしてください。",
     "mnyJobNotFound": "インポートジョブが見つかりません",
     "mnyFileTooLarge": "この Money ファイルはインポート上限の {{ limit }} MB を超えています。",
-    "noRateForSplitTransfer": "{{ date }} の {{ pair }} の為替レートがありません。分割行が別の通貨の口座へ振り替えています。その通貨ペアと日付の為替レートを追加してから、もう一度インポートしてください。"
+    "noRateForSplitTransfer": "{{ date }} の {{ pair }} の為替レートがありません。分割行が別の通貨の口座へ振り替えています。その通貨ペアと日付の為替レートを追加してから、もう一度インポートしてください。",
+    "accountClosed": "この口座は閉鎖されています。再開するか、別の口座を選択してください。"
   },
   "monteCarlo": {
     "scenarioNotFound": "シナリオ {{ id }} が見つかりません",
@@ -767,6 +783,7 @@
     "notATransfer": "取引は振替ではありません",
     "splitTransferLegAccountLocked": "この振替は分割取引の一部です。口座を変更するには、元の取引の分割を編集してください。",
     "splitTransferLegStatusLocked": "この送金は分割取引の一部です。両側が一緒に変更されるよう、所属する分割取引を編集して無効化または復元してください。",
+    "investmentCashLegLocked": "この取引は投資取引の現金側です。両方が一緒に変わるように、投資取引を変更または削除してください。",
     "investmentCashLegStatusLocked": "この取引は投資取引の現金側です。両側が一緒に変更されるよう、投資取引のステータスを変更して無効化または復元してください。",
     "notFoundById": "ID {{ id }} の取引が見つかりません",
     "bulkUpdateNoFields": "少なくとも1つの更新フィールドが必要です",
@@ -786,7 +803,11 @@
     "transferRateUnavailable": "{{ from }} -> {{ to }} の為替レートを判定できませんでした。振替が正しく記録されるように exchangeRate または送金先金額を指定してください。",
     "transferAmountsMustAgreeOnZero": "送金は両側でゼロ以外の金額を動かすか、両側ともゼロである必要があります",
     "transferImpliedRateInvalid": "送金先の金額は、送金元の金額に対して使用できない為替レートを意味します",
-    "externalIdNotThisTransfer": "この externalId は、この振替先口座への振替ではない取引によって、すでにソース口座で使用されています"
+    "externalIdNotThisTransfer": "この externalId は、この振替先口座への振替ではない取引によって、すでにソース口座で使用されています",
+    "alreadyATransfer": "この取引はすでに振替です。代わりに振替自体を編集してください。",
+    "convertTransferCrossOwner": "他の所有者の口座を含む振替は変換できません。削除してから、必要な項目を作成してください。",
+    "splitTransferLegConvertLocked": "この振替は分割取引の一部です。元の取引の分割を編集して削除してください。",
+    "transferCounterpartChanged": "編集中にこの振替の相手側が変更されました。再読み込みしてもう一度お試しください。"
   },
   "users": {
     "userNotFound": "ユーザーが見つかりません",

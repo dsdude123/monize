@@ -33,6 +33,7 @@ import { TokenService } from "./token.service";
 import { tr } from "../i18n/translate";
 import { patchUserPreferences } from "../users/user-preference-writer";
 import { isTwoFactorActive } from "./two-factor-state";
+import { oidcPasswordLoginAllowed } from "./oidc/oidc-password-login";
 import { AuthAttemptCounterService } from "./auth-attempt-counter.service";
 import { SingleUseTokenService } from "./single-use-token.service";
 
@@ -375,9 +376,20 @@ export class TwoFactorService {
       user.twoFactorSecret = reEncryptedSecret;
     }
 
-    // Update last login
+    // Update last login. Own columns only (CONC-008): `save(user)` would write
+    // back a stale backupCodes a concurrent login just consumed.
     user.lastLogin = new Date();
-    await this.scoped(User, (repo) => repo.save(user));
+    await this.scoped(User, (repo) =>
+      repo.update(
+        { id: user.id },
+        {
+          lastLogin: user.lastLogin,
+          ...(reEncryptedSecret !== null
+            ? { twoFactorSecret: reEncryptedSecret }
+            : {}),
+        },
+      ),
+    );
     this.logger.log(`2FA verification successful for user ${user.id}`);
 
     const rememberMe = payload.rememberMe === true;
@@ -575,7 +587,10 @@ export class TwoFactorService {
       );
     }
 
-    if (user.authProvider === "oidc") {
+    if (
+      user.authProvider === "oidc" &&
+      !oidcPasswordLoginAllowed(this.configService)
+    ) {
       throw new BadRequestException(
         tr(
           "errors.auth.twoFactorNotAvailableForSso",
@@ -825,7 +840,10 @@ export class TwoFactorService {
             tr("errors.auth.userNotFound", "User not found"),
           );
         }
-        if (user.authProvider === "oidc") {
+        if (
+          user.authProvider === "oidc" &&
+          !oidcPasswordLoginAllowed(this.configService)
+        ) {
           throw new BadRequestException(
             tr(
               "errors.auth.twoFactorNotAvailableForSso",

@@ -27,7 +27,7 @@ A comprehensive personal finance management application built with NestJS and Ne
 
 <div align="center">
 
-### [**Live Demo**](https://demo.monize.net) | [**Wiki**](https://github.com/kenlasko/monize/wiki) | [**Release Notes**](docs/release-notes/) | [**Screenshots**](#screenshots)
+### [**Live Demo**](https://demo.monize.net) | [**Documentation**](https://www.monize.net/docs/) | [**Release Notes**](docs/release-notes/) | [**Screenshots**](#screenshots)
 
 </div>
 
@@ -611,6 +611,7 @@ npm run dev
 | `OIDC_CLIENT_ID` | OIDC client ID | - |
 | `OIDC_CLIENT_SECRET` | OIDC client secret | - |
 | `OIDC_CALLBACK_URL` | OIDC callback URL | - |
+| `OIDC_ALLOW_PASSWORD_LOGIN` | `true` lets SSO accounts that have a local password sign in with it (IdP-down fallback); SSO logins keep the app TOTP. Enable app 2FA on those accounts | `false` |
 | `SMTP_HOST` | SMTP server host | - |
 | `SMTP_PORT` | SMTP server port | `587` |
 | `SMTP_SECURE` | Force implicit TLS on a port other than 465. Port 465 already selects it, and this cannot switch it off | `false` |

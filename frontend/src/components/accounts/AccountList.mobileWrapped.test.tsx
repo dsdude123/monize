@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@/test/render';
+import { render, screen, fireEvent, within } from '@/test/render';
 import { AccountList } from './AccountList';
 import { Account } from '@/types/account';
 import { useDensityStore } from '@/store/densityStore';
@@ -27,11 +27,15 @@ vi.mock('@/lib/accounts', () => ({
   },
 }));
 
-vi.mock('@/hooks/useNumberFormat', () => ({
-  useNumberFormat: () => ({
-    formatCurrency: (n: number, _currency?: string) => `$${n.toFixed(2)}`,
-  }),
-}));
+vi.mock('@/hooks/useNumberFormat', async () => {
+  const { numberFormatMockDefaults } = await import('@/test/number-format-mock');
+  return {
+    useNumberFormat: () => ({
+      ...numberFormatMockDefaults(),
+      formatCurrency: (n: number, _currency?: string) => `$${n.toFixed(2)}`,
+    }),
+  };
+});
 
 vi.mock('@/lib/logger', () => ({
   createLogger: () => ({
@@ -177,6 +181,23 @@ describe('the accounts list on a phone', () => {
     expect(text).not.toContain('Delete');
   });
 
+  it('wraps a long name and description rather than cutting them where no title can be read', () => {
+    setPhoneViewport(true);
+    useDensityStore.setState({ densities: { accounts: 'normal' } });
+
+    const longName = 'Joint Household Everyday Chequing With A Very Long Name';
+    const description = 'The account the salary lands in and the bills leave from';
+    const { container } = renderList([createAccount({ name: longName, description })]);
+
+    const [row] = accountRows(container);
+    const name = within(row).getByText(longName);
+    expect(name.className).toContain('break-words');
+    expect(name.className).not.toContain('truncate');
+    const desc = within(row).getByText(description);
+    expect(desc.className).toContain('line-clamp-2');
+    expect(desc).toHaveAttribute('title', description);
+  });
+
   it('replaces the column header with a slim sort header', () => {
     setPhoneViewport(true);
     useDensityStore.setState({ densities: { accounts: 'normal' } });
@@ -191,8 +212,8 @@ describe('the accounts list on a phone', () => {
     const labels = Array.from(head!.querySelectorAll('button')).map(
       (button) => button.textContent?.replace(/[^A-Za-z ]/g, '').trim(),
     );
-    expect(labels).toEqual(['Account Name', 'Type', 'Status', 'Balance']);
-    // No column label of its own: the one card cell below carries all four.
+    expect(labels).toEqual(['Account Name', 'Type', 'Status', 'Last Reconciled', 'Unreconciled', 'Balance']);
+    // No column label of its own: the one card cell below carries all six.
     expect(head!.textContent).not.toContain('Actions');
   });
 

@@ -39,6 +39,7 @@ import {
 } from "../common/db/locks";
 import { assertReconciledRowsMutable } from "./reconciled-lock.util";
 import { removeLockedTransactionLeg } from "./remove-transaction-leg";
+import { transferLegColumns } from "./transfer-leg-columns";
 import { autoTransferPayeeName } from "./transfer-payee-label.util";
 import { withSystemContext } from "../common/db/with-context";
 import {
@@ -459,6 +460,30 @@ export class TransactionTransferService {
           roundFxRate(Number(input.existingExchangeRate ?? 1)));
 
     if (financialStructureChanged) {
+      // An echoed untrusted stored rate (1 on a zero-amount cross-currency
+      // transfer) is not a rate the user chose: resolve one instead.
+      const untrusted =
+        input.fromAccount.currencyCode !== input.toAccount.currencyCode &&
+        this.isStoredRateUntrusted(
+          input.existingFromAmount,
+          input.existingExchangeRate,
+        );
+      const suppliedRate =
+        untrusted &&
+        updateDto.exchangeRate !== undefined &&
+        input.existingExchangeRate != null &&
+        roundFxRate(Number(updateDto.exchangeRate)) ===
+          roundFxRate(Number(input.existingExchangeRate))
+          ? undefined
+          : updateDto.exchangeRate;
+      // The stored toAmount (0) of an untrusted row is an echo too: forwarding
+      // it would make amount 500 against toAmount 0 a refusal.
+      const suppliedToAmount =
+        untrusted &&
+        updateDto.toAmount !== undefined &&
+        roundMoney(updateDto.toAmount) === roundMoney(input.existingToAmount)
+          ? undefined
+          : updateDto.toAmount;
       const fx = await this.resolveTransferFx({
         fromAccount: input.fromAccount,
         toAccount: input.toAccount,
@@ -466,8 +491,8 @@ export class TransactionTransferService {
         transactionDate: input.transactionDate,
         suppliedFromCurrencyCode: updateDto.fromCurrencyCode,
         suppliedToCurrencyCode: updateDto.toCurrencyCode,
-        suppliedExchangeRate: updateDto.exchangeRate,
-        suppliedToAmount: updateDto.toAmount,
+        suppliedExchangeRate: suppliedRate,
+        suppliedToAmount,
       });
       return { ...fx, repriced: true };
     }
@@ -489,6 +514,29 @@ export class TransactionTransferService {
       toAmount: input.existingToAmount,
       repriced: false,
     };
+  }
+
+  private assertAccountsOpen(...accounts: Account[]): void {
+    if (accounts.some((account) => account.isClosed)) {
+      throw new BadRequestException(
+        tr(
+          "errors.accounts.modifyBalanceClosed",
+          "Cannot modify balance of a closed account",
+        ),
+      );
+    }
+  }
+
+  /**
+   * A stored cross-currency rate says nothing when the source leg held zero
+   * (stored as 1 because zero needs no rate) or when it is missing/non-positive.
+   */
+  private isStoredRateUntrusted(
+    existingFromAmount: number,
+    existingRate: number | null | undefined,
+  ): boolean {
+    const rate = Number(existingRate);
+    return existingFromAmount === 0 || !Number.isFinite(rate) || rate <= 0;
   }
 
   private triggerNetWorthRecalc(accountId: string, userId: string): void {
@@ -767,31 +815,12 @@ export class TransactionTransferService {
     prepared: PreparedTransfer,
     manager?: EntityManager,
   ): Promise<WrittenTransfer> {
-    const {
-      effectiveUserId: userId,
-      dto,
-      fromOwnerId,
-      toOwnerId,
-      hasForeignLeg,
-      toAmount,
-      sourceCurrency,
-      destinationCurrency,
-      effectiveExchangeRate,
-      fromPayeeName,
-      toPayeeName,
-    } = prepared;
-    const {
-      fromAccountId,
-      toAccountId,
-      transactionDate,
-      amount,
-      description,
-      payeeId,
-      referenceNumber,
-      status = TransactionStatus.UNRECONCILED,
-      categoryId,
-      externalId,
-    } = dto;
+    const { dto, fromOwnerId, toOwnerId, hasForeignLeg } = prepared;
+    const { fromAccountId, toAccountId, transactionDate, amount, externalId } =
+      dto;
+    // The create's column set, shared with the in-place conversion of an
+    // existing row so a converted leg is byte for byte a created one.
+    const legs = transferLegColumns(prepared);
 
     // Both legs, their linkage, and the balance updates commit atomically.
     // Each leg is owned by ITS account's owner; per-user reference data
@@ -818,6 +847,9 @@ export class TransactionTransferService {
           }
         }
       }
+      // A future-dated leg skips `updateBalance` and its `openOnly` refusal, so
+      // a closed account would take the leg and move on the day it falls due.
+      this.assertAccountsOpen(prepared.fromAccount, prepared.toAccount);
       // Advisory, in the write's own transaction and identity: the unique
       // index refuses a second leg holding the key (caught below).
       if (externalId) {
@@ -830,39 +862,12 @@ export class TransactionTransferService {
       }
 
       const fromTransaction = m.create(Transaction, {
-        userId: fromOwnerId,
-        accountId: fromAccountId,
-        transactionDate: transactionDate as any,
-        amount: -amount,
-        currencyCode: sourceCurrency,
-        exchangeRate: 1,
-        description: description || null,
-        referenceNumber,
-        status,
-        isTransfer: true,
-        payeeId: fromOwnerId === userId ? payeeId || null : null,
-        payeeName: fromPayeeName,
-        categoryId: fromOwnerId === userId ? categoryId || null : null,
+        ...legs.from,
         // The key lives on the source leg only: it is unique per account, and
         // the request names the transfer from the source account's side.
         externalId: externalId ?? null,
       });
-
-      const toTransaction = m.create(Transaction, {
-        userId: toOwnerId,
-        accountId: toAccountId,
-        transactionDate: transactionDate as any,
-        amount: toAmount,
-        currencyCode: destinationCurrency,
-        exchangeRate: effectiveExchangeRate,
-        description: description || null,
-        referenceNumber,
-        status,
-        isTransfer: true,
-        payeeId: toOwnerId === userId ? payeeId || null : null,
-        payeeName: toPayeeName,
-        categoryId: toOwnerId === userId ? categoryId || null : null,
-      });
+      const toTransaction = m.create(Transaction, legs.to);
 
       const savedFromTransaction = await m.save(fromTransaction);
       const savedToTransaction = await m.save(toTransaction);
@@ -896,7 +901,7 @@ export class TransactionTransferService {
       // VOID, and `recalculateCurrentBalance` -- which excludes VOID rows --
       // then silently "corrected" the accounts the next time anything triggered
       // a recompute. Money appeared to move and then unmove (audit P5-001).
-      if (status === TransactionStatus.VOID) {
+      if (legs.from.status === TransactionStatus.VOID) {
         return { savedFromId: fromId, savedToId: toId };
       }
 
@@ -914,7 +919,10 @@ export class TransactionTransferService {
         );
       } else {
         await this.accountsService.updateBalance(fromAccountId, -amount);
-        await this.accountsService.updateBalance(toAccountId, toAmount);
+        await this.accountsService.updateBalance(
+          toAccountId,
+          prepared.toAmount,
+        );
       }
 
       return { savedFromId: fromId, savedToId: toId };
@@ -1403,18 +1411,43 @@ export class TransactionTransferService {
 
     const oldFromAmount = Math.abs(Number(fromTransaction.amount));
     const oldToAmount = Number(toTransaction.amount);
-    const exchangeRate = Number(toTransaction.exchangeRate) || 1;
+    let exchangeRate = Number(toTransaction.exchangeRate) || 1;
 
     const newAmount =
       input.amount !== undefined ? roundMoney(input.amount) : oldFromAmount;
+    const newDate = input.transactionDate ?? fromTransaction.transactionDate;
     // When only the amount changes, scale the destination leg by the stored
     // exchange rate; when nothing money-related changes, keep the stored toAmount.
-    const newToAmount =
+    let newToAmount =
       input.amount !== undefined
         ? roundMoney(newAmount * exchangeRate)
         : roundMoney(oldToAmount);
 
-    const newDate = input.transactionDate ?? fromTransaction.transactionDate;
+    // A zero-amount cross-currency transfer is stored at rate 1 because zero
+    // needs no rate; that 1 is not a settlement rate, so scaling a new amount
+    // by it posts 500 USD as 500 EUR. Resolve the rate the way creation does,
+    // so the preview and the commit agree.
+    if (
+      input.amount !== undefined &&
+      fromTransaction.currencyCode !== toTransaction.currencyCode &&
+      this.isStoredRateUntrusted(oldFromAmount, toTransaction.exchangeRate)
+    ) {
+      const fx = await this.resolveTransferFx({
+        fromAccount: await this.accountsService.findOne(
+          userId,
+          fromTransaction.accountId,
+        ),
+        toAccount: await this.accountsService.findOne(
+          userId,
+          toTransaction.accountId,
+        ),
+        amount: newAmount,
+        transactionDate: String(newDate),
+      });
+      exchangeRate = fx.exchangeRate;
+      newToAmount = fx.toAmount;
+    }
+
     const description =
       input.description !== undefined
         ? stripHtml(input.description) || null
@@ -1842,6 +1875,15 @@ export class TransactionTransferService {
         userId,
         updateDto.toAccountId,
       );
+    }
+
+    // Only an account the transfer is moving INTO is refused: editing a leg that
+    // already sits in a closed account stays possible.
+    if (newFromAccount.id !== oldFromAccountId) {
+      this.assertAccountsOpen(newFromAccount);
+    }
+    if (newToAccount.id !== oldToAccountId) {
+      this.assertAccountsOpen(newToAccount);
     }
 
     const newAmount = updateDto.amount ?? oldFromAmount;

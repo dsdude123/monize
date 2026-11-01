@@ -42,6 +42,7 @@
     "institutionNotFound": "[XX-Institution not found-XX]",
     "updateClosed": "[XX-Cannot update a closed account-XX]",
     "changeCurrencyWithTransactions": "[XX-Cannot change the currency of an account that has transactions.-XX]",
+    "changeCurrencyWithBalanceOrSchedules": "[XX-Cannot change the currency of an account that has an opening balance or scheduled transactions.-XX]",
     "alreadyClosed": "[XX-Account is already closed-XX]",
     "closeNonZeroBalance": "[XX-Cannot close account with non-zero balance. Current balance: {{ currentBalance }}-XX]",
     "closeWithFutureTransactions": "[XX-Cannot close an account with future-dated transactions. It has {{ count }} transaction(s) dated after today; delete or void them first.-XX]",
@@ -100,7 +101,8 @@
     "unsupportedInvestmentAction": "[XX-Unsupported investment action: {{ action }}-XX]",
     "unsupportedBulkAction": "[XX-Unsupported bulk action: {{ action }}-XX]",
     "unsupportedSimpleAction": "[XX-Unsupported action: {{ action }}-XX]",
-    "unsupportedTableForReinsert": "[XX-Unsupported table for re-insert: {{ tableName }}-XX]"
+    "unsupportedTableForReinsert": "[XX-Unsupported table for re-insert: {{ tableName }}-XX]",
+    "undoConversion": "[XX-This change converted a transaction to or from a transfer, so it cannot be undone automatically. Convert it back instead.-XX]"
   },
   "admin": {
     "passwordOrInviteNotBoth": "[XX-Provide either a password or an email invite, not both.-XX]",
@@ -114,6 +116,11 @@
     "deleteLastAdmin": "[XX-Cannot delete the last admin account.-XX]",
     "cannotResetOwnPassword": "[XX-You cannot reset your own password through the admin panel-XX]",
     "noLocalPassword": "[XX-Cannot reset password for accounts without a local password-XX]",
+    "cannotUnlinkOwnSso": "[XX-You cannot unlink your own SSO account through the admin panel-XX]",
+    "notSsoAccount": "[XX-This account is not an SSO account-XX]",
+    "unlinkSsoNeedsEmail": "[XX-This account has no email address, so it cannot sign in with a password-XX]",
+    "localAuthDisabled": "[XX-Password sign-in is turned off on this server-XX]",
+    "ssoPasswordLoginDisabled": "[XX-Password sign-in is turned off for SSO accounts. Use Unlink SSO instead.-XX]",
     "cannotResetOwnTwoFactor": "[XX-You cannot reset your own two-factor authentication through the admin panel-XX]",
     "twoFactorNotEnabled": "[XX-This user does not have two-factor authentication set up.-XX]"
   },
@@ -308,6 +315,11 @@
     "noOpenPeriod": "[XX-No open period to close-XX]",
     "categoryIdsNotOwned": "[XX-Category IDs not found or not owned by user: {{ ids }}-XX]"
   },
+  "payrollDeductions": {
+    "notFound": "[XX-Payroll deduction rule {{ id }} not found-XX]",
+    "duplicate": "[XX-This bill already has a rule for that category-XX]",
+    "expectedRequired": "[XX-The bill has no line for this category; enter the amount expected per paycheque-XX]"
+  },
   "categories": {
     "notFound": "[XX-Category with ID {{ id }} not found-XX]",
     "cannotModifySystem": "[XX-Cannot modify system categories-XX]",
@@ -468,7 +480,9 @@
     "internal": "[XX-Internal server error-XX]"
   },
   "import": {
+    "accountClosed": "[XX-The account is closed. Reopen it or choose another account.-XX]",
     "noAccountBlocks": "[XX-No account blocks found in QIF file. This file may not be a multi-account export.-XX]",
+    "accountTypeRequired": "[XX-Choose an account type for these accounts before importing: {{ accounts }}-XX]",
     "importFailed": "[XX-Import failed after {{ imported }} transactions: {{ message }}-XX]",
     "investmentFileNeedsBrokerageAccount": "[XX-This file contains investment transactions but the selected account is not an investment brokerage account. Please select a brokerage account for this import.-XX]",
     "regularFileNeedsCashAccount": "[XX-This file contains regular banking transactions but the selected account is an investment brokerage account. Please select a cash account (including investment cash accounts) for this import.-XX]",
@@ -481,7 +495,7 @@
     "mnyNoFile": "[XX-No Money file was uploaded-XX]",
     "mnyFileTruncated": "[XX-That Money file looks incomplete. The upload may have been interrupted -- try again.-XX]",
     "mnyNotAMoneyFile": "[XX-That file is not a Microsoft Money (.mny) file-XX]",
-    "mnyUnsupportedVersion": "[XX-That file was written by Money 97 or 98, which Monize cannot read. Open and save it once in the free Money Plus Sunset edition, then import the result.-XX]",
+    "mnyUnsupportedVersion": "[XX-That file was written by a version of Microsoft Money that Monize cannot read. Open and save it once in the free Money Plus Sunset edition, then import the result.-XX]",
     "mnyPasswordRequired": "[XX-That Money file is password protected. Enter its password to continue.-XX]",
     "mnyPasswordIncorrect": "[XX-That password does not open the Money file. Check it and try again.-XX]",
     "mnyUnreadableDatabase": "[XX-That Money file was decrypted but its contents could not be read. It may be damaged.-XX]",
@@ -489,6 +503,8 @@
     "mnyStagedFileInUse": "[XX-This Money file is being imported. Wait for the import to finish before discarding it.-XX]",
     "mnyImportAlreadyRunning": "[XX-An import is already running. Wait for it to finish before starting another.-XX]",
     "mnyAlreadyImported": "[XX-This file was already imported on {{ date }} (import {{ jobId }}), and its records are still in your account. Importing it again would duplicate them. To replace them, start over and choose to replace your existing data.-XX]",
+    "mnyExistingAccountClosed": "[XX-The existing account \"{{ name }}\" is closed, so the Money file cannot be merged into it. Reopen it or rename it, then import again.-XX]",
+    "mnyExistingAccountCurrency": "[XX-The existing account \"{{ name }}\" uses {{ existing }}, but the Money file account uses {{ file }}. Rename one of them, then import again.-XX]",
     "mnyJobNotFound": "[XX-Import job not found-XX]",
     "mnyFileTooLarge": "[XX-That Money file is larger than the {{ limit }} MB import limit.-XX]",
     "noRateForSplitTransfer": "[XX-No exchange rate for {{ pair }} on {{ date }}: a split line transfers into an account in another currency. Add an exchange rate for that pair and date, then import again.-XX]"
@@ -767,6 +783,7 @@
     "notATransfer": "[XX-Transaction is not a transfer-XX]",
     "splitTransferLegAccountLocked": "[XX-This transfer is part of a split transaction. Change its accounts by editing the split on the source transaction instead.-XX]",
     "splitTransferLegStatusLocked": "[XX-This transfer is part of a split transaction. Void or restore it by editing the split transaction it belongs to, so both sides change together.-XX]",
+    "investmentCashLegLocked": "[XX-This transaction is the cash side of an investment transaction. Change or delete the investment transaction instead, so both sides change together.-XX]",
     "investmentCashLegStatusLocked": "[XX-This transaction is the cash side of an investment transaction. Void or restore it by changing the investment transaction's status, so both sides change together.-XX]",
     "notFoundById": "[XX-Transaction with ID {{ id }} not found-XX]",
     "bulkUpdateNoFields": "[XX-At least one update field must be provided-XX]",
@@ -786,7 +803,11 @@
     "transferRateUnavailable": "[XX-Could not determine an exchange rate for {{ from }} -> {{ to }}. Supply an exchangeRate or a destination amount so the transfer posts correctly.-XX]",
     "transferAmountsMustAgreeOnZero": "[XX-A transfer must move a non-zero amount on both sides, or zero on both-XX]",
     "transferImpliedRateInvalid": "[XX-The destination amount implies an unusable exchange rate against the source amount-XX]",
-    "externalIdNotThisTransfer": "[XX-This externalId is already used in the source account by a transaction that is not a transfer to this destination account-XX]"
+    "externalIdNotThisTransfer": "[XX-This externalId is already used in the source account by a transaction that is not a transfer to this destination account-XX]",
+    "alreadyATransfer": "[XX-This transaction is already a transfer. Edit the transfer itself instead.-XX]",
+    "convertTransferCrossOwner": "[XX-A transfer with another owner's account can't be converted. Delete it and create the entry you want instead.-XX]",
+    "splitTransferLegConvertLocked": "[XX-This transfer is part of a split transaction. Remove it by editing the split on the source transaction instead.-XX]",
+    "transferCounterpartChanged": "[XX-The other side of this transfer changed while you were editing. Reload and try again.-XX]"
   },
   "users": {
     "userNotFound": "[XX-User not found-XX]",

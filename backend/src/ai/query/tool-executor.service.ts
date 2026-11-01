@@ -1,3 +1,8 @@
+import { sharedLedgerRefusal } from "../../common/db/shared-ledger-refusal";
+import {
+  SharedReviewService,
+  SHARED_LEDGER_TOOLS,
+} from "../../shared-expenses/shared-review.service";
 import {
   Injectable,
   Inject,
@@ -228,6 +233,7 @@ export class ToolExecutorService {
     private readonly bondSeries: BondSeriesService,
     // `list_warranties` (design decision 11).
     private readonly warrantiesService: WarrantiesService,
+    private readonly sharedReview: SharedReviewService,
   ) {}
 
   async execute(
@@ -352,6 +358,15 @@ export class ToolExecutorService {
       this.logger.log(
         `execute done tool=${toolName} user=${userId} ms=${Date.now() - start} sources=${result.sources.length}`,
       );
+      if (
+        !result.isError &&
+        SHARED_LEDGER_TOOLS.some((name) => name === toolName)
+      ) {
+        return {
+          ...result,
+          data: await this.sharedReview.annotate(userId, result.data),
+        };
+      }
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
@@ -398,6 +413,8 @@ export class ToolExecutorService {
    * model can relay them; anything else becomes a generic error.
    */
   private toolErrorFromException(err: unknown, fallback: string): ToolResult {
+    const sharedRefusal = sharedLedgerRefusal(err);
+    if (sharedRefusal) return this.toolError(sharedRefusal);
     if (err instanceof HttpException) {
       const status = err.getStatus();
       if (status >= 400 && status < 500) {
@@ -2590,7 +2607,7 @@ export class ToolExecutorService {
 
     const sign = data.totalGainLoss >= 0 ? "+" : "";
     const lookThroughNote = data.lookThrough
-      ? ` Look-through: ${data.lookThrough.byCountry.items.length} countr${data.lookThrough.byCountry.items.length === 1 ? "y" : "ies"}, ${data.lookThrough.byAssetClass.items.length} asset class${data.lookThrough.byAssetClass.items.length === 1 ? "" : "es"}.`
+      ? ` Look-through: ${data.lookThrough.byCountry.items.length} countr${data.lookThrough.byCountry.items.length === 1 ? "y" : "ies"}, ${data.lookThrough.byAssetClass.items.length} asset class${data.lookThrough.byAssetClass.items.length === 1 ? "" : "es"}.${data.lookThrough.valuationComplete === false ? ` Look-through percentages cover only the priced and converted holdings (${data.lookThrough.knownSubtotal.toFixed(2)}); left out: ${[...data.lookThrough.unpricedSymbols.map((s) => `${s} (no price)`), ...data.lookThrough.missingRatePairs.map((p) => `${p} (no rate)`)].join(", ")}.` : ""}`
       : "";
     // The model reads this line before the payload, so an incomplete total has to
     // be described as incomplete here and not only flagged in `data`. Without it
@@ -2751,14 +2768,26 @@ export class ToolExecutorService {
     const money = (value: number | null) =>
       value === null ? "unknown" : value.toFixed(2);
 
+    const fxGap = data.totals.fxComplete === false;
+    const cur = data.totals.currency;
     const summaryParts = [
-      `capital gains ${money(data.totals.totalCapitalGain)}${filterDesc}`,
-      `realized ${money(data.totals.realizedGain)}`,
+      `capital gains ${money(data.totals.totalCapitalGain)} ${cur}${filterDesc}`,
+      `realized ${money(data.totals.realizedGain)}${
+        data.totals.realizedGain === null &&
+        data.totals.realizedGainKnownSubtotal !== null
+          ? ` (known part ${money(data.totals.realizedGainKnownSubtotal)}, the rest has no cost basis or exchange rate on record)`
+          : ""
+      }`,
       `unrealized ${money(data.totals.unrealizedGain)}`,
       `grouped by ${groupBy} (${data.entryCount} ${
         data.entryCount === 1 ? "entry" : "entries"
       })`,
     ];
+    if (fxGap) {
+      summaryParts.push(
+        `totals withheld where there is no exchange rate for ${data.totals.missingRatePairs.join(", ")}; add the rate on the Currencies page`,
+      );
+    }
 
     return {
       data,

@@ -396,13 +396,35 @@ describe("TwoFactorService", () => {
 
       await service.verify2FA(tempToken, code);
 
-      // Should have saved the user with re-encrypted secret
-      expect(usersRepository.save).toHaveBeenCalled();
-      const savedUser = usersRepository.save.mock.calls[0][0];
+      // Writes only its own columns (CONC-008), never the stale entity.
+      expect(usersRepository.save).not.toHaveBeenCalled();
+      const [criteria, patch] = usersRepository.update.mock.calls.find(
+        ([, p]: [unknown, Record<string, unknown>]) => "twoFactorSecret" in p,
+      );
+      expect(criteria).toEqual({ id: "user-1" });
+      expect(Object.keys(patch).sort()).toEqual([
+        "lastLogin",
+        "twoFactorSecret",
+      ]);
       // The secret should now be decryptable with the purpose-derived key
-      const result = service.decryptTotpSecret(savedUser.twoFactorSecret);
+      const result = service.decryptTotpSecret(patch.twoFactorSecret);
       expect(result.secret).toBe("TOTP_SECRET");
       expect(result.needsReEncrypt).toBe(false);
+    });
+
+    it("should write only lastLogin, not the whole user, on success", async () => {
+      usersRepository.findOne.mockResolvedValue({
+        ...userWith2FA,
+        twoFactorSecret: encrypt("TOTP_SECRET", TEST_TOTP_KEY),
+      });
+
+      await service.verify2FA(tempToken, code);
+
+      expect(usersRepository.save).not.toHaveBeenCalled();
+      expect(usersRepository.update).toHaveBeenCalledWith(
+        { id: "user-1" },
+        { lastLogin: expect.any(Date) },
+      );
     });
 
     it("should block after too many per-token attempts", async () => {
@@ -489,6 +511,25 @@ describe("TwoFactorService", () => {
       await expect(service.setup2FA("user-1", "pw")).rejects.toThrow(
         BadRequestException,
       );
+    });
+
+    it("lets an SSO account with a password enroll when OIDC_ALLOW_PASSWORD_LOGIN is true", async () => {
+      configService.get.mockImplementation(
+        (key: string, defaultValue?: string) => {
+          if (key === "JWT_SECRET") return TEST_JWT_SECRET;
+          if (key === "OIDC_ALLOW_PASSWORD_LOGIN") return "true";
+          return defaultValue ?? undefined;
+        },
+      );
+      usersRepository.findOne.mockResolvedValue({
+        ...mockUser,
+        authProvider: "oidc",
+      });
+      jest.spyOn(bcrypt, "compare").mockResolvedValueOnce(true as never);
+
+      const result = await service.setup2FA("user-1", "correct-password");
+
+      expect(result.secret).toBe("TESTSECRET");
     });
 
     it("refuses to replace an active authenticator, before the password is checked", async () => {

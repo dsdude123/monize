@@ -6,6 +6,7 @@ import { SimplefinRequestBudgetService } from "../../simplefin-request-budget.se
 import { simplefinAccountId } from "./simplefin.identity";
 import { planBankImport } from "../../bank-transaction-planner";
 import { createScopedDbMocks } from "../../../test-helpers/scoped-db-testing";
+import { simplefinAccessUrl } from "../../bank-sync-testing";
 
 jest.mock("../../../common/db/scoped-db", () =>
   jest
@@ -17,8 +18,7 @@ const origin = "https://bridge.simplefin.org";
 const creds = {
   provider: "simplefin" as const,
   credentialId: "credential",
-  accessUrl:
-    origin.replace("https://", "https://user:password@") + "/simplefin",
+  accessUrl: simplefinAccessUrl(`${origin}/simplefin`, "user", "bridge-opaque"),
 };
 const range = { dateFrom: "2026-10-01", dateTo: "2026-10-19" };
 const id = (account: string) => simplefinAccountId(origin, "con", account);
@@ -99,7 +99,14 @@ describe("SimpleFIN operation-scoped batch reader", () => {
       await reader.readAccount("owner", creds, id("a"), range);
       await reader.readAccount(
         "owner",
-        { ...creds, accessUrl: creds.accessUrl.replace("password", "rotated") },
+        {
+          ...creds,
+          accessUrl: simplefinAccessUrl(
+            `${origin}/simplefin`,
+            "user",
+            "rotated",
+          ),
+        },
         id("a"),
         range,
       );
@@ -314,7 +321,7 @@ describe("SimpleFIN operation-scoped batch reader", () => {
     data.accounts[0].transactions[0].description = "Echo " + creds.accessUrl;
     client.accounts.mockResolvedValue(data);
     const result = await service().readAccount("owner", creds, id("a"), range);
-    expect(JSON.stringify(result.transactions)).not.toContain("password");
+    expect(JSON.stringify(result.transactions)).not.toContain("bridge-opaque");
     expect(result.transactions[0].remittance[0]).toContain("[redacted]");
   });
   it("refuses amounts the number-based writer cannot preserve at four decimals", async () => {

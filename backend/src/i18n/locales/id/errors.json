@@ -42,6 +42,7 @@
     "institutionNotFound": "Institusi tidak ditemukan",
     "updateClosed": "Tidak dapat memperbarui akun yang sudah ditutup",
     "changeCurrencyWithTransactions": "Tidak dapat mengubah mata uang akun yang memiliki transaksi.",
+    "changeCurrencyWithBalanceOrSchedules": "Tidak dapat mengubah mata uang akun yang memiliki saldo awal atau transaksi terjadwal.",
     "alreadyClosed": "Akun sudah ditutup",
     "closeNonZeroBalance": "Tidak dapat menutup akun dengan saldo bukan nol. Saldo saat ini: {{ currentBalance }}",
     "closeWithFutureTransactions": "Akun dengan transaksi bertanggal masa depan tidak dapat ditutup. Akun ini memiliki {{ count }} transaksi bertanggal setelah hari ini; hapus atau batalkan transaksi tersebut terlebih dahulu.",
@@ -100,7 +101,8 @@
     "unsupportedInvestmentAction": "Tindakan investasi tidak didukung: {{ action }}",
     "unsupportedBulkAction": "Tindakan massal tidak didukung: {{ action }}",
     "unsupportedSimpleAction": "Tindakan tidak didukung: {{ action }}",
-    "unsupportedTableForReinsert": "Tabel tidak didukung untuk penyisipan ulang: {{ tableName }}"
+    "unsupportedTableForReinsert": "Tabel tidak didukung untuk penyisipan ulang: {{ tableName }}",
+    "undoConversion": "Perubahan ini mengonversi transaksi ke atau dari transfer, sehingga tidak dapat dibatalkan secara otomatis. Konversikan kembali saja."
   },
   "admin": {
     "passwordOrInviteNotBoth": "Berikan kata sandi atau undangan email, tidak keduanya.",
@@ -114,6 +116,11 @@
     "deleteLastAdmin": "Tidak dapat menghapus akun admin terakhir.",
     "cannotResetOwnPassword": "Anda tidak dapat mereset kata sandi Anda sendiri melalui panel admin",
     "noLocalPassword": "Tidak dapat mereset kata sandi untuk akun tanpa kata sandi lokal",
+    "cannotUnlinkOwnSso": "Anda tidak dapat memutuskan akun SSO Anda sendiri melalui panel admin",
+    "notSsoAccount": "Akun ini bukan akun SSO",
+    "unlinkSsoNeedsEmail": "Akun ini tidak memiliki alamat email, sehingga tidak dapat masuk dengan kata sandi",
+    "localAuthDisabled": "Masuk dengan kata sandi dinonaktifkan di server ini",
+    "ssoPasswordLoginDisabled": "Masuk dengan kata sandi dinonaktifkan untuk akun SSO. Gunakan Putuskan SSO.",
     "cannotResetOwnTwoFactor": "Anda tidak dapat mereset autentikasi dua faktor Anda sendiri melalui panel admin",
     "twoFactorNotEnabled": "Pengguna ini belum menyiapkan autentikasi dua faktor."
   },
@@ -308,6 +315,11 @@
     "noOpenPeriod": "Tidak ada periode yang terbuka untuk ditutup",
     "categoryIdsNotOwned": "ID kategori tidak ditemukan atau bukan milik pengguna: {{ ids }}"
   },
+  "payrollDeductions": {
+    "notFound": "Aturan potongan gaji {{ id }} tidak ditemukan",
+    "duplicate": "Tagihan ini sudah memiliki aturan untuk kategori tersebut",
+    "expectedRequired": "Tagihan tidak memiliki baris untuk kategori ini; masukkan jumlah yang diharapkan per gaji"
+  },
   "categories": {
     "notFound": "Kategori dengan ID {{ id }} tidak ditemukan",
     "cannotModifySystem": "Tidak dapat mengubah kategori sistem",
@@ -469,6 +481,7 @@
   },
   "import": {
     "noAccountBlocks": "Tidak ada blok akun yang ditemukan dalam file QIF. File ini mungkin bukan ekspor multi-akun.",
+    "accountTypeRequired": "Pilih jenis akun untuk akun-akun ini sebelum mengimpor: {{ accounts }}",
     "importFailed": "Impor gagal setelah {{ imported }} transaksi: {{ message }}",
     "investmentFileNeedsBrokerageAccount": "File ini berisi transaksi investasi tetapi akun yang dipilih bukan akun pialang investasi. Pilih akun pialang untuk impor ini.",
     "regularFileNeedsCashAccount": "File ini berisi transaksi perbankan reguler tetapi akun yang dipilih adalah akun pialang investasi. Pilih akun tunai (termasuk akun tunai investasi) untuk impor ini.",
@@ -481,7 +494,7 @@
     "mnyNoFile": "Tidak ada berkas Money yang diunggah",
     "mnyFileTruncated": "Berkas Money ini tampak tidak lengkap. Unggahan mungkin terputus -- coba lagi.",
     "mnyNotAMoneyFile": "Berkas itu bukan berkas Microsoft Money (.mny)",
-    "mnyUnsupportedVersion": "Berkas itu dibuat oleh Money 97 atau 98, yang tidak dapat dibaca Monize. Buka dan simpan sekali di edisi gratis Money Plus Sunset, lalu impor hasilnya.",
+    "mnyUnsupportedVersion": "Berkas itu dibuat oleh versi Microsoft Money yang tidak dapat dibaca Monize. Buka dan simpan sekali di edisi gratis Money Plus Sunset, lalu impor hasilnya.",
     "mnyPasswordRequired": "Berkas Money itu dilindungi kata sandi. Masukkan kata sandinya untuk melanjutkan.",
     "mnyPasswordIncorrect": "Kata sandi itu tidak membuka berkas Money. Periksa dan coba lagi.",
     "mnyUnreadableDatabase": "Berkas Money itu berhasil didekripsi, tetapi isinya tidak dapat dibaca. Mungkin rusak.",
@@ -489,9 +502,12 @@
     "mnyStagedFileInUse": "File Money ini sedang diimpor. Tunggu hingga impor selesai sebelum membuangnya.",
     "mnyImportAlreadyRunning": "Impor sedang berjalan. Tunggu hingga selesai sebelum memulai yang lain.",
     "mnyAlreadyImported": "File ini sudah diimpor pada {{ date }} (impor {{ jobId }}), dan catatannya masih ada di akun Anda. Mengimpornya lagi akan menggandakannya. Untuk menggantinya, mulai ulang dan pilih untuk mengganti data Anda yang ada.",
+    "mnyExistingAccountClosed": "Akun \"{{ name }}\" yang sudah ada ditutup, sehingga file Money tidak dapat digabungkan ke dalamnya. Buka kembali atau ganti namanya, lalu impor lagi.",
+    "mnyExistingAccountCurrency": "Akun \"{{ name }}\" yang sudah ada memakai {{ existing }}, tetapi akun di file Money memakai {{ file }}. Ganti nama salah satunya, lalu impor lagi.",
     "mnyJobNotFound": "Tugas impor tidak ditemukan",
     "mnyFileTooLarge": "Berkas Money itu lebih besar dari batas impor {{ limit }} MB.",
-    "noRateForSplitTransfer": "Tidak ada kurs untuk {{ pair }} pada {{ date }}: sebuah baris pecahan mentransfer ke akun dengan mata uang lain. Tambahkan kurs untuk pasangan dan tanggal tersebut, lalu impor lagi."
+    "noRateForSplitTransfer": "Tidak ada kurs untuk {{ pair }} pada {{ date }}: sebuah baris pecahan mentransfer ke akun dengan mata uang lain. Tambahkan kurs untuk pasangan dan tanggal tersebut, lalu impor lagi.",
+    "accountClosed": "Akun ditutup. Buka kembali atau pilih akun lain."
   },
   "monteCarlo": {
     "scenarioNotFound": "Skenario {{ id }} tidak ditemukan",
@@ -767,6 +783,7 @@
     "notATransfer": "Transaksi bukan merupakan transfer",
     "splitTransferLegAccountLocked": "Transfer ini adalah bagian dari transaksi terbagi. Ubah akunnya dengan mengedit pembagian pada transaksi sumber.",
     "splitTransferLegStatusLocked": "Transfer ini merupakan bagian dari transaksi terpisah. Batalkan atau pulihkan dengan mengedit transaksi terpisah yang memuatnya, agar kedua sisi berubah bersama-sama.",
+    "investmentCashLegLocked": "Transaksi ini adalah sisi kas dari transaksi investasi. Ubah atau hapus transaksi investasinya, agar kedua sisi berubah bersama.",
     "investmentCashLegStatusLocked": "Transaksi ini adalah sisi kas dari sebuah transaksi investasi. Batalkan atau pulihkan dengan mengubah status transaksi investasi tersebut, agar kedua sisi berubah bersama-sama.",
     "notFoundById": "Transaksi dengan ID {{ id }} tidak ditemukan",
     "bulkUpdateNoFields": "Minimal satu kolom pembaruan harus diberikan",
@@ -786,7 +803,11 @@
     "transferRateUnavailable": "Tidak dapat menentukan nilai tukar untuk {{ from }} -> {{ to }}. Berikan exchangeRate atau jumlah tujuan agar transfer tercatat dengan benar.",
     "transferAmountsMustAgreeOnZero": "Transfer harus memindahkan jumlah bukan nol di kedua sisi, atau nol di kedua sisi",
     "transferImpliedRateInvalid": "Jumlah tujuan menghasilkan nilai tukar yang tidak dapat digunakan terhadap jumlah sumber",
-    "externalIdNotThisTransfer": "externalId ini sudah digunakan di akun sumber oleh transaksi yang bukan transfer ke akun tujuan ini"
+    "externalIdNotThisTransfer": "externalId ini sudah digunakan di akun sumber oleh transaksi yang bukan transfer ke akun tujuan ini",
+    "alreadyATransfer": "Transaksi ini sudah merupakan transfer. Ubah transfernya saja.",
+    "convertTransferCrossOwner": "Transfer dengan akun pemilik lain tidak dapat dikonversi. Hapus dan buat entri yang Anda inginkan.",
+    "splitTransferLegConvertLocked": "Transfer ini adalah bagian dari transaksi terpisah. Hapus dengan mengubah pemisahan pada transaksi sumber.",
+    "transferCounterpartChanged": "Sisi lain transfer ini berubah saat Anda mengedit. Muat ulang dan coba lagi."
   },
   "users": {
     "userNotFound": "Pengguna tidak ditemukan",

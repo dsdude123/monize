@@ -62,6 +62,8 @@ import {
 import { transferPayeeLabel } from "./transfer-payee-label.util";
 import {
   assertVoidTransitionAllowedOnRow,
+  investmentCashLegLockedError,
+  isInvestmentCashLeg,
   applyVoidTransitionToMirrorLeg,
 } from "./void-status-transition.util";
 import {
@@ -599,6 +601,7 @@ export class TransactionsService {
     try {
       savedTransactionId = await withScopedDb(this.dataSource, async (m) => {
         if (options?.beforeWrite) await options.beforeWrite(m);
+        this.assertAccountOpen(account);
         const transaction = m.create(Transaction, {
           ...transactionData,
           // Derived from the account, not taken from the request: `amount` is in
@@ -2665,6 +2668,24 @@ export class TransactionsService {
        * `tagIds`, which replaces the whole set.
        */
       addTagNames?: readonly string[];
+      /**
+       * `false` when the caller records the history entry itself: the
+       * conversion of a transfer leg applies its body through this method
+       * inside its own transaction, and one user action is one entry.
+       */
+      recordHistory?: boolean;
+      /**
+       * Set when the caller's own transaction wraps this update (the
+       * conversion of a transfer leg): the accounts and securities this edit
+       * moved are added to these sets instead of being dispatched here, and the
+       * caller dispatches them after ITS commit (INV-CACHE-001). Without it a
+       * recompute would be queued inside the ambient transaction, before the
+       * commit that makes the state it reads real.
+       */
+      deferDerivedRecompute?: {
+        accountIds: Set<string>;
+        securityIds: Set<string>;
+      };
     },
   ): Promise<Transaction> {
     const transaction = await this.findOne(userId, id);
@@ -2797,7 +2818,49 @@ export class TransactionsService {
         transaction.isTransfer,
         updateData,
       );
+      // The cash leg of an investment transaction is owned by the trade: a
+      // VOID crossing, a real amount or account change is refused before any
+      // write. Value compare against the locked row; forms resend every field.
+      const crossesVoid =
+        updateData.status !== undefined &&
+        (updateData.status === TransactionStatus.VOID) !==
+          (locked.status === TransactionStatus.VOID);
+      const changesAmount =
+        updateData.amount !== undefined &&
+        roundMoney(Number(updateData.amount)) !==
+          roundMoney(Number(locked.amount));
+      const changesAccount =
+        updateData.accountId !== undefined &&
+        updateData.accountId !== locked.accountId;
+      const changesDate =
+        updateData.transactionDate !== undefined &&
+        String(updateData.transactionDate).slice(0, 10) !==
+          String(locked.transactionDate).slice(0, 10);
+      if (
+        (crossesVoid || changesAmount || changesAccount || changesDate) &&
+        (await isInvestmentCashLeg(m, id))
+      ) {
+        throw investmentCashLegLockedError();
+      }
+      // Same refusal as previewUpdate: a new parent amount with the old split
+      // lines would leave the lines not summing to it. Value compare, because
+      // forms resend an unchanged amount.
+      if (
+        locked.isSplit &&
+        splits == null &&
+        updateData.amount !== undefined &&
+        roundMoney(Number(updateData.amount)) !==
+          roundMoney(Number(locked.amount))
+      ) {
+        throw new BadRequestException(
+          tr(
+            "errors.transactions.splitAmountNeedsSplits",
+            "This is a split transaction: its amount must equal the sum of its split lines. Resend the update with both the new amount and the complete splits array (every line: categoryName, amount, optional memo) summing to it.",
+          ),
+        );
+      }
       if (options?.beforeWrite) await options.beforeWrite(m);
+      if (changesAccount) this.assertAccountOpen(effectiveAccount);
 
       const oldAmount = locked.amount;
       const oldLockedAccountId = locked.accountId;
@@ -3106,29 +3169,43 @@ export class TransactionsService {
 
     const finalTransaction = await this.findOne(userId, id);
 
-    this.netWorthService.triggerDebouncedRecalc(
-      finalTransaction.accountId,
-      userId,
-    );
-    if (oldAccountId !== finalTransaction.accountId) {
-      this.netWorthService.triggerDebouncedRecalc(oldAccountId, userId);
-    }
-    // Accounts moved by split-transfer counterpart propagation, which this method
-    // knows nothing about until the helper reports them. After the commit, so a
-    // rollback leaves nothing queued.
-    for (const affected of counterpartAccountIds) {
-      if (
-        affected !== finalTransaction.accountId &&
-        affected !== oldAccountId
-      ) {
-        this.netWorthService.triggerDebouncedRecalc(affected, userId);
+    const deferred = options?.deferDerivedRecompute;
+    if (deferred) {
+      // The caller's transaction is still open: hand it what to invalidate.
+      deferred.accountIds.add(finalTransaction.accountId);
+      deferred.accountIds.add(oldAccountId);
+      for (const affected of counterpartAccountIds) {
+        deferred.accountIds.add(affected);
       }
+      for (const securityId of touchedSecurityIds) {
+        deferred.securityIds.add(securityId);
+      }
+    } else {
+      this.netWorthService.triggerDebouncedRecalc(
+        finalTransaction.accountId,
+        userId,
+      );
+      if (oldAccountId !== finalTransaction.accountId) {
+        this.netWorthService.triggerDebouncedRecalc(oldAccountId, userId);
+      }
+      // Accounts moved by split-transfer counterpart propagation, which this
+      // method knows nothing about until the helper reports them. After the
+      // commit, so a rollback leaves nothing queued.
+      for (const affected of counterpartAccountIds) {
+        if (
+          affected !== finalTransaction.accountId &&
+          affected !== oldAccountId
+        ) {
+          this.netWorthService.triggerDebouncedRecalc(affected, userId);
+        }
+      }
+      await this.splitService.recomputeBondPricesAfterWrite(
+        userId,
+        touchedSecurityIds,
+      );
     }
-    await this.splitService.recomputeBondPricesAfterWrite(
-      userId,
-      touchedSecurityIds,
-    );
 
+    if (options?.recordHistory === false) return finalTransaction;
     this.actionHistoryService.record(userId, {
       entityType: "transaction",
       entityId: id,
@@ -3153,6 +3230,21 @@ export class TransactionsService {
       },
     });
     return finalTransaction;
+  }
+
+  /**
+   * A future-dated row skips `updateBalance` (and its `openOnly` refusal), so
+   * a closed account would take the row and move on the day it falls due.
+   */
+  private assertAccountOpen(account: Pick<Account, "isClosed">): void {
+    if (account.isClosed) {
+      throw new BadRequestException(
+        tr(
+          "errors.accounts.modifyBalanceClosed",
+          "Cannot modify balance of a closed account",
+        ),
+      );
+    }
   }
 
   async remove(
@@ -3216,6 +3308,9 @@ export class TransactionsService {
       }
       // Strict reconciled lock, before the delete and any split cleanup.
       await assertReconciledRowsMutable(m, userId, [locked]);
+      if (await isInvestmentCashLeg(m, id)) {
+        throw investmentCashLegLockedError();
+      }
       if (options?.beforeWrite) await options.beforeWrite(m);
 
       // The locked row's account joins the fan-out set: a concurrent edit could
@@ -3909,7 +4004,11 @@ export class TransactionsService {
     return this.bulkUpdateService.bulkDelete(userId, bulkDeleteDto);
   }
 
-  private snapshotTransaction(tx: Transaction): Record<string, any> {
+  /**
+   * The fields a history entry records for a transaction. Public for the
+   * conversion service, whose entry spans a shape the generic update's cannot.
+   */
+  snapshotTransaction(tx: Transaction): Record<string, any> {
     return {
       id: tx.id,
       accountId: tx.accountId,
@@ -3917,6 +4016,8 @@ export class TransactionsService {
       amount: tx.amount,
       currencyCode: tx.currencyCode,
       exchangeRate: tx.exchangeRate,
+      originalAmount: tx.originalAmount,
+      originalCurrencyCode: tx.originalCurrencyCode,
       payeeId: tx.payeeId,
       payeeName: tx.payeeName,
       categoryId: tx.categoryId,

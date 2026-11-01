@@ -42,6 +42,7 @@
     "institutionNotFound": "Nie znaleziono instytucji",
     "updateClosed": "Nie można zaktualizować zamkniętego konta",
     "changeCurrencyWithTransactions": "Nie można zmienić waluty konta, które ma transakcje.",
+    "changeCurrencyWithBalanceOrSchedules": "Nie można zmienić waluty konta, które ma saldo początkowe lub zaplanowane transakcje.",
     "alreadyClosed": "Konto jest już zamknięte",
     "closeNonZeroBalance": "Nie można zamknąć konta z niezerowym saldem. Bieżące saldo: {{ currentBalance }}",
     "closeWithFutureTransactions": "Nie można zamknąć konta z transakcjami z datą w przyszłości. Konto ma {{ count }} transakcji z datą po dzisiejszym dniu. Najpierw usuń je lub unieważnij.",
@@ -100,7 +101,8 @@
     "unsupportedInvestmentAction": "Nieobsługiwana operacja inwestycyjna: {{ action }}",
     "unsupportedBulkAction": "Nieobsługiwana operacja zbiorcza: {{ action }}",
     "unsupportedSimpleAction": "Nieobsługiwana operacja: {{ action }}",
-    "unsupportedTableForReinsert": "Nieobsługiwana tabela do ponownego wstawienia: {{ tableName }}"
+    "unsupportedTableForReinsert": "Nieobsługiwana tabela do ponownego wstawienia: {{ tableName }}",
+    "undoConversion": "Ta zmiana przekonwertowała transakcję na przelew lub z przelewu, więc nie można jej automatycznie cofnąć. Zamiast tego przekonwertuj ją z powrotem."
   },
   "admin": {
     "passwordOrInviteNotBoth": "Podaj hasło albo zaproszenie e-mail, ale nie oba naraz.",
@@ -114,6 +116,11 @@
     "deleteLastAdmin": "Nie można usunąć ostatniego konta administratora.",
     "cannotResetOwnPassword": "Nie możesz zresetować własnego hasła z panelu administratora",
     "noLocalPassword": "Nie można zresetować hasła dla kont bez lokalnego hasła",
+    "cannotUnlinkOwnSso": "Nie możesz odłączyć własnego konta SSO z panelu administratora",
+    "notSsoAccount": "To konto nie jest kontem SSO",
+    "unlinkSsoNeedsEmail": "To konto nie ma adresu e-mail, więc nie może się logować hasłem",
+    "localAuthDisabled": "Logowanie hasłem jest wyłączone na tym serwerze",
+    "ssoPasswordLoginDisabled": "Logowanie hasłem jest wyłączone dla kont SSO. Użyj opcji Odłącz SSO.",
     "cannotResetOwnTwoFactor": "Nie możesz zresetować własnego uwierzytelniania dwuskładnikowego z panelu administratora",
     "twoFactorNotEnabled": "Ten użytkownik nie ma skonfigurowanego uwierzytelniania dwuskładnikowego."
   },
@@ -308,6 +315,11 @@
     "noOpenPeriod": "Brak otwartego okresu do zamknięcia",
     "categoryIdsNotOwned": "Identyfikatory kategorii nie zostały znalezione lub nie należą do użytkownika: {{ ids }}"
   },
+  "payrollDeductions": {
+    "notFound": "Nie znaleziono reguły potrącenia z wynagrodzenia {{ id }}",
+    "duplicate": "Ten rachunek ma już regułę dla tej kategorii",
+    "expectedRequired": "Rachunek nie ma pozycji dla tej kategorii; wpisz oczekiwaną kwotę na wypłatę"
+  },
   "categories": {
     "notFound": "Nie znaleziono kategorii o ID {{ id }}",
     "cannotModifySystem": "Nie można modyfikować kategorii systemowych",
@@ -469,6 +481,7 @@
   },
   "import": {
     "noAccountBlocks": "Nie znaleziono bloków kont w pliku QIF. Ten plik może nie być eksportem wielokontowym.",
+    "accountTypeRequired": "Przed importem wybierz typ konta dla tych kont: {{ accounts }}",
     "importFailed": "Import nie powiódł się po {{ imported }} transakcjach: {{ message }}",
     "investmentFileNeedsBrokerageAccount": "Ten plik zawiera transakcje inwestycyjne, ale wybrane konto nie jest maklerskim kontem inwestycyjnym. Wybierz konto maklerskie dla tego importu.",
     "regularFileNeedsCashAccount": "Ten plik zawiera zwykłe transakcje bankowe, ale wybrane konto jest maklerskim kontem inwestycyjnym. Wybierz konto gotówkowe (w tym inwestycyjne konta gotówkowe) dla tego importu.",
@@ -481,7 +494,7 @@
     "mnyNoFile": "Nie przesłano żadnego pliku Money",
     "mnyFileTruncated": "Ten plik Money wygląda na niekompletny. Przesyłanie mogło zostać przerwane -- spróbuj ponownie.",
     "mnyNotAMoneyFile": "Ten plik nie jest plikiem Microsoft Money (.mny)",
-    "mnyUnsupportedVersion": "Ten plik został utworzony w programie Money 97 lub 98, którego Monize nie potrafi odczytać. Otwórz go i zapisz raz w darmowej edycji Money Plus Sunset, a następnie zaimportuj wynik.",
+    "mnyUnsupportedVersion": "Ten plik został utworzony w wersji programu Microsoft Money, której Monize nie potrafi odczytać. Otwórz go i zapisz raz w darmowej edycji Money Plus Sunset, a następnie zaimportuj wynik.",
     "mnyPasswordRequired": "Ten plik Money jest chroniony hasłem. Podaj hasło, aby kontynuować.",
     "mnyPasswordIncorrect": "To hasło nie otwiera pliku Money. Sprawdź je i spróbuj ponownie.",
     "mnyUnreadableDatabase": "Ten plik Money został odszyfrowany, ale nie udało się odczytać jego zawartości. Może być uszkodzony.",
@@ -489,9 +502,12 @@
     "mnyStagedFileInUse": "Ten plik Money jest właśnie importowany. Poczekaj na zakończenie importu, zanim go odrzucisz.",
     "mnyImportAlreadyRunning": "Import już trwa. Poczekaj na jego zakończenie, zanim rozpoczniesz następny.",
     "mnyAlreadyImported": "Ten plik został już zaimportowany {{ date }} (import {{ jobId }}), a jego rekordy nadal są na Twoim koncie. Ponowny import je zduplikuje. Aby je zastąpić, zacznij od nowa i wybierz zastąpienie istniejących danych.",
+    "mnyExistingAccountClosed": "Istniejące konto „{{ name }}” jest zamknięte, więc nie można do niego dołączyć pliku Money. Otwórz je ponownie lub zmień jego nazwę, a potem zaimportuj plik jeszcze raz.",
+    "mnyExistingAccountCurrency": "Istniejące konto „{{ name }}” ma walutę {{ existing }}, a konto w pliku Money ma walutę {{ file }}. Zmień nazwę jednego z nich, a potem zaimportuj plik jeszcze raz.",
     "mnyJobNotFound": "Nie znaleziono zadania importu",
     "mnyFileTooLarge": "Ten plik Money jest większy niż limit importu wynoszący {{ limit }} MB.",
-    "noRateForSplitTransfer": "Brak kursu wymiany dla {{ pair }} na dzień {{ date }}: pozycja podziału przelewa na konto w innej walucie. Dodaj kurs wymiany dla tej pary i daty, a następnie zaimportuj ponownie."
+    "noRateForSplitTransfer": "Brak kursu wymiany dla {{ pair }} na dzień {{ date }}: pozycja podziału przelewa na konto w innej walucie. Dodaj kurs wymiany dla tej pary i daty, a następnie zaimportuj ponownie.",
+    "accountClosed": "Konto jest zamknięte. Otwórz je ponownie lub wybierz inne konto."
   },
   "monteCarlo": {
     "scenarioNotFound": "Nie znaleziono scenariusza {{ id }}",
@@ -767,6 +783,7 @@
     "notATransfer": "Transakcja nie jest przelewem",
     "splitTransferLegAccountLocked": "Ten przelew jest częścią transakcji podzielonej. Aby zmienić jego konta, edytuj podział w transakcji źródłowej.",
     "splitTransferLegStatusLocked": "Ten przelew jest częścią transakcji podzielonej. Anuluj go lub przywróć, edytując transakcję podzieloną, do której należy, aby obie strony zmieniły się razem.",
+    "investmentCashLegLocked": "Ta transakcja jest stroną gotówkową transakcji inwestycyjnej. Zmień lub usuń transakcję inwestycyjną, aby obie strony zmieniły się razem.",
     "investmentCashLegStatusLocked": "Ta transakcja jest gotówkową stroną transakcji inwestycyjnej. Unieważnij ją lub przywróć, zmieniając status transakcji inwestycyjnej, aby obie strony zmieniły się razem.",
     "notFoundById": "Nie znaleziono transakcji o ID {{ id }}",
     "bulkUpdateNoFields": "Należy podać co najmniej jedno pole do aktualizacji",
@@ -786,7 +803,11 @@
     "transferRateUnavailable": "Nie udało się ustalić kursu wymiany dla {{ from }} -> {{ to }}. Podaj exchangeRate lub kwotę docelową, aby przelew został zaksięgowany poprawnie.",
     "transferAmountsMustAgreeOnZero": "Przelew musi przenosić kwotę różną od zera po obu stronach albo zero po obu stronach",
     "transferImpliedRateInvalid": "Kwota docelowa daje nieprawidłowy kurs wymiany w stosunku do kwoty źródłowej",
-    "externalIdNotThisTransfer": "Ten externalId jest już używany na koncie źródłowym przez transakcję, która nie jest przelewem na to konto docelowe"
+    "externalIdNotThisTransfer": "Ten externalId jest już używany na koncie źródłowym przez transakcję, która nie jest przelewem na to konto docelowe",
+    "alreadyATransfer": "Ta transakcja jest już przelewem. Zamiast tego edytuj sam przelew.",
+    "convertTransferCrossOwner": "Przelewu z kontem innego właściciela nie można przekonwertować. Usuń go i zamiast tego utwórz żądany wpis.",
+    "splitTransferLegConvertLocked": "Ten przelew jest częścią transakcji podzielonej. Usuń go, edytując podział w transakcji źródłowej.",
+    "transferCounterpartChanged": "Druga strona tego przelewu zmieniła się podczas edycji. Odśwież i spróbuj ponownie."
   },
   "users": {
     "userNotFound": "Nie znaleziono użytkownika",

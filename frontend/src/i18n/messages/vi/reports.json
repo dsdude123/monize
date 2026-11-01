@@ -4,6 +4,7 @@
     "subtitle": "Tạo thông tin chi tiết về sức khỏe tài chính của bạn",
     "searchPlaceholder": "Tìm kiếm báo cáo theo tên hoặc mô tả...",
     "allReports": "Tất cả báo cáo",
+    "categoryWithCount": "{label} ({count})",
     "removeFavourite": "Xóa khỏi mục yêu thích",
     "addFavourite": "Thêm vào mục yêu thích",
     "tableReport": "Báo cáo",
@@ -38,6 +39,7 @@
       "account-balances": "Số dư tài khoản",
       "cash-flow": "Bảng lưu chuyển tiền tệ",
       "tax-summary": "Tóm tắt thuế",
+      "payroll-deductions": "Khấu trừ lương",
       "year-over-year": "So sánh năm này với năm trước",
       "debt-payoff-timeline": "Lịch trình thanh toán nợ",
       "loan-amortization": "Lịch trả nợ vay",
@@ -87,6 +89,7 @@
       "account-balances": "Xem giá trị của từng tài khoản vào bất kỳ ngày nào bạn chọn, nhóm và sắp xếp theo ý muốn.",
       "cash-flow": "Xem chi tiết dòng tiền vào và ra trên tất cả tài khoản.",
       "tax-summary": "Tóm tắt hàng năm về chi phí được khấu trừ thuế và thu nhập chịu thuế.",
+      "payroll-deductions": "Khấu trừ lương theo danh mục: năm so với từng mức tối đa, từng phiếu lương và mọi năm đã ghi nhận.",
       "year-over-year": "So sánh năm nay với các năm trước để theo dõi tiến độ tài chính.",
       "debt-payoff-timeline": "Hình dung tiến trình giảm nợ của bạn với các dự báo về ngày thanh toán.",
       "loan-amortization": "Lịch thanh toán chi tiết cho thế chấp và khoản vay với phân tích gốc so với lãi.",
@@ -135,7 +138,8 @@
   },
   "reportPage": {
     "notFound": "Không tìm thấy báo cáo",
-    "notFoundDesc": "Báo cáo được yêu cầu không tồn tại."
+    "notFoundDesc": "Báo cáo được yêu cầu không tồn tại.",
+    "viewLabel": "Chế độ xem"
   },
   "error": {
     "defaultMessage": "Không thể tải dữ liệu báo cáo. Vui lòng thử lại.",
@@ -459,6 +463,7 @@
     "generating": "Đang tạo báo cáo...",
     "noData": "Không tìm thấy dữ liệu cho tiêu chí đã chọn",
     "transactionCount": "{count, plural, one {# giao tác} other {# giao tác}}",
+    "truncatedNotice": "Báo cáo này đã chạm giới hạn số dòng và chỉ hiển thị các dòng cũ nhất, nên số liệu chưa đầy đủ. Hãy thu hẹp khoảng thời gian hoặc bộ lọc để xem tất cả.",
     "toasts": {
       "loadFailed": "Không thể tải báo cáo",
       "executeFailed": "Không thể thực thi báo cáo"
@@ -512,8 +517,6 @@
     "viewMonthly": "Hàng tháng",
     "viewDaily": "Hàng ngày",
     "viewBySecurity": "Theo chứng khoán",
-    "displayChart": "Biểu đồ",
-    "displayTable": "Bảng",
     "showLabel": "Hiển thị:",
     "seriesDividends": "Cổ tức",
     "seriesInterest": "Lãi suất",
@@ -1249,7 +1252,6 @@
     "incompleteTooltip": "Một số ngày trong khoảng thời gian này thiếu giá, tỷ giá hối đoái hoặc số dư tiền mặt, nên các số liệu phụ thuộc vào từng ngày sẽ không được hiển thị.",
     "measuredFromClose": "Kể từ khi đóng cửa phiên giao dịch ngày {date}",
     "notAvailable": "N/A",
-    "intradayUnavailable": "Không có giá nội ngày chi tiết",
     "intradayUnavailableTitle": "Chế độ xem nội ngày không khả dụng cho kết hợp tài khoản này",
     "intradayUnavailableDesc": "Một hoặc nhiều vị thế sử dụng nhà cung cấp báo giá (MSN Money) không công bố dữ liệu nội ngày{skipped}. Chuyển sang phạm vi dài hơn để xem ảnh chụp hàng ngày.",
     "intradayUnavailableSkipped": ": {symbols}",
@@ -1300,8 +1302,6 @@
     "costBasis": "Cơ sở chi phí",
     "realizedGainLoss": "Lãi/Lỗ đã thực hiện",
     "securitiesSold": "Chứng khoán đã bán",
-    "viewChart": "Biểu đồ",
-    "viewTable": "Bảng",
     "noTransactions": "Không tìm thấy giao tác bán nào trong kỳ này.",
     "noGainsLosses": "Không có lãi hoặc lỗ để hiển thị.",
     "bySecurityTitle": "Lãi đã thực hiện theo chứng khoán",
@@ -1337,7 +1337,7 @@
     "sixMonthTotal": "Tổng 6 tháng",
     "monthlyEstimate": "Ước tính hàng tháng",
     "identifiedPayees": "người nhận đã xác định",
-    "minOccurrencesLabel": "Số lần xuất hiện tối thiểu:",
+    "minOccurrencesLabel": "Số lần xuất hiện tối thiểu",
     "inLast6Months": "(trong 6 tháng qua)",
     "noRecurring": "Không tìm thấy chi phí định kỳ nào với {count}+ lần xuất hiện trong 6 tháng qua.",
     "failedToLoad": "Không thể tải dữ liệu chi phí định kỳ.",
@@ -1475,6 +1475,8 @@
     "totalReturn": "Tổng lợi nhuận",
     "annualizedReturn": "Lợi nhuận hàng năm",
     "needs1YearNote": "Cần hơn 1 năm dữ liệu",
+    "annualizedNeedsSingleBuyNote": "Chỉ hiển thị cho một lần mua duy nhất không có hoạt động sau đó",
+    "missingPrice": "Không có giá cho {symbol}",
     "priceHistory": "Lịch sử giá - {symbol}",
     "buyTransaction": "Giao tác mua",
     "sellTransaction": "Giao tác bán",
@@ -1624,6 +1626,48 @@
     "pdfIncomeExpensesDeductions": "Thu nhập: {income} | Chi phí: {expenses} | Khấu trừ: {deductions}",
     "pdfTotalsLabel": "Tổng thu nhập / Chi phí / Khấu trừ"
   },
+  "payrollDeductions": {
+    "year": "Năm",
+    "yearHelp": "Năm của một danh mục là kỳ bắt đầu trong năm đã chọn vào ngày đặt lại của quy tắc. Với ngày đặt lại 1 tháng 1, đó là năm dương lịch.",
+    "emptyTitle": "Chưa có quy tắc khấu trừ lương",
+    "emptyDescription": "Đặt mức tối đa hằng năm cho các dòng khấu trừ trên phiếu lương tại Công cụ, Thuế, Khấu trừ lương, và các danh mục đó sẽ được báo cáo tại đây.",
+    "emptyAction": "Mở Khấu trừ lương",
+    "summaryTitle": "Tóm tắt năm {year}",
+    "summaryHelp": "Số tiền mỗi danh mục khấu trừ đã thu trong kỳ, trên mọi tài khoản, theo tiền tệ của hóa đơn. Quy tắc chỉ giữ mức tối đa đang áp dụng, nên mức tối đa và số còn lại chỉ hiển thị cho kỳ chưa kết thúc; mức của các năm trước không được ghi nhận.",
+    "colCategory": "Danh mục",
+    "colBills": "Hóa đơn",
+    "colPeriod": "Kỳ",
+    "colPaid": "Đã trả",
+    "colMaximum": "Tối đa",
+    "colRemaining": "Còn lại",
+    "colPercent": "So với tối đa",
+    "colPaycheques": "Phiếu lương",
+    "colAverage": "Trung bình mỗi phiếu lương",
+    "colReached": "Đạt tối đa",
+    "colDate": "Ngày",
+    "colPayee": "Người nhận",
+    "colTotal": "Tổng",
+    "colYear": "Năm",
+    "periodRange": "{start} đến {end}",
+    "toDate": "đến nay",
+    "notRecorded": "Không được ghi nhận",
+    "notReached": "Chưa đạt",
+    "outsidePeriod": "Ngoài kỳ",
+    "otherCurrency": "Tiền tệ khác",
+    "noPaycheque": "Không có",
+    "noPayee": "Không có người nhận",
+    "foreignRows": "{count, plural, other {# dòng}} bằng tiền tệ khác không được tính",
+    "paychequesTitle": "Từng phiếu lương, {year}",
+    "paychequesHelp": "Mọi giao dịch đã khấu trừ vào một danh mục được báo cáo trong kỳ của năm đã chọn, cũ nhất trước. Tổng mỗi cột bằng số đã trả của danh mục trong phần tóm tắt.",
+    "paychequesEmpty": "Không có khoản khấu trừ nào vào các danh mục này trong năm {year}.",
+    "totalRow": "Tổng",
+    "mixedCurrencies": "Không cộng: các danh mục dùng nhiều hơn một loại tiền tệ.",
+    "historyTitle": "{category} theo năm",
+    "historyTitleCurrency": "{category} ({currency}) theo năm",
+    "historyHelp": "Số tiền danh mục này đã thu trong mỗi kỳ được ghi nhận, mới nhất trước, trên mọi tài khoản, theo tiền tệ của hóa đơn.",
+    "csvSummary": "Tóm tắt",
+    "csvPaycheques": "Phiếu lương"
+  },
   "uncategorizedTransactions": {
     "totalUncategorized": "Tổng chưa phân loại",
     "uncategorizedExpenses": "Chi phí chưa phân loại",
@@ -1655,8 +1699,6 @@
     "activeBills": "Hóa đơn đang hoạt động",
     "overdue": "Quá hạn",
     "thisMonth": "Tháng này",
-    "autoPostsTitle": "Tự động đăng khi đến hạn",
-    "manualPostTitle": "Yêu cầu đăng thủ công",
     "autoLabel": "Tự động",
     "manualLabel": "Thủ công",
     "overdueLabel": "Quá hạn",
@@ -1790,6 +1832,7 @@
     "removeAriaLabel": "Xóa {title} khỏi so sánh",
     "removeTitle": "Xóa khỏi so sánh",
     "runFailed": "Chạy thất bại",
+    "never": "Chưa bao giờ",
     "errors": {
       "loadScenarioFailed": "Không thể tải kịch bản.",
       "simulationFailed": "Mô phỏng thất bại."
@@ -1803,7 +1846,6 @@
     "backToReports": "Quay lại báo cáo",
     "deleteButton": "Xóa báo cáo",
     "deleteConfirmMessage": "Bạn có chắc muốn xóa \"{name}\"? Hành động này không thể hoàn tác.",
-    "deleting": "Đang xóa...",
     "toasts": {
       "loadFailed": "Không thể tải báo cáo",
       "updated": "Đã cập nhật báo cáo",
@@ -1898,7 +1940,11 @@
     "noticeExcluded": "Một số số liệu chưa đầy đủ: {count, plural, other {# khoản tiền không thể tính được và}} đã bị loại ra.",
     "pdfNote": "Tổng chưa đầy đủ: không có tỷ giá cho {currencies}",
     "pdfNoteExcluded": "Tổng chưa đầy đủ: đã loại ra {count, plural, other {# khoản tiền}}",
-    "pdfSuffix": "(chưa đầy đủ)"
+    "pdfSuffix": "(chưa đầy đủ)",
+    "knownValue": "Giá trị đã biết",
+    "weightingIntro": "Tỷ lệ phần trăm chỉ bao gồm các vị thế đã định giá được.",
+    "weightingNoPrice": "Không có giá cho {symbols}: làm mới hoặc thêm giá trên trang chứng khoán.",
+    "weightingNoRate": "Không có tỷ giá cho {pairs}: thêm tỷ giá trên trang Tiền tệ."
   },
   "sankey": {
     "help": "Tiền vào chảy qua phần giữa tới những gì đã chi tiêu, phần đã tiết kiệm hoặc đầu tư và phần đã trả nợ. Theo mặc định, báo cáo bao gồm các tài khoản thanh toán, tiết kiệm, tiền mặt, thẻ tín dụng và hạn mức tín dụng đang mở của bạn, và chuyển khoản giữa hai tài khoản trong số đó không được hiển thị. Hãy bỏ một tài khoản tiết kiệm khỏi bộ lọc tài khoản để xem bạn đã chuyển bao nhiêu vào đó. Thanh toán thẻ tín dụng không bao giờ là trả nợ: các giao dịch mua mà nó tất toán đã được tính là chi tiêu.",
@@ -1944,7 +1990,9 @@
       "uncategorizedExpense": "Chi tiêu chưa phân loại",
       "residualUnspent": "Chưa chi tiêu",
       "residualDeficit": "Rút từ số dư",
-      "unlinkedAccount": "(tài khoản chưa liên kết)"
+      "unlinkedAccount": "(tài khoản chưa liên kết)",
+      "classSharedSettlements": "Thanh toán chi phí chung",
+      "inflowSharedSettlements": "Từ quyết toán chung"
     }
   },
   "pdfExport": {

@@ -35,7 +35,7 @@
     "createFailed": "Hatırlatıcı ayarlanamadı",
     "dialogTitle": "Bana hatırlat",
     "dialogDescription": "Harekete geçene kadar bu bildirimi daha sonra tekrar al.",
-    "modeLabel": "Ne sıklıkla",
+    "modeLabel": "Sıklık",
     "modeRepeat": "Ben durdurana kadar tekrarla",
     "modeOnce": "Sadece bir kez daha",
     "intervalLabelRepeat": "Bana hatırlat, her",
@@ -203,5 +203,13 @@
     "expiringMessage": "{name} garantisinin süresi {date} tarihinde doluyor. Belgelerini incelemek veya bir talep kaydetmek için açın.",
     "todayTitle": "{name}: garantinin süresi bugün doluyor",
     "todayMessage": "{name} garantisinin süresi bugün, {date} tarihinde doluyor. Belgelerini incelemek veya bir talep kaydetmek için açın."
+  },
+  "payrollDeduction": {
+    "resetTitle": "{category}: gelecek yılın üst sınırını onaylayın",
+    "resetMessage": "{bill} üzerindeki {category} kesintisi {date} tarihinde sıfırlanır. Yıllık üst sınır değişiyorsa güncelleyin; aksi halde {amount} yeniden uygulanır."
+  },
+  "shared": {
+    "title": "Paylaşılan giderler",
+    "message": "Ortak bir grupta güncelleme var. İncelemek için Monize'ı açın."
   }
 }

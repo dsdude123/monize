@@ -23,6 +23,7 @@ import {
 import { userSettingsApi } from '@/lib/user-settings';
 import { createLogger } from '@/lib/logger';
 import { getErrorMessage } from '@/lib/errors';
+import { docsUrl } from '@/lib/docs-links';
 
 const logger = createLogger('AdminNotifications');
 
@@ -224,7 +225,11 @@ function AdminNotificationsContent() {
   return (
     <PageLayout>
       <main className="px-4 pt-6 pb-8 sm:px-6 lg:px-12">
-        <PageHeader title={t('title')} subtitle={t('subtitle')} />
+        <PageHeader
+          title={t('title')}
+          subtitle={t('subtitle')}
+          helpUrl={docsUrl('adminNotifications')}
+        />
 
         {isLoading ? (
           <LoadingSpinner text={t('loading')} />

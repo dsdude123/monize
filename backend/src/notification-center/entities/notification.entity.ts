@@ -15,6 +15,7 @@ import { User } from "../../users/entities/user.entity";
  * column -- a guard test in `notification-category.spec.ts` holds the bound.
  */
 export enum NotificationType {
+  SHARED_EXPENSE_UPDATED = "SHARED_EXPENSE_UPDATED",
   PACE_WARNING = "PACE_WARNING",
   THRESHOLD_WARNING = "THRESHOLD_WARNING",
   THRESHOLD_CRITICAL = "THRESHOLD_CRITICAL",
@@ -93,6 +94,11 @@ export enum NotificationType {
   // `docs/specs/warranty-tracker.md` section 6.6.
   WARRANTY_EXPIRING = "WARRANTY_EXPIRING",
   WARRANTY_EXPIRES_TODAY = "WARRANTY_EXPIRES_TODAY",
+  // A payroll deduction rule resets in two months: confirm next period's
+  // maximum (PAYMENTS, like every row about a scheduled payment). One per rule
+  // per reset date via the dedupe key (`pdr:reset:...`). See
+  // `docs/specs/payroll-deductions.md` section 5.4.
+  PAYROLL_DEDUCTION_RESET_DUE = "PAYROLL_DEDUCTION_RESET_DUE",
 }
 
 /**
@@ -140,6 +146,7 @@ export enum NotificationSeverity {
  * producers that need it, not before.
  */
 export enum NotificationCategory {
+  SHARED_EXPENSES = "SHARED_EXPENSES",
   PAYMENTS = "PAYMENTS",
   BUDGETS = "BUDGETS",
   SYSTEM = "SYSTEM",
@@ -226,10 +233,13 @@ export function notificationCategoryOf(
   // subject; the category test proves the two classifications never diverge.
   if (
     type === NotificationType.BILL_DUE ||
-    type === NotificationType.SCHEDULED_POST_FAILED
+    type === NotificationType.SCHEDULED_POST_FAILED ||
+    type === NotificationType.PAYROLL_DEDUCTION_RESET_DUE
   ) {
     return NotificationCategory.PAYMENTS;
   }
+  if (type === NotificationType.SHARED_EXPENSE_UPDATED)
+    return NotificationCategory.SHARED_EXPENSES;
   if (SYSTEM_NOTIFICATION_TYPES.includes(type)) {
     return NotificationCategory.SYSTEM;
   }
