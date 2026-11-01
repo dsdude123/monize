@@ -23,6 +23,7 @@ import {
 import { NON_VOID_INVESTMENT_STATUS } from "../securities/investment-row-effects.util";
 import { InvestmentTransaction } from "../securities/entities/investment-transaction.entity";
 import {
+  acquisitionCost,
   baseInvestmentAction,
   MARKET_PRICED_TRADE_ACTIONS,
 } from "../securities/investment-replay.util";
@@ -55,6 +56,10 @@ import { addDaysYMD, formatDateYMDLocal, todayYMD } from "../common/date-utils";
 import { enumerateDaysYMD, monthEndSampleDates } from "./series-dates.util";
 import { loadFirstInvestmentDate } from "./investment-inception.util";
 import { positionCloseAsOf, PricePoint } from "./position-price.util";
+import {
+  buildDailyInvestmentsKey,
+  dailyInvestmentsInFlight,
+} from "./daily-investments-in-flight";
 import { preferredCurrency } from "../common/default-currency.util";
 import {
   DateColumn,
@@ -1457,12 +1462,12 @@ export class NetWorthService {
 
     const targetAccountIds = [...targetMonthByAccount.keys()];
     const txRows = await this.scopedQuery<FirstMonthTradeRow>(
-      `SELECT it.account_id, it.action, it.quantity, it.price, it.transaction_date,
+      `SELECT it.account_id, it.action, it.quantity, it.price, it.commission,
+              it.total_amount, it.transaction_date,
               s.currency_code AS security_currency
        FROM investment_transactions it
        LEFT JOIN securities s ON s.id = it.security_id
        WHERE it.account_id = ANY($1::UUID[])
-         AND it.price IS NOT NULL AND it.price > 0
          AND it.status != 'VOID'
          AND (it.action = ANY($2) OR it.action IN ('TRANSFER_IN', 'TRANSFER_OUT'))`,
       [targetAccountIds, MARKET_PRICED_TRADE_ACTIONS],
@@ -1486,33 +1491,43 @@ export class NetWorthService {
       if (txDate.substring(0, 7) !== targetMonth.substring(0, 7)) continue;
 
       const qty = Number(r.quantity) || 0;
-      const price = Number(r.price) || 0;
-      if (qty === 0 || price <= 0) continue;
+      if (qty === 0) continue;
 
-      let signed: number;
-      switch (baseInvestmentAction(r.action)) {
-        case "BUY":
-        case "REINVEST":
-        case "TRANSFER_IN":
-          signed = qty * price;
-          break;
-        case "SELL":
-        case "TRANSFER_OUT":
-          signed = -qty * price;
-          break;
-        default:
-          continue;
+      const action = baseInvestmentAction(r.action);
+      const isOut = action === "SELL" || action === "TRANSFER_OUT";
+      if (
+        !isOut &&
+        action !== "BUY" &&
+        action !== "REINVEST" &&
+        action !== "TRANSFER_IN"
+      ) {
+        continue;
       }
+
+      // The row's executed total (commission included on an acquisition),
+      // never `quantity * price` beside it. A sale's stored total is already
+      // net of its commission, so none is added. A row that cannot state a
+      // cost is an unknown component of the month, not a dropped one.
+      const cost = acquisitionCost({
+        quantity: qty,
+        price: r.price,
+        commission: isOut ? 0 : r.commission,
+        totalAmount: r.total_amount,
+      });
+      const signed = cost === null ? null : isOut ? -cost : cost;
 
       const secCurrency = r.security_currency || defaultCurrency;
       const monthEnd = this.monthEndDate(targetMonth);
-      const inDefault = this.convertCurrency(
-        signed,
-        secCurrency,
-        defaultCurrency,
-        monthEnd,
-        rateIndex,
-      );
+      const inDefault =
+        signed === null
+          ? null
+          : this.convertCurrency(
+              signed,
+              secCurrency,
+              defaultCurrency,
+              monthEnd,
+              rateIndex,
+            );
 
       // A cost-basis component with no rate is recorded as a gap on the
       // month's aggregate rather than added at 1:1 -- or silently dropped: a
@@ -1525,7 +1540,8 @@ export class NetWorthService {
         aggregate = new FxAggregate();
         result.set(key, aggregate);
       }
-      aggregate.add(inDefault, secCurrency, defaultCurrency);
+      if (signed === null) aggregate.addUnknown();
+      else aggregate.add(inDefault, secCurrency, defaultCurrency);
     }
 
     return result;
@@ -1705,11 +1721,6 @@ export class NetWorthService {
     },
     collectPositions: boolean,
   ): Promise<DailyInvestmentsWithPositions> {
-    const empty: DailyInvestmentsWithPositions = {
-      series: [],
-      positions: [],
-      securities: new Map(),
-    };
     const pref = await withScopedDb(this.dataSource, (m) =>
       m.getRepository(UserPreference).findOne({ where: { userId } }),
     );
@@ -1718,6 +1729,52 @@ export class NetWorthService {
     // "Today" is the request's calendar day, not a UTC slice of the clock:
     // `todayYMD()` reads the request timezone where one is set.
     const end = endDate || todayYMD();
+
+    // Resolved before keying, so a caller that named the reporting currency
+    // and one that left it to the preference share one valuation (#1888).
+    return dailyInvestmentsInFlight.run(
+      userId,
+      buildDailyInvestmentsKey({
+        userId,
+        startDate,
+        endDate: end,
+        accountIds,
+        currency: defaultCurrency,
+        collectPositions,
+        fetchMissing: options?.fetchMissing,
+      }),
+      () =>
+        this.computeDailyInvestments(
+          userId,
+          { startDate, end, accountIds, defaultCurrency, options },
+          collectPositions,
+        ),
+    );
+  }
+
+  /** The valuation `loadDailyInvestments` shares, over resolved inputs. */
+  private async computeDailyInvestments(
+    userId: string,
+    {
+      startDate,
+      end,
+      accountIds,
+      defaultCurrency,
+      options,
+    }: {
+      startDate?: string;
+      end: string;
+      accountIds?: string[];
+      defaultCurrency: string;
+      options?: SeriesFetchOptions;
+    },
+    collectPositions: boolean,
+  ): Promise<DailyInvestmentsWithPositions> {
+    const empty: DailyInvestmentsWithPositions = {
+      series: [],
+      positions: [],
+      securities: new Map(),
+    };
 
     let accountFilter: string;
     const acctParams: unknown[] = [userId];

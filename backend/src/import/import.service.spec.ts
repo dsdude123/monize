@@ -637,6 +637,18 @@ describe("ImportService", () => {
         ).rejects.toThrow("Account not found");
       });
 
+      it("refuses an import into a closed account before writing", async () => {
+        accountsRepository.findOne.mockResolvedValue({
+          ...mockChequingAccount,
+          isClosed: true,
+        });
+
+        await expect(
+          service.importQifFile(userId, makeBaseDto()),
+        ).rejects.toThrow("The account is closed");
+        expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
+      });
+
       it("throws BadRequestException when account belongs to different user", async () => {
         accountsRepository.findOne.mockResolvedValue(null); // findOne with userId filter returns null
 
@@ -4138,6 +4150,31 @@ describe("ImportService", () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it("refuses a block whose account is closed", async () => {
+      mockedValidateQifContent.mockReturnValue({ valid: true });
+      mockedParseQifFull.mockReturnValue(makeFullParseResult());
+      mockQueryRunner.manager.findOne.mockImplementation((entity, options) =>
+        Promise.resolve(
+          entity === Account && options?.where?.id
+            ? {
+                id: options.where.id,
+                userId,
+                accountType: AccountType.CHEQUING,
+                currencyCode: "CAD",
+                isClosed: true,
+              }
+            : null,
+        ),
+      );
+      mockQueryRunner.manager.save.mockImplementation((entity) =>
+        Promise.resolve({ ...entity, id: "saved-1" }),
+      );
+
+      await expect(
+        service.importQifMultiAccountFile(userId, baseDto),
+      ).rejects.toThrow("The account is closed");
+    });
+
     it("throws BadRequestException when no account blocks found", async () => {
       mockedValidateQifContent.mockReturnValue({ valid: true });
       mockedParseQifFull.mockReturnValue(
@@ -4472,6 +4509,66 @@ describe("ImportService", () => {
       expect(visaCreate).toBeDefined();
       expect(visaCreate[1].accountType).toBe(AccountType.CREDIT_CARD);
       expect(visaCreate[1].creditLimit).toBe(5000);
+    });
+
+    it("creates an account the file leaves untyped under the type the user chose", async () => {
+      mockedValidateQifContent.mockReturnValue({ valid: true });
+      mockedParseQifFull.mockReturnValue(
+        makeFullParseResult({
+          categoryDefs: [],
+          accountBlocks: [
+            {
+              ...makeFullParseResult().accountBlocks[0],
+              accountName: "Old Wallet",
+              accountType: null,
+              transactions: [],
+              categories: [],
+            },
+          ],
+        }),
+      );
+      mockQueryRunner.manager.findOne.mockResolvedValue(null);
+      let saveIdx = 0;
+      mockQueryRunner.manager.save.mockImplementation((entity) => {
+        saveIdx++;
+        return Promise.resolve({ ...entity, id: `acct-${saveIdx}` });
+      });
+
+      const result = await service.importQifMultiAccountFile(userId, {
+        ...baseDto,
+        accountTypes: [
+          { accountName: "Old Wallet", accountType: AccountType.CASH },
+        ],
+      });
+
+      expect(result.accountsCreated).toBe(1);
+      const walletCreate = mockQueryRunner.manager.create.mock.calls.find(
+        (call) => call[0] === Account && call[1]?.name === "Old Wallet",
+      );
+      expect(walletCreate?.[1].accountType).toBe(AccountType.CASH);
+    });
+
+    it("refuses before writing when an account the file leaves untyped has no chosen type", async () => {
+      // An empty QIF type used to become CHEQUING without the user knowing.
+      mockedValidateQifContent.mockReturnValue({ valid: true });
+      mockedParseQifFull.mockReturnValue(
+        makeFullParseResult({
+          accountBlocks: [
+            makeFullParseResult().accountBlocks[0],
+            {
+              ...makeFullParseResult().accountBlocks[0],
+              accountName: "Old Wallet",
+              accountType: null,
+            },
+          ],
+        }),
+      );
+
+      await expect(
+        service.importQifMultiAccountFile(userId, baseDto),
+      ).rejects.toThrow(/Old Wallet/);
+      expect(mockQueryRunner.manager.create).not.toHaveBeenCalled();
+      expect(mockQueryRunner.manager.save).not.toHaveBeenCalled();
     });
 
     it("creates investment account pair (cash + brokerage)", async () => {

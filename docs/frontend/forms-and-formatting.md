@@ -16,7 +16,7 @@ Paths beginning with `src/` or `scripts/`, and layer configuration filenames, ar
 
 ## Currency entry -- `CurrencyInput`, never a raw number input
 
-`components/ui/CurrencyInput.tsx` is the only way to take a money amount: a `type="text"` field with `inputMode="decimal"` that filters as you type, formats with separators on blur, clears a `0.00` on focus, parses through `parseLocaleNumber` and rounds what the user TYPED to cents (`roundToCents`, so a typed value never carries sub-cent precision the 2dp display hides), re-syncs on external value changes, and accepts inline calculator expressions (`100*1.13` + Enter/blur) plus a calculator modal. Props: `prefix`, `allowNegative` (default true), `allowCalculator` (default true), `allowSignToggle`. For non-money numbers (share counts, rates, percentages, day-of-month) use `NumericInput`: same filtering, with `decimalPlaces`, `suffix`, `min`/`max`, `allowNegative` defaulting false, no calculator.
+`components/ui/CurrencyInput.tsx` is the only way to take a money amount: a `type="text"` field with `inputMode="decimal"` that filters as you type, formats with separators on blur, clears zero on focus, parses through `parseLocaleNumber` and rounds typed amounts to the selected precision (`roundToDecimals`, with two decimals by default, so a typed value does not carry fractional units hidden by the display), re-syncs on external value changes, and accepts inline calculator expressions (`100*1.13` + Enter/blur) plus a calculator modal. Props: `prefix`, `decimalPlaces` (default two), `allowNegative` (default true), `allowCalculator` (default true), `allowSignToggle`. For non-money numbers (share counts, rates, percentages, day-of-month) use `NumericInput`: same filtering, with `decimalPlaces`, `suffix`, `min`/`max`, `allowNegative` defaulting false, no calculator.
 
 `ui-conventions.test.ts` fails the build on any `<input type="number">` or `<Input type="number">` -- resolving the tag each `type="number"` belongs to, because recharts' `<XAxis type="number">` is not an input and is left alone.
 
@@ -25,6 +25,29 @@ Paths beginning with `src/` or `scripts/`, and layer configuration filenames, ar
 **A single `.`/`,` separator is grouping only when its digit runs are valid thousands groups (1-3 digits, then exactly 3 per group); otherwise it is the decimal point.** This is symmetric and is what makes the DOT-GROUP locales (de/es/it/nl/pt-BR/tr) safe: `parseLocaleNumber` reads a typed or pasted `1200.99` / `5.5` as a decimal there, not as `120099` / `55` (the old "a `.` matching the locale group is always grouping" rule was a ~100x/10x silent money error), while `1.234` still reads as `1234`. `filterNumberTyping` therefore does **not** strip a `.`/`,` group separator while typing -- doing so destroyed the dot-decimal before `parseLocaleNumber` could disambiguate it -- and the read-only display of a plain amount goes through `useLocalizedAmount()` (the one bound `formatAmountLocalized` closure), never a hand-copied `seps ?? default` wrapper.
 
 **An editable field works in the locale's Latin-digit form, and every entry point normalizes what the user pastes.** `Intl` renders `ar-EG` as `١٬٢٠٠٫٩٩` (Arabic-Indic digits, U+066B/U+066C separators), and the "Browser" number-format setting reaches such a locale through `getEffectiveLocale` returning `undefined`, so an ASCII-only filter turned an edit of that text into the one digit just typed and the calculator into `1200995`. `getNumberSeparators` therefore returns the `numberingSystem: 'latn'` separators (plus `nativeDecimal`/`nativeGroup` where they differ), `CurrencyInput.formatDisplay` passes `{ latnDigits: true }` so the field shows `1,200.99`, and `parseLocaleNumber` / `filterNumberTyping` / `normalizeExpression` / `stripGroupSeparator` all start with `normalizeNumeralText` (any Unicode `Nd` digit to ASCII, native symbols to latn, bidi marks dropped, U+2212 to `-`). Read-only surfaces stay native like `formatCurrency`; the round-trip test in `lib/number-parse.test.ts` holds "what the pipeline formats, it parses back" for en/pl/de/hi/ar-EG/fa-IR, negatives included.
+
+`CurrencyInput.decimalPlaces` applies to typing, focus, the inline calculator and
+the calculator dialog. `evaluateExpression` accepts that precision and defaults
+to two decimals for existing callers. Shared expense money fields go through
+`components/shared-expenses/SharedPrimitives.tsx` (`SharedMoneyInput`), including
+exact shares, multiple payers and legacy private bank portions; percentages, weights
+and ten-decimal rates remain `NumericInput`. The selected precision is retained
+when opening a bank amount in the calculator. `SharedMoneyInput.test.tsx` exercises
+the real currency control through blur, Enter and calculator Apply at zero, two,
+three and four decimals.
+
+For a foreign-currency shared expense, `SharedEntryConversion` reads the server's
+`groupAmount`, `fxRate`, `fxSource` and `fxRateDate` in both preview and detail.
+It never fetches today's rate or recomputes the accepted amount in the browser.
+An unavailable conversion stays unknown, a known zero stays zero, and the group
+summary names the currency used for balances and totals. Original amounts pass
+the group's currency to `SharedAmount.relativeTo`, so `withCurrencyCode` labels
+a USD receipt inside a CAD trip even when both currencies use the `$` symbol.
+This extra group context does not remove the usual label for a currency that
+differs from the reader's preference. Include it in the scrolled form header and
+bank-payment figures as well as the expense list and saved detail.
+Rates use `FX_RATE_DISPLAY_DECIMALS` for display while the server's stored
+ten-decimal rate and already-converted amount remain unchanged.
 
 Both components take a *number* (`value: number | undefined`, `onChange: (value: number | undefined) => void`):
 
@@ -122,8 +145,9 @@ the formatted figure, never a `{currency}{amount}` pair. The same guard fails a
 `.toFixed(` anywhere in components, app or hooks: machine-read sites are
 classified with their reason, and the readouts not yet migrated sit in a
 shrink-only baseline with an exact count per file. A relative time is
-`useRelativeTime()`, never the English-only `formatRelativeTime`
-(`ui-conventions.test.ts`).
+`useRelativeTime()`, the one relative-time formatter; the English-only
+`formatRelativeTime` was removed from `lib/format.ts` and
+`ui-conventions.test.ts` keeps it out.
 A component test must not build its expectation with the same helper the
 component uses -- `SecurityList.test.tsx` did, so it proved the component agreed
 with a hardcoded formatter while the screen disagreed with the user. Set a real
@@ -243,7 +267,7 @@ Supporting hooks: `useFormSubmitRef` (expose submit via ref), `useFormDirtyNotif
 
 **A form round-trips the row it opened: an unedited save sends back what was loaded.** The server cannot tell a figure the form loaded wrongly from a real edit, because the field it lands in is legitimately editable. A transfer is the worked example: its legs are opened from either account's register, and the form's "Transfer Amount" is the SOURCE amount, in the FROM account's currency, while "Amount Received" is the destination's. `TransactionForm.tsx` therefore loads the transfer amount from the FROM (negative) leg whichever leg it was given (`transferSourceAmount`), in the defaults and in `reconciledEditAffectsReconciliation` alike; loading the opened leg's own figure turned a USD 100 -> CAD 135 transfer opened from the CAD side into a 135 -> 135 one on a description edit, at a stored rate of 1 (A26-H13). `TransactionForm.test.tsx` ("a cross-currency transfer opened from its receiving leg") opens the receiving leg, saves unedited and asserts the payload, for edit, duplicate and a reconciled leg. The server half is the generic row update refusing a structural change to one leg (`docs/financial-semantics.md`, "Editing one row must not leave the pair describing two different events").
 
-**An edit offers only the modes that save the row it opened.** The transaction form's mode selector switches between Transaction, Split and Transfer, but a transfer is created by its own route and no route converts an existing row into one, so Transfer on an existing income, expense or split created a second, new transfer and left the edited row in place, under a button labelled "Update Transfer" (A26-H14). The Transfer mode is therefore rendered only for a new entry (a duplicate included), and `performSubmit` refuses a transfer submit on a non-transfer edit with `form.toasts.convertToTransferUnsupported`. Converting a row in place needs its own route around `convertToTransfer` (`backend/src/transactions/convert-to-transfer.ts`) and its own spec (category, reconciled state, tags, splits); until then the user deletes the row and creates the transfer. `TransactionForm.test.tsx` ("mode selector visibility") pins the absence on an expense and on a split, and the presence on a duplicate.
+**An edit saved in the other family of modes converts the row in place, through its own route.** The transaction form's mode selector offers Transaction, Split and Transfer on a new entry and on an edit alike (issue #1937). A transfer is created by `createTransfer`, and calling it from an edit created a second, new transfer and left the edited row in place, under a button labelled "Update Transfer" (A26-H14); so an existing income, expense or split saved in Transfer mode calls `transactionsApi.convertToTransfer`, and an existing transfer leg saved in Transaction or Split mode calls `transactionsApi.convertToTransaction`, each one server transaction that keeps the row's id and creates or removes the counterpart (`docs/specs/transaction-transfer-conversion.md`). The button reads "Convert to {mode}" (`form.submitConvert`) when the save is a conversion. Leaving Transfer mode on an existing leg hands back the row's own account and signed amount (`handleModeChange`): the form had loaded the PAIR, source account and source amount, whichever leg was opened, and saving those on the receiving leg would have moved it into the other account. Converting a transfer away deletes its other leg, so a CLEARED or RECONCILED counterpart gets a `ConfirmDialog` (`form.counterpartConfirm`) before the save; the strict reconciled lock's refusal is the server's. A split-transfer leg and a leg whose counterpart is another owner's (`conversionLocked`) keep the badge and get no tabs, because the server refuses converting either. `TransactionForm.test.tsx` ("mode selector visibility") pins the three tabs on an expense, a split and a transfer, the two conversion calls and their payloads, the warning, and the locked legs.
 
 **A quick-fill copies what a row says, never the context the user is entering in.** The transaction form's Recent (history) button lists recents deduped *across accounts*, so the chosen row usually belongs to somewhere other than the account the modal was opened on. `handleQuickFill` fills payee, category, amount, description, tags and split lines, and leaves three fields exactly as the form holds them:
 
@@ -256,3 +280,22 @@ The date case is also the worked example of the `DateInput` `setValue` trap abov
 ## A number is localized too, and by its own preference
 
 `user_preferences.numberFormat` decides separators, grouping and currency placement, and it is independent of `language` -- an explicit `numberFormat` wins, `"browser"` falls back to the UI language. Every figure addressed to a person goes through that resolution: `useNumberFormat()` on the client (`docs/frontend/forms-and-formatting.md` has the four banned fingerprints and the guard), `backend/src/common/number-locale.util.ts` on the server, where `"browser"` cannot be resolved and lands on `DEFAULT_LOCALE`. `backend/src/common/format-currency.util.ts`'s `en-US` helpers stay for output read by a MACHINE -- an LLM prompt, and the English `description`/`message` fallback stored on a row whose UI composes its own copy from the structured `data` -- and `number-locale.guard.spec.ts` holds that classification, caller by caller, with the reason each is exempt. A pre-formatted money string in a notification's params is neither: send `amountValue` + `amountCurrency` beside the English `amount` so the reader's client formats it.
+
+Restore summaries use `translationKey` entries in `lib/restore-labels.ts` for new
+count labels. `components/settings/BackupRestoreSection.tsx` translates these in
+the settings namespace; the restore-label contract checks every backend count
+key, and the component regression checks a shared-group label and its count.
+
+### Shared split editor
+
+`SharedSplitEditor` presents amount, percentage and relative shares together.
+`shared-split-editor.ts` keeps explicit values pinned and delegates blank amounts
+to `splitRemainderEqually`; it never replaces an unchanged equal split with locally
+rounded amounts. Money readouts come from `useSharedEntryPreview`, bound to the
+current operation/entry identity, while the parent expense previews its real
+payers again before saving. Templates edit proportions without fictitious money.
+An unedited money field waits for its pending automatic preview before accepting
+input; a focused edit stays editable when cleared, so the preview cannot replace
+text between selecting the old value and typing its replacement.
+The numerical cases and missing-data policy are in
+`docs/specs/shared-expenses-ui-consistency.md`.

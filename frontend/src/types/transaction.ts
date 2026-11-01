@@ -57,6 +57,7 @@ export interface TransactionSplit {
 }
 
 export interface Transaction {
+  sharedExpensePostingId?: string | null;
   id: string;
   userId: string;
   accountId: string;
@@ -192,7 +193,12 @@ export interface RecurringChargeInfo {
 
 export interface MonthlyTotal {
   month: string;
-  total: number;
+  /** Currency the totals are in; absent on older responses. */
+  currency?: string;
+  /** Null while a part of the month has no exchange rate; see knownSubtotal. */
+  total: number | null;
+  /** The part of a withheld total that did convert. */
+  knownSubtotal?: number;
   count: number;
 }
 
@@ -302,6 +308,12 @@ export interface CreateTransferData {
   status?: TransactionStatus;
   /** Optional category; surfaces the transfer in the monthly category breakdown without counting as income/expense. null clears it. */
   categoryId?: string | null;
+  /** Destination amount for a cross-currency transfer; overrides the rate. */
+  toAmount?: number;
+  payeeId?: string | null;
+  payeeName?: string | null;
+  /** Applied to both legs. */
+  tagIds?: string[];
 }
 
 export interface TransferResult {

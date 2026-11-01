@@ -335,6 +335,7 @@ function InvestmentTransactionFormFields({
     handleSubmit,
     control,
     setValue,
+    getValues,
     formState: { errors, isDirty },
   } = useForm<InvestmentTransactionFormData>({
     resolver: zodResolver(buildInvestmentTransactionSchema(t)) as Resolver<InvestmentTransactionFormData>,
@@ -522,6 +523,9 @@ function InvestmentTransactionFormFields({
   // the form suggests both. A person's own edit of either field stands.
   const priceEditedByPerson = useRef(false);
   const interestEditedByPerson = useRef(false);
+  // What the person typed, kept as typed: the redemption refill recomputes from
+  // it and never from a price an earlier refill wrote.
+  const typedPriceBasis = useRef<{ kind: 'price' | 'total'; value: number } | null>(null);
   const redemptionRequest: RedemptionSplitRequest | null =
     (watchedAction as string) === 'REDEEM' &&
     bondSeries?.kind === 'remove' &&
@@ -569,11 +573,24 @@ function InvestmentTransactionFormFields({
         shouldDirty: true,
         shouldValidate: true,
       });
+    } else if (!interestEditedByPerson.current) {
+      // The person fixed the price or the total: the cash they meant stays, so
+      // the engine's interest comes out of it and the price follows, instead of
+      // the interest being added on top. A typed price means qty x price in cash.
+      const basis = typedPriceBasis.current;
+      if (!basis) return;
+      const commission = Number(getValues('commission') ?? 0);
+      const gross =
+        basis.kind === 'price'
+          ? quantity * basis.value - Number(split.interest)
+          : basis.value - Number(split.interest) + commission;
+      if (!(gross > 0)) return;
+      setValue('price', roundToDecimals(gross / quantity, 10), { shouldDirty: true, shouldValidate: true });
     }
     if (!interestEditedByPerson.current) {
       setValue('accruedInterest', Number(split.interest), { shouldDirty: true, shouldValidate: true });
     }
-  }, [redemption, setValue]);
+  }, [redemption, setValue, getValues]);
   const currencySymbol = getCurrencySymbol(transactionCurrency);
   const cashCurrencySymbol = getCurrencySymbol(cashCurrency);
 
@@ -742,6 +759,7 @@ function InvestmentTransactionFormFields({
         : proceeds + watchedCommission;
     if (!(gross > 0)) return;
     priceEditedByPerson.current = true;
+    typedPriceBasis.current = { kind: 'total', value };
     setValue('price', roundToDecimals(gross / watchedQuantity, 10), {
       shouldDirty: true,
       shouldValidate: true,
@@ -1463,11 +1481,12 @@ function InvestmentTransactionFormFields({
             error={errors.quantity?.message}
           />
           <NumericInput
-            label={t('transactionForm.pricePerShare', { currency: transactionCurrency })}
+            label={t('transactionForm.pricePerShare')}
             prefix={currencySymbol}
             value={watchedPrice || undefined}
             onChange={(value) => {
               priceEditedByPerson.current = true;
+              typedPriceBasis.current = value ? { kind: 'price', value } : null;
               setValue('price', value, { shouldValidate: true });
             }}
             decimalPlaces={6}
@@ -1476,7 +1495,7 @@ function InvestmentTransactionFormFields({
           />
           {needsConversion && (
             <CurrencyInput
-              label={t('transactionForm.commissionFees', { currency: transactionCurrency })}
+              label={t('transactionForm.commissionFees')}
               prefix={currencySymbol}
               value={watchedCommission || undefined}
               onChange={(value) => setValue('commission', value, { shouldValidate: true })}
@@ -1539,7 +1558,7 @@ function InvestmentTransactionFormFields({
             </span>
           </div>
           <NumericInput
-            label={t('transactionForm.newPriceAfterSplit', { currency: transactionCurrency })}
+            label={t('transactionForm.newPriceAfterSplit')}
             prefix={currencySymbol}
             value={watchedPrice || undefined}
             onChange={(value) => setValue('price', value, { shouldValidate: true })}
@@ -1590,7 +1609,7 @@ function InvestmentTransactionFormFields({
       {/* Amount - for dividend/interest/capital gain/return of capital */}
       {isAmountOnly && (
         <CurrencyInput
-          label={t('transactionForm.amount', { currency: transactionCurrency })}
+          label={t('transactionForm.amount')}
           prefix={currencySymbol}
           value={watchedPrice || undefined}
           onChange={(value) => setValue('price', value, { shouldValidate: true })}
@@ -1621,7 +1640,7 @@ function InvestmentTransactionFormFields({
             {/* Read-only: the server carries the basis the source held on the
                 transfer date and ignores a figure sent from here (A26-M22). */}
             <NumericInput
-              label={t('transactionForm.costPerShare', { currency: transactionCurrency })}
+              label={t('transactionForm.costPerShare')}
               prefix={currencySymbol}
               value={watchedPrice || undefined}
               onChange={(value) => setValue('price', value, { shouldValidate: true })}
@@ -1656,7 +1675,7 @@ function InvestmentTransactionFormFields({
       {/* Commission - rendered inline with qty/price when conversion is shown */}
       {needsQuantityPrice && !needsConversion && (
         <CurrencyInput
-          label={t('transactionForm.commissionFees', { currency: transactionCurrency })}
+          label={t('transactionForm.commissionFees')}
           prefix={currencySymbol}
           value={watchedCommission || undefined}
           onChange={(value) => setValue('commission', value, { shouldValidate: true })}
@@ -1670,7 +1689,7 @@ function InvestmentTransactionFormFields({
       {supportsAccruedInterest(watchedAction) && (
         <div>
           <CurrencyInput
-            label={t('transactionForm.accruedInterest', { currency: transactionCurrency })}
+            label={t('transactionForm.accruedInterest')}
             prefix={currencySymbol}
             value={watchedAccruedInterest || undefined}
             onChange={(value) => {
@@ -1762,7 +1781,7 @@ function InvestmentTransactionFormFields({
               error={errors.exchangeRate?.message}
             />
             <NumericInput
-              label={t('transactionForm.convertedTotal', { currency: cashCurrency })}
+              label={t('transactionForm.convertedTotal')}
               prefix={cashCurrencySymbol}
               value={convertedAmount ?? undefined}
               onChange={handleConvertedAmountChange}
@@ -1796,7 +1815,7 @@ function InvestmentTransactionFormFields({
             // each follow the other, exactly as the exchange rate and the
             // converted amount above do.
             <NumericInput
-              label={t('transactionForm.totalAmount', { currency: transactionCurrency })}
+              label={t('transactionForm.totalAmount')}
               prefix={currencySymbol}
               value={totalAmount || undefined}
               onChange={handleTotalAmountChange}
@@ -1806,7 +1825,7 @@ function InvestmentTransactionFormFields({
           ) : (
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {t('transactionForm.totalAmount', { currency: transactionCurrency })}
+                {t('transactionForm.totalAmount')}
               </span>
               <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 {formatCurrency(totalAmount, transactionCurrency)}

@@ -17,6 +17,7 @@ npm run test:watch         # Vitest (watch mode)
 npm run test:cov           # Coverage report (91% lines, 90% stmts, 87% funcs, 85% branches)
 npm run i18n:pseudo        # Regenerate the xx pseudo-locale from en
 npm run i18n:check         # Verify the pseudo-locale is up to date (CI gate)
+npm run docs:build         # Regenerate the user docs (website/docs/) from their Markdown
 ```
 
 ## Layout
@@ -56,6 +57,7 @@ npm run i18n:check         # Verify the pseudo-locale is up to date (CI gate)
 | A portfolio chart's window and opening point | `usePortfolioRangeWindow` (`start` for the series, `periodStart` for the period) and `openingSessionDate` for the first label | `resolveRangePreset`, a lookback of your own, a first point dated by a day the market was shut |
 | An investment row's money | the row's own `amountCurrencyCode` / `priceCurrencyCode` / `commissionCurrencyCode`, converted with `convertRowAmount`; a VOID row dropped with `investmentRowHasEffect` | the account's currency, the reader's, or a client-side sum across rows |
 | CSV | `exportToCsv` / `exportCsvSections` (`lib/csv-export.ts`) | a second `text/csv` Blob |
+| Link to the user documentation (`PageHeader` `helpUrl`, an inline guide link) | `docsUrl(key)` (`lib/docs-links.ts`) | a docs or wiki URL literal |
 | Random id | `crypto.randomUUID()` | `Math.random()` |
 | Chart colour | `chartColors` tokens (`lib/chart-colors.ts`) | a hex literal in a `fill`, `stroke` or `stopColor` |
 | Widget title that opens the fuller view | `titleHref` on `WidgetCard`, `href` on `WidgetHeading` | a button or link hand-rolled around the heading |
@@ -67,6 +69,7 @@ npm run i18n:check         # Verify the pseudo-locale is up to date (CI gate)
 | Report refresh / export buttons | `ReportToolbarActions`, last child of the toolbar row | rendering `ExportDropdown` or `RefreshPricesButton` in a report |
 | A dashboard card filling its grid row | the grid's own `stretch` plus the card's min-height | `h-full` on a widget's outermost element |
 | Toolbar row on a phone | `flex-wrap`, `w-full sm:w-auto`, `sm:ml-auto`, a button's height from `items-stretch` + `LabelSpacer` | an unwrapped row, a bare `ml-auto`, a hand-matched padding |
+| A control alone on its phone line (list filter, lone button) | `w-full sm:w-auto`; a list toolbar's filter is `SEGMENTED_TOOLBAR_GROUP_CLASS` + `toolbarSegmentClass` | a pill or button keeping its desktop width on its own line |
 | A register's running balance | `walkRunningBalances` (`lib/running-balance.ts`) over the response's `startingBalance` | a second walk in a component, or a balance drawn under a sort other than date |
 | A picker that applies tags to a transaction | `useTagPickerOptions` (`hooks/useTagPickerOptions.ts`), recent-first | a local A-Z sort of `tags`, or the usage fetch inside the form's `Promise.all` |
 | Category filter pseudo-ids (`uncategorized`, `transfer`, `income`, `expense`) | `SPECIAL_CATEGORY_FILTER_IDS`, `canonicalizeCategoryFilter`, `useCategoryFilterLabels` (`lib/categoryUtils.ts`) | a literal pseudo-id check, or a type sent as its enumerated ids |
@@ -79,9 +82,15 @@ npm run i18n:check         # Verify the pseudo-locale is up to date (CI gate)
 
 **An unknown value is `null` and renders as unknown; a known zero renders as a number.** Never `?? 0`, `|| 0` or `?? 1` on an API value, never `connectNulls` by default, and never `> 0` or truthiness where `0` is a legitimate value. Decide which of the two states a branch is in before writing it.
 
+**A change to what a user sees or does updates its page in `website/docs/*.md`** in the same PR, regenerates the screenshots of the screens it changed (`npm run docs:screenshots` in `e2e/`), then `npm run docs:build`; `website/README.md` has the conventions.
+
 **Every user-facing string is translated.** `useTranslations('namespace')`; catalogs in `src/i18n/messages/{locale}/{namespace}.json`, new namespaces registered in `src/i18n/messages.ts`. Develop English-first and run `npm run i18n:pseudo`; translate every other locale as the final commit on the PR (`src/i18n/messages.parity.test.ts`). Compose punctuation in the catalog, not in JSX, and never write `--` in copy. Full flow: `src/i18n/messages/README.md`.
 
-**A form round-trips the row it opened.** Each field loads from the leg it represents (a transfer's Transfer Amount from its FROM leg) and at its stored four decimals, an unedited save sends back what was loaded, and an edit offers no mode that cannot save the row itself (no Transfer on an existing income, expense or split); `docs/frontend/forms-and-formatting.md`, "Form Patterns".
+**A form round-trips the row it opened.** Each field loads from the leg it represents (a transfer's Transfer Amount from its FROM leg) and at its stored four decimals, an unedited save sends back what was loaded, and an edit offers only modes with a route that saves the row itself: switching family on an existing row calls `convertToTransfer` / `convertToTransaction`, never `createTransfer`; `docs/frontend/forms-and-formatting.md`, "Form Patterns".
+
+**Currency precision applies to the calculator too.** Pass the currency's `decimalPlaces` through `CurrencyInput`; shared expenses use `SharedMoneyInput` and disclose server conversion snapshots through `SharedEntryConversion` (`docs/frontend/forms-and-formatting.md`).
+
+**Shared expenses stay group-only and reuse the standard controls**; staged files save with the entry (`docs/specs/shared-expenses-ui-polish.md`, `docs/specs/shared-expenses-ui-consistency.md`).
 
 **Components:** interactive components are `'use client'`; server components are the default for pages and layouts. No `setState` in `useEffect` (`react-hooks/set-state-in-effect`); reset child state from a prop with the "info from previous render" pattern. Nothing interactive goes inside a `<button>` or an `<a>`. Focus rings are `focus-visible:`; transitions carry `motion-reduce:transition-none`.
 
@@ -93,6 +102,7 @@ npm run i18n:check         # Verify the pseudo-locale is up to date (CI gate)
 |---|---|
 | API calls, caching, asynchronous state, ownership of joint accounts | `docs/frontend/api-and-cache.md` |
 | Cards, dialogs, pickers, switchers, rows, links, attachments, tours, settings screens, report toolbars | `docs/frontend/ui-conventions.md` |
+| A new page, dialog or toolbar: the reference screen to copy, dialog chrome, list and detail page layout, labels | `docs/frontend/screens-and-dialogs.md` |
 | Inputs, number and date formatting, phone numbers, text caps, CSV, form modals | `docs/frontend/forms-and-formatting.md` |
 | Tables, registers, density, pagination, phones | `docs/frontend/tables-and-registers.md` |
 | Money figures: scheduled occurrences, loans, portfolio ranges, chart reductions, unknown values | `docs/frontend/financial-figures.md`, then `docs/financial-semantics.md`, `docs/time-series-contract.md`, `docs/system-invariants.md` |
@@ -119,3 +129,7 @@ Run the focused test for what you changed while developing, then:
 4. `node scripts/check-env-docs.mjs` from the repository root when a `process.env` read was added
 
 Deleting or renaming a control an E2E spec drives means grepping `e2e/` for its accessible name in the same commit -- `npm run test` never loads that suite.
+
+Shared expense review stays on its explicit page; activity uses Notifications, as specified in `docs/frontend/screens-and-dialogs.md`.
+
+The dashboard greeting offers Customize; feature navigation belongs in the app menus, as specified in `docs/frontend/screens-and-dialogs.md`.

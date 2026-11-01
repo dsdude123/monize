@@ -42,6 +42,7 @@
     "institutionNotFound": "Kurum bulunamadı",
     "updateClosed": "Kapalı bir hesap güncellenemiyor",
     "changeCurrencyWithTransactions": "İşlem içeren bir hesabın para birimi değiştirilemez.",
+    "changeCurrencyWithBalanceOrSchedules": "Açılış bakiyesi veya planlanmış işlemleri olan bir hesabın para birimi değiştirilemez.",
     "alreadyClosed": "Hesap zaten kapalı",
     "closeNonZeroBalance": "Sıfır olmayan bakiyeli hesap kapatılamaz. Mevcut bakiye: {{ currentBalance }}",
     "closeWithFutureTransactions": "Gelecek tarihli işlemleri olan bir hesap kapatılamaz. Hesapta bugünden sonraki bir tarihe ait {{ count }} işlem var; önce bunları silin veya geçersiz kılın.",
@@ -100,7 +101,8 @@
     "unsupportedInvestmentAction": "Desteklenmeyen yatırım eylemi: {{ action }}",
     "unsupportedBulkAction": "Desteklenmeyen toplu eylem: {{ action }}",
     "unsupportedSimpleAction": "Desteklenmeyen eylem: {{ action }}",
-    "unsupportedTableForReinsert": "Yeniden ekleme için desteklenmeyen tablo: {{ tableName }}"
+    "unsupportedTableForReinsert": "Yeniden ekleme için desteklenmeyen tablo: {{ tableName }}",
+    "undoConversion": "Bu değişiklik bir işlemi transfere veya transferden işleme dönüştürdü, bu nedenle otomatik olarak geri alınamaz. Bunun yerine geri dönüştürün."
   },
   "admin": {
     "passwordOrInviteNotBoth": "Şifre veya e-posta daveti sağlayın, ikisini birden değil.",
@@ -114,6 +116,11 @@
     "deleteLastAdmin": "Son yönetici hesabı silinemez.",
     "cannotResetOwnPassword": "Yönetici panelinden kendi şifrenizi sıfırlayamazsınız",
     "noLocalPassword": "Yerel şifresi olmayan hesapların şifresi sıfırlanamaz",
+    "cannotUnlinkOwnSso": "Yönetici panelinden kendi SSO hesabınızın bağlantısını kaldıramazsınız",
+    "notSsoAccount": "Bu hesap bir SSO hesabı değildir",
+    "unlinkSsoNeedsEmail": "Bu hesabın e-posta adresi olmadığı için parola ile oturum açamaz",
+    "localAuthDisabled": "Bu sunucuda parola ile oturum açma kapalı",
+    "ssoPasswordLoginDisabled": "SSO hesapları için parola ile oturum açma kapalı. Bunun yerine SSO Bağlantısını Kaldır seçeneğini kullanın.",
     "cannotResetOwnTwoFactor": "Yönetici panelinden kendi iki faktörlü kimlik doğrulamanızı sıfırlayamazsınız",
     "twoFactorNotEnabled": "Bu kullanıcı için iki faktörlü kimlik doğrulama ayarlanmamış."
   },
@@ -308,6 +315,11 @@
     "noOpenPeriod": "Kapatılacak açık dönem yok",
     "categoryIdsNotOwned": "Kategori kimlikleri bulunamadı veya kullanıcıya ait değil: {{ ids }}"
   },
+  "payrollDeductions": {
+    "notFound": "Bordro kesinti kuralı {{ id }} bulunamadı",
+    "duplicate": "Bu faturada o kategori için zaten bir kural var",
+    "expectedRequired": "Faturada bu kategori için satır yok; maaş başına beklenen tutarı girin"
+  },
   "categories": {
     "notFound": "{{ id }} kimliğine sahip kategori bulunamadı",
     "cannotModifySystem": "Sistem kategorileri değiştirilemez",
@@ -469,6 +481,7 @@
   },
   "import": {
     "noAccountBlocks": "QIF dosyasında hesap bloğu bulunamadı. Bu dosya çok hesaplı dışa aktarma olmayabilir.",
+    "accountTypeRequired": "İçe aktarmadan önce bu hesaplar için bir hesap türü seçin: {{ accounts }}",
     "importFailed": "{{ imported }} işlemden sonra içe aktarma başarısız oldu: {{ message }}",
     "investmentFileNeedsBrokerageAccount": "Bu dosya yatırım işlemleri içeriyor ancak seçilen hesap yatırım aracı kurum hesabı değil. Bu içe aktarma için bir aracı kurum hesabı seçin.",
     "regularFileNeedsCashAccount": "Bu dosya normal bankacılık işlemleri içeriyor ancak seçilen hesap bir yatırım aracı kurum hesabı. Lütfen bir nakit hesabı (yatırım nakit hesapları dahil) seçin.",
@@ -481,7 +494,7 @@
     "mnyNoFile": "Hiçbir Money dosyası yüklenmedi",
     "mnyFileTruncated": "Bu Money dosyası eksik görünüyor. Yükleme kesilmiş olabilir; yeniden deneyin.",
     "mnyNotAMoneyFile": "Bu dosya bir Microsoft Money (.mny) dosyası değil",
-    "mnyUnsupportedVersion": "Bu dosya Monize'ın okuyamadığı Money 97 veya 98 ile oluşturulmuş. Ücretsiz Money Plus Sunset sürümünde bir kez açıp kaydedin, ardından sonucu içe aktarın.",
+    "mnyUnsupportedVersion": "Bu dosya Monize'ın okuyamadığı bir Microsoft Money sürümüyle oluşturulmuş. Ücretsiz Money Plus Sunset sürümünde bir kez açıp kaydedin, ardından sonucu içe aktarın.",
     "mnyPasswordRequired": "Bu Money dosyası parola korumalı. Devam etmek için parolayı girin.",
     "mnyPasswordIncorrect": "Bu parola Money dosyasını açmıyor. Kontrol edip yeniden deneyin.",
     "mnyUnreadableDatabase": "Bu Money dosyasının şifresi çözüldü ancak içeriği okunamadı. Dosya bozuk olabilir.",
@@ -489,9 +502,12 @@
     "mnyStagedFileInUse": "Bu Money dosyası içe aktarılıyor. Silmeden önce içe aktarmanın bitmesini bekleyin.",
     "mnyImportAlreadyRunning": "Zaten bir içe aktarma çalışıyor. Yenisini başlatmadan önce bitmesini bekleyin.",
     "mnyAlreadyImported": "Bu dosya {{ date }} tarihinde zaten içe aktarıldı (içe aktarma {{ jobId }}) ve kayıtları hâlâ hesabınızda. Yeniden içe aktarmak onları çoğaltır. Bunları değiştirmek için baştan başlayın ve mevcut verilerinizi değiştirmeyi seçin.",
+    "mnyExistingAccountClosed": "Mevcut \"{{ name }}\" hesabı kapalı olduğundan Money dosyası bununla birleştirilemez. Hesabı yeniden açın veya adını değiştirin, ardından yeniden içe aktarın.",
+    "mnyExistingAccountCurrency": "Mevcut \"{{ name }}\" hesabı {{ existing }} kullanıyor, ancak Money dosyasındaki hesap {{ file }} kullanıyor. Birinin adını değiştirin, ardından yeniden içe aktarın.",
     "mnyJobNotFound": "İçe aktarma görevi bulunamadı",
     "mnyFileTooLarge": "Bu Money dosyası {{ limit }} MB içe aktarma sınırından büyük.",
-    "noRateForSplitTransfer": "{{ date }} tarihinde {{ pair }} için döviz kuru yok: bir bölünmüş satır başka para birimindeki bir hesaba transfer ediyor. Bu çift ve tarih için bir döviz kuru ekleyin, ardından yeniden içe aktarın."
+    "noRateForSplitTransfer": "{{ date }} tarihinde {{ pair }} için döviz kuru yok: bir bölünmüş satır başka para birimindeki bir hesaba transfer ediyor. Bu çift ve tarih için bir döviz kuru ekleyin, ardından yeniden içe aktarın.",
+    "accountClosed": "Hesap kapalı. Yeniden açın veya başka bir hesap seçin."
   },
   "monteCarlo": {
     "scenarioNotFound": "{{ id }} senaryosu bulunamadı",
@@ -767,6 +783,7 @@
     "notATransfer": "İşlem bir transfer değil",
     "splitTransferLegAccountLocked": "Bu transfer, bölünmüş bir işlemin parçasıdır. Hesaplarını değiştirmek için kaynak işlemdeki bölümü düzenleyin.",
     "splitTransferLegStatusLocked": "Bu transfer, bölünmüş bir işlemin parçasıdır. İki tarafın birlikte değişmesi için, ait olduğu bölünmüş işlemi düzenleyerek iptal edin veya geri yükleyin.",
+    "investmentCashLegLocked": "Bu işlem bir yatırım işleminin nakit tarafıdır. İki tarafın birlikte değişmesi için bunun yerine yatırım işlemini değiştirin veya silin.",
     "investmentCashLegStatusLocked": "Bu işlem, bir yatırım işleminin nakit tarafıdır. İki tarafın birlikte değişmesi için, yatırım işleminin durumunu değiştirerek iptal edin veya geri yükleyin.",
     "notFoundById": "{{ id }} kimliğine sahip işlem bulunamadı",
     "bulkUpdateNoFields": "En az bir güncelleme alanı sağlanmalıdır",
@@ -786,7 +803,11 @@
     "transferRateUnavailable": "{{ from }} -> {{ to }} için döviz kuru belirlenemedi. Transferin doğru kaydedilmesi için bir exchangeRate veya hedef tutar girin.",
     "transferAmountsMustAgreeOnZero": "Bir transfer her iki tarafta sıfırdan farklı bir tutar taşımalı veya her iki tarafta sıfır olmalıdır",
     "transferImpliedRateInvalid": "Hedef tutar, kaynak tutara göre kullanılamaz bir döviz kuru anlamına geliyor",
-    "externalIdNotThisTransfer": "Bu externalId, kaynak hesapta bu hedef hesaba yapılan bir transfer olmayan bir işlem tarafından zaten kullanılıyor"
+    "externalIdNotThisTransfer": "Bu externalId, kaynak hesapta bu hedef hesaba yapılan bir transfer olmayan bir işlem tarafından zaten kullanılıyor",
+    "alreadyATransfer": "Bu işlem zaten bir transfer. Bunun yerine transferin kendisini düzenleyin.",
+    "convertTransferCrossOwner": "Başka bir sahibin hesabını içeren bir transfer dönüştürülemez. Silin ve bunun yerine istediğiniz kaydı oluşturun.",
+    "splitTransferLegConvertLocked": "Bu transfer bölünmüş bir işlemin parçasıdır. Kaynak işlemdeki bölmeyi düzenleyerek kaldırın.",
+    "transferCounterpartChanged": "Düzenleme sırasında bu transferin diğer tarafı değişti. Yeniden yükleyip tekrar deneyin."
   },
   "users": {
     "userNotFound": "Kullanıcı bulunamadı",

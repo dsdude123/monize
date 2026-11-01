@@ -13,6 +13,7 @@
   "rules": "Quy tắc",
   "warranties": "Bảo hành",
   "emailReceipts": "Hóa đơn qua email",
+  "taxes": "Thuế",
   "securities": "Chứng khoán",
   "currencies": "Tiền tệ",
   "import": "Nhập giao dịch",
@@ -37,5 +38,6 @@
     "open": "Mở tìm kiếm",
     "submit": "Tìm kiếm"
   },
-  "backups": "Sao lưu"
+  "backups": "Sao lưu",
+  "sharedExpenses": "Chi phí chung"
 }

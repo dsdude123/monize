@@ -47,9 +47,9 @@
     "processing": "Memproses...",
     "acceptedFormats": "QIF/QMTF, OFX, QFX, CSV, atau Microsoft Money (.mny)",
     "mnyFailedHeading": "Berkas Microsoft Money itu tidak dapat dibuka",
-    "wikiNotice": {
+    "docsNotice": {
       "title": "Sebelum Anda mengimpor",
-      "body": "Baca bagian <money>Importing from Microsoft Money</money> atau <quicken>Importing from Quicken</quicken> di wiki sebelum mengimpor apa pun."
+      "body": "Baca bagian <money>Importing from Microsoft Money</money> atau <quicken>Importing from Quicken</quicken> di dokumentasi sebelum mengimpor apa pun."
     }
   },
   "selectAccount": {
@@ -81,23 +81,23 @@
     "heading": "Pemetaan Kolom CSV",
     "description": "Petakan kolom CSV Anda ke bidang transaksi. Pratinjau data di bawah dan konfigurasi pemetaannya.",
     "firstRowIsHeader": "Baris pertama adalah header",
-    "delimiterLabel": "Pemisah:",
-    "dateFormatLabel": "Format tanggal:",
+    "delimiterLabel": "Pemisah",
+    "dateFormatLabel": "Format tanggal",
     "customOption": "Kustom...",
     "customPlaceholder": "mis. DD.MM.YYYY",
     "dataPreview": "Pratinjau Data",
     "columnMappingTitle": "Pemetaan Kolom",
-    "dateField": "Tanggal *",
+    "dateField": "Tanggal",
     "amountTypeField": "Jenis jumlah",
     "singleAmountOption": "Satu kolom jumlah",
     "splitAmountOption": "Debit/kredit terpisah",
-    "amountField": "Jumlah *",
+    "amountField": "Jumlah",
     "signField": "Tanda",
     "signNormal": "Apa adanya (positif = setoran)",
     "signReverse": "Dibalik (positif = penarikan)",
     "signTypeColumn": "Gunakan kolom jenis transaksi",
-    "debitField": "Debit *",
-    "creditField": "Kredit *",
+    "debitField": "Debit",
+    "creditField": "Kredit",
     "typeColumnTitle": "Kolom jenis transaksi",
     "typeColumnDescription": "Pilih kolom yang menunjukkan pendapatan, pengeluaran, atau transfer per baris.",
     "valuesFound": "Nilai ditemukan: {values}",
@@ -140,8 +140,8 @@
     "kindBanking": "Transaksi perbankan",
     "kindInvestment": "Transaksi investasi",
     "investmentModeHint": "Baris diklasifikasikan berdasarkan kolom tindakan. Nilai tindakan yang tidak cocok diimpor sebagai setoran atau penarikan tunai pada akun tunai yang terhubung.",
-    "actionField": "Tindakan *",
-    "securityField": "Sekuritas (simbol atau nama) *",
+    "actionField": "Tindakan",
+    "securityField": "Sekuritas (simbol atau nama)",
     "quantityField": "Kuantitas",
     "priceField": "Harga",
     "commissionField": "Komisi",
@@ -337,7 +337,10 @@
     "securitiesNotice": "File ini berisi {count} sekuritas yang perlu dipetakan sebelum impor.",
     "nextMapSecurities": "Berikutnya: Petakan Sekuritas",
     "importAll": "Impor Semua",
-    "transactionCount": "{count} transaksi"
+    "transactionCount": "{count} transaksi",
+    "chooseAccountType": "Pilih jenis",
+    "accountTypeFor": "Jenis akun untuk {name}",
+    "accountTypesNeeded": "File tidak menyebutkan jenis {count, plural, other {# akun}}. Pilih jenis untuk masing-masing sebelum mengimpor."
   },
   "navigation": {
     "back": "Kembali",
@@ -354,6 +357,7 @@
     "heading": "Periksa berkas Microsoft Money Anda",
     "fileSummary": "{filename} -- {era}, mata uang dasar {currency}. Saldo di bawah dihitung dari berkas itu sendiri, jadi Anda dapat membandingkannya dengan Money sebelum mengimpor.",
     "era": {
+      "money99": "format Money 97-99",
       "money2001": "format Money 2001",
       "money2002": "format Money 2002",
       "moneyPlus": "format Money Plus / Sunset",
@@ -435,7 +439,7 @@
     }
   },
   "mnyWipe": {
-    "heading": "Hapus dulu data Anda yang ada?",
+    "heading": "Hapus Data yang Ada",
     "body": "Ini menjalankan operasi Hapus Data Saya yang sama seperti di Pengaturan -> Zona Berbahaya, sebelum impor dimulai. Ini menghapus:",
     "removes": {
       "transactions": "Setiap transaksi dan pemecahannya",
@@ -445,8 +449,8 @@
       "budgets": "Setiap anggaran, laporan khusus, tag, dan pemetaan impor"
     },
     "irreversible": "Ini tidak bisa dibatalkan. Jika impor kemudian gagal, data yang dihapus tidak kembali.",
-    "typeToConfirm": "Ketik {word} untuk mengonfirmasi:",
-    "passwordLabel": "Masukkan kata sandi Anda:",
+    "typeToConfirm": "Ketik {word} untuk mengonfirmasi",
+    "passwordLabel": "Kata Sandi",
     "oidcNote": "Penyedia identitas Anda sudah mengonfirmasi sesi ini, jadi kata sandi tidak diperlukan.",
     "confirm": "Hapus data saya dan impor"
   },
@@ -526,6 +530,7 @@
     "duplicateSecuritySymbol": "{count, plural, other {# efek}} berbagi simbol dengan efek lain; yang berikutnya diganti namanya agar tetap terpisah.",
     "generatedSecuritySymbol": "{count, plural, other {# efek}} tidak memiliki simbol di Money, jadi simbol sementara dibuat dan pembaruan harga dibiarkan mati.",
     "unknownInvestmentAction": "{count, plural, other {# transaksi investasi}} memakai aksi yang tidak dikenali Monize dan dilewati.",
+    "stockOptionNotImported": "{count, plural, other {# peristiwa opsi saham karyawan}} (pemberian, vesting, dan kedaluwarsa) tidak memindahkan kas maupun saham dan tidak diimpor.",
     "unconfirmedInvestmentAction": "{count, plural, other {# transaksi investasi}} memakai aksi Money yang artinya disimpulkan, bukan terdokumentasi; periksa terhadap Money.",
     "missingInvestmentDetail": "{count, plural, other {# transaksi investasi}} tidak memiliki rincian lembar di berkas dan hanya diimpor sebesar jumlah tunainya.",
     "investmentAccountMismatch": "{count, plural, other {# transaksi investasi}} berada di akun yang bukan akun investasi dan dilewati.",
@@ -536,7 +541,8 @@
     "billFrequencyApproximated": "{count, plural, other {# tagihan terjadwal}} memakai interval pengulangan yang tidak bisa dinyatakan persis oleh Monize, jadi dipakai interval terpendek terdekat.",
     "loanInterestCategoryUnclear": "{count, plural, other {# pembayaran pinjaman}} menyertakan beberapa kategori selain pokok, sehingga kategori bunga pinjaman dibiarkan kosong. Periksa apakah pembayaran mencakup escrow dan atur kategori bunga setelah impor.",
     "transferAmountMismatch": "{count, plural, other {# transfer ke rekening investasi}} mencatat jumlah yang berbeda di sisi investasi dibandingkan sisi bank. Sisi investasi diimpor sesuai catatan.",
-    "crossCurrencyTradeUnconverted": "{count, plural, other {# transaksi sekuritas yang dikutip dalam mata uang lain}} disimpan dalam mata uang rekening, karena file tidak memiliki kurs untuk pasangan mata uang itu di sekitar tanggal transaksi. Tambahkan kurs, lalu koreksi harga setiap transaksi.",
+    "crossCurrencyTradeUnconverted": "{count, plural, other {# transaksi sekuritas yang dikutip dalam mata uang lain}} disimpan dalam mata uang rekening, karena baik file maupun penyedia kurs tidak memiliki kurs untuk pasangan mata uang itu di sekitar tanggal transaksi. Tambahkan kurs, lalu koreksi harga setiap transaksi.",
+    "crossCurrencyTradeMarketRate": "{count, plural, other {# transaksi sekuritas yang dikutip dalam mata uang lain}} dikonversi dengan kurs pasar pada tanggal transaksi, karena file tidak memiliki kurs di sekitar tanggal itu. Periksa harga setiap transaksi dengan catatan Anda.",
     "showTransactions": "Tampilkan {count, plural, other {# transaksi}}",
     "hideTransactions": "Sembunyikan transaksi",
     "reviewInMoney": "Buka transaksi ini di Microsoft Money untuk memeriksa atau memperbaikinya, lalu ekspor dan impor ulang.",
@@ -560,7 +566,7 @@
     "mnyStagedFileMissing": "Berkas Money yang diunggah sudah tidak tersedia. Silakan unggah kembali.",
     "mnyFileTruncated": "Berkas Money ini tampak tidak lengkap. Unggahan mungkin terputus.",
     "mnyNotAMoneyFile": "Berkas itu bukan berkas Microsoft Money (.mny).",
-    "mnyUnsupportedVersion": "Berkas itu dibuat oleh Money 97 atau 98. Buka dan simpan sekali di edisi gratis Money Plus Sunset, lalu impor hasilnya.",
+    "mnyUnsupportedVersion": "Berkas itu dibuat oleh versi Microsoft Money yang tidak dapat dibaca Monize. Buka dan simpan sekali di edisi gratis Money Plus Sunset, lalu impor hasilnya.",
     "mnyPasswordRequired": "Berkas Money itu dilindungi kata sandi.",
     "mnyPasswordIncorrect": "Kata sandi itu tidak membuka berkas Money.",
     "mnyUnreadableDatabase": "Berkas Money itu berhasil didekripsi, tetapi isinya tidak dapat dibaca. Mungkin rusak."
