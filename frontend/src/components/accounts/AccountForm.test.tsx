@@ -515,7 +515,7 @@ describe('AccountForm', () => {
     });
   });
 
-  it('shows "Interest Rate % (required)" label for LOAN type', async () => {
+  it('shows "Interest Rate %" label for LOAN type', async () => {
     render(
       <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
     );
@@ -524,11 +524,11 @@ describe('AccountForm', () => {
     fireEvent.change(typeSelect, { target: { value: 'LOAN' } });
 
     await waitFor(() => {
-      expect(screen.getByText('Interest Rate % (required)')).toBeInTheDocument();
+      expect(screen.getByText('Interest Rate %')).toBeInTheDocument();
     });
   });
 
-  it('shows "Interest Rate % (required)" label for MORTGAGE type', async () => {
+  it('shows "Interest Rate %" label for MORTGAGE type', async () => {
     render(
       <AccountForm onSubmit={mockOnSubmit} onCancel={mockOnCancel} />
     );
@@ -537,7 +537,7 @@ describe('AccountForm', () => {
     fireEvent.change(typeSelect, { target: { value: 'MORTGAGE' } });
 
     await waitFor(() => {
-      expect(screen.getByText('Interest Rate % (required)')).toBeInTheDocument();
+      expect(screen.getByText('Interest Rate %')).toBeInTheDocument();
     });
   });
 
@@ -579,7 +579,7 @@ describe('AccountForm', () => {
     fireEvent.change(typeSelect, { target: { value: 'LOAN' } });
 
     await waitFor(() => {
-      expect(screen.getByText('Lender/Institution (required)')).toBeInTheDocument();
+      expect(screen.getByText('Lender/Institution')).toBeInTheDocument();
     });
     expect(screen.queryByText('Institution (optional)')).not.toBeInTheDocument();
   });
@@ -593,7 +593,7 @@ describe('AccountForm', () => {
     fireEvent.change(typeSelect, { target: { value: 'MORTGAGE' } });
 
     await waitFor(() => {
-      expect(screen.getByText('Lender/Institution (required)')).toBeInTheDocument();
+      expect(screen.getByText('Lender/Institution')).toBeInTheDocument();
     });
     expect(screen.queryByText('Institution (optional)')).not.toBeInTheDocument();
   });
@@ -818,7 +818,7 @@ describe('AccountForm', () => {
     await waitFor(() => {
       expect(screen.getByText(heading)).toBeInTheDocument();
     });
-    expect(screen.getByText('Interest Category (required)')).toBeInTheDocument();
+    expect(screen.getByText('Interest Category')).toBeInTheDocument();
 
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Create Account/i })); });
 
@@ -922,11 +922,11 @@ describe('AccountForm', () => {
       expect(screen.getByText('Mortgage Details')).toBeInTheDocument();
     });
     expect(screen.getByText('Rate-Fixed Term')).toBeInTheDocument();
-    expect(screen.getByText('Amortization Period (required)')).toBeInTheDocument();
+    expect(screen.getByText('Amortization Period')).toBeInTheDocument();
     expect(screen.getByLabelText('Mortgage Type')).toBeInTheDocument();
     // Payment fields should be hidden during editing
-    expect(screen.queryByText('Payment Frequency (required)')).not.toBeInTheDocument();
-    expect(screen.queryByText('First Payment Date (required)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Payment Frequency')).not.toBeInTheDocument();
+    expect(screen.queryByText('First Payment Date')).not.toBeInTheDocument();
   });
 
   it('shows the saved payment source account when editing a mortgage', async () => {
@@ -2418,5 +2418,35 @@ describe('AccountForm', () => {
       expect(screen.queryByText('Cash account')).not.toBeInTheDocument();
       expect(screen.getByDisplayValue('Self-directed')).toBeInTheDocument();
     });
+  });
+  it("labels the retained shared-account toggle visibly and keeps finance navigation secondary", async () => {
+    const account = createExistingAccount({
+      managedPurpose: "SHARED_SETTLEMENT",
+      sharedExpenseGroupId: "group",
+    });
+    await act(async () =>
+      render(
+        <AccountForm
+          account={account}
+          onSubmit={mockOnSubmit}
+          onCancel={mockOnCancel}
+        />,
+      ),
+    );
+    const toggle = screen.getByRole("switch", {
+      name: "Exclude from Net Worth",
+    });
+    expect(toggle.closest("label")).toHaveTextContent("Exclude from Net Worth");
+    expect(screen.getByRole("link", { name: "My Finances" })).toHaveAttribute(
+      "href",
+      "/shared-expenses/private-finances/group",
+    );
+    expect(screen.getByRole("link", { name: "My Finances" })).not.toHaveClass(
+      "bg-blue-600",
+    );
+    expect(
+      screen.getByRole("button", { name: "Save Changes" }),
+    ).toHaveAttribute("type", "submit");
+    expect(screen.queryByLabelText("Account Type")).not.toBeInTheDocument();
   });
 });

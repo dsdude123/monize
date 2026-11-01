@@ -121,6 +121,10 @@ implied.
 | INV-OCCURRENCE-001 | One scheduled occurrence has at most one financial effect | enforced |
 | INV-OCCURRENCE-002 | A stored override price survives reopening | enforced |
 | INV-OCCURRENCE-003 | Every surface reports the effective occurrence: its current amount and currency, its direction, on the date it falls | enforced |
+| INV-PAYROLL-001 | A payroll deduction rule never writes a ledger row; changing one changes no posted transaction | enforced |
+| INV-PAYROLL-002 | The cap on a deduction line is decided under the posting lock from the ledger as it stands | enforced |
+| INV-PAYROLL-003 | The posting and the projection reduce a line by one definition over the server's own figures | enforced |
+| INV-PAYROLL-004 | A rule's reset reminder is raised once per reset date, however many replicas or days are in the window | enforced |
 | INV-CLAIM-001 | An emergency-access claim token is consumed exactly once | enforced |
 | INV-AUTH-001 | A refresh token rotates once, or the family is revoked | enforced |
 | INV-AUTH-002 | A failed-login counter records every failure | enforced |
@@ -136,6 +140,18 @@ implied.
 | INV-MCP-003 | A write confirmation is bound to one credential and one change | enforced |
 | INV-MCP-004 | A write happens only on the round a human answered | enforced |
 | INV-CURRENCY-001 | A shared currency is deleted only by its creator, on a global count; a user's action never creates or leaves one offered to every user | partial |
+| SE-001 | Accepted shares and contributions conserve the entry total | enforced |
+| SE-002 | An invitation claims a participant without replacing their history | enforced |
+| SE-003 | Group membership grants no private ledger access | enforced |
+| SE-004 | A matched bank fact has one lasting ledger effect | enforced |
+| SE-005 | Own consumption is a cost and repayment is a transfer | enforced |
+| SE-006 | A peer edit waits for the private ledger owner’s review | enforced |
+| SE-007 | An incomplete journal does not produce settlement instructions | enforced |
+| SE-008 | A refused shared command leaves no financial writes | enforced |
+| SE-009 | Shared financial changes retain their accepted inputs and history | enforced |
+| SE-010 | A restored shared snapshot is separate from the live group | enforced |
+| SE-011 | Group documents expose only explicitly published files | enforced |
+| SE-012 | Reopening or cancelling a split preserves accepted allocations | enforced |
 | INV-ATTACHMENT-001 | Available metadata resolves to committed bytes | enforced |
 | INV-ATTACHMENT-002 | A scanned document and its original are one attachment | enforced |
 | INV-ATTACHMENT-003 | An attachment's bytes are read from the backend that holds them, and a provider switch moves them | enforced |
@@ -206,11 +222,23 @@ implied.
 | INV-SEARCH-005 | The assistant's totals and rows read the search string alike | enforced |
 | INV-WTY-001 | A warranty never writes a ledger row, a balance or a holding | partial |
 | INV-WTY-002 | Every warranty status a surface prints is the server's, from one function | partial |
-| INV-WTY-003 | An attachment has exactly one parent, a transaction or a warranty; a transaction's attachments are its own rows plus the documents of warranties linked to it, through one fragment | enforced |
+| INV-WTY-003 | An attachment has exactly one transaction, warranty, shared-group or shared-entry parent; a transaction's attachments include linked warranty documents through one fragment | enforced |
 | INV-WTY-004 | Each warranty reminder threshold notifies once per (warranty, expiry date, threshold), across replicas | enforced |
 | INV-WTY-005 | A warranty or claim write naming a row the caller does not own is refused before the write | enforced |
 | INV-WTY-006 | A warranty import's preview and commit are one computation | enforced |
 | INV-WTY-007 | A delegate never learns a transaction outside their readable accounts through a warranty | enforced |
+| SE-001 | Accepted contributions and shares conserve both currency totals | enforced |
+| SE-002 | Joining preserves the existing participant's history | enforced |
+| SE-003 | Group membership grants no private finance access | enforced |
+| SE-004 | A matched bank fact has one lasting effect | enforced |
+| SE-005 | Consumption and repayment have different ledger meanings | enforced |
+| SE-006 | Peer edits await the ledger owner's review | enforced |
+| SE-007 | Unknown inputs withhold settlement instructions | enforced |
+| SE-008 | Refused financial commands leave no partial writes | enforced |
+| SE-009 | Application edits retain their financial explanation | enforced |
+| SE-010 | A user's restore creates an independent group snapshot | enforced |
+| SE-011 | Shared documents require explicit publication and current access | enforced |
+| SE-012 | Editing preserves accepted pennies until redistribution | enforced |
 
 ## Imports
 
@@ -935,6 +963,13 @@ Enforcement         The balance decision is made once per pair, keyed on VOID.
                     is refused rather than cascaded away, leaving the other leg
                     one-sided (A26-M19):
                     backend/test/integration/account-delete-race.integration.spec.ts.
+                    A conversion between a transaction and a transfer leg
+                    (TransactionConversionService) creates or removes the
+                    counterpart in the same transaction as the row's rewrite,
+                    posting the pair from the create's column set and reversing
+                    the removed leg through removeLockedTransactionLeg; a VOID
+                    row moves nothing in either direction:
+                    backend/test/integration/transaction-conversion.integration.spec.ts.
 Concurrency scope   per transfer pair
 Failure response    consistent balances across the pair on every VOID transition.
 Required tests      Per status-changing path, both legs' balances stay consistent
@@ -1636,8 +1671,10 @@ by another path. The Money import stored a foreign-quoted trade's price and tota
 in the account's currency at rate 1 until the 2026-10 audit (A26-M24): `mapInvestments`
 now converts them into the security's currency with the file's own rate for that
 date (`resolveFxRate` over the file's `CRNC_EXCHG` rows) and carries the rate as
-`exchange_rate`. Where the file has no rate near the date the row is still stored
-in the account's currency at rate 1, with a `crossCurrencyTradeUnconverted`
+`exchange_rate`. Where the file has no rate near the date, the market rate for
+that date is used (`MnyMarketRateService`: stored history, then the rate provider)
+with a `crossCurrencyTradeMarketRate` warning; with neither, the row is still
+stored in the account's currency at rate 1, with a `crossCurrencyTradeUnconverted`
 warning. The guard that would keep such a row out of `security_prices` (average
 only rows whose rate is not 1 or whose account currency is the security's) belongs
 in `security-price.service.ts` and is left to the securities stream.
@@ -4780,6 +4817,68 @@ Known scope         Two client-side expansions remain, both named in the fronten
 Status              enforced
 ```
 
+## Payroll deductions
+
+Specified in `docs/specs/payroll-deductions.md`. A rule names a payroll
+scheduled bill, one of its deduction categories, a yearly maximum and the
+date the count resets; the bill's line for that category is reduced to the
+room left under the maximum when the occurrence posts, and the cash-flow
+forecast projects the same reduction.
+
+### INV-PAYROLL-001 -- a rule never writes the ledger
+
+- **Statement.** `backend/src/payroll-deductions/` reads `transactions` and
+  `transaction_splits` and writes only `payroll_deduction_rules`. A rule
+  created, changed or deleted in October leaves every row posted before
+  October as it was; the cap applies to the next occurrence posted.
+- **Mechanism.** The module imports no ledger writer and issues no
+  `INSERT`, `UPDATE` or `DELETE` against a ledger table;
+  `payroll-deductions.guard.spec.ts` scans its sources for both.
+- **Status.** enforced.
+
+### INV-PAYROLL-002 -- the cap is decided under the posting lock
+
+- **Statement.** The year-to-date figure that caps a line is read inside
+  the posting transaction, after `ScheduledTransactionsService.post` has
+  locked the schedule row, on the same `EntityManager`, in the period that
+  contains the posting date.
+- **Mechanism.** `applyPayrollDeductionCaps` takes the posting's manager and
+  runs after the lock and before the occurrence claim;
+  `payroll-deduction-cap.spec.ts` pins the period and the query shape, and
+  the posting spec pins the call site.
+- **Status.** enforced.
+
+### INV-PAYROLL-003 -- one definition of paid, remaining and capped
+
+- **Statement.** The posting and the projection reduce a line by
+  `capDeductionLine` over `remainingRoom(yearlyMaximum, paidToDate)`; the
+  forecast reads `remaining` from the read model's `payrollDeductions` and
+  never re-derives it from rows.
+- **Mechanism.** `payroll-deduction-cap.ts` holds the three functions and the
+  one query; `loadScheduledPayrollDeductions` stamps the figures onto every
+  `findAll` row; `frontend/src/lib/forecast.ts` pools the room per category
+  across every bill (`buildDeductionPools`), spends it per occurrence in date
+  order (`spendPayrollDeductions`), projects the template less its current
+  line plus the deduction due, refills on the anchor's anniversary, and
+  answers one occurrence's lines to the Edit Occurrence dialog
+  (`projectPayrollOccurrence`); `forecast.test.ts` and
+  `OverrideEditorDialog.payroll.test.tsx`. The rows "paid" sums are one SQL
+  fragment, `CATEGORY_DEDUCTION_ROWS_SQL`, which the payroll deductions report
+  (`payroll-deduction-report.ts`) reads too, so its columns add up to the
+  figure the cap spends; `payroll-deduction-report.spec.ts`.
+- **Status.** enforced.
+
+### INV-PAYROLL-004 -- one reminder per reset
+
+- **Statement.** The two-months-before reminder is raised once per rule per
+  reset date, whichever replica runs the cron and however many days of the
+  window pass.
+- **Mechanism.** The notification's `dedupe_key` is
+  `pdr:reset:<ruleId>:<resetOn>` and `NotificationService.create` is
+  `INSERT ... ON CONFLICT DO NOTHING`; `payroll-deduction-reset-reminder.service.spec.ts`
+  covers the window and the lost insert.
+- **Status.** enforced.
+
 ## Authentication and authorization
 
 ### INV-CLAIM-001 -- a claim token is consumed exactly once
@@ -5109,8 +5208,8 @@ Enforcement         Client: every figure goes through useNumberFormat(); a pure
                     and a shrink-only baseline names the readouts not yet
                     migrated, each with an exact count, so a new site and a
                     stale entry both fail. ui-conventions.test.ts fails a UI
-                    import of the English-only formatRelativeTime (use
-                    useRelativeTime). The PDF header's generation time is
+                    import of the removed English-only formatRelativeTime, or
+                    its return to lib/format.ts (use useRelativeTime). The PDF header's generation time is
                     formatted by the reader's date, time and timezone
                     preferences and labelled from the catalog (pdf-export.ts).
                     The percentage scan is keyed on the literal '%' rather than
@@ -8010,6 +8109,11 @@ Enforcement         The applier takes the caller's EntityManager
                     MNY), and the transfer counterpart and split transfer legs
                     created by the import processors and by createSplits /
                     addSplit (open question Q2 of the design).
+                    Shared-finance posting rows are also exempt by reviewed
+                    decision: their cash, transfer and category rows implement
+                    the owner's accepted preview. The rule/booking regression
+                    in shared-expenses-booking.integration.spec.ts supplies an
+                    active category rule and checks that accepted projection.
 Concurrency scope   per inserted row; the rules are read inside the same
                     transaction as the insert
 Retry semantics     A retried request that inserts again is a new row and runs the
@@ -8540,22 +8644,23 @@ and the widget.
 
 ```text
 Statement           Every transaction_attachments row belongs to exactly one
-                    parent, a transaction or a warranty; a transaction's
+                    transaction, warranty, shared-group or shared-entry parent; a transaction's
                     attachments are its own rows plus the documents of every
                     warranty linked to it, archived or not, reached through
                     warranties.transaction_id by one fragment.
-Source of truth     transaction_attachments.transaction_id and warranty_id
-Enforcement         chk_attachment_one_parent,
-                    ((transaction_id IS NOT NULL)::int +
-                     (warranty_id IS NOT NULL)::int) = 1, added by
-                    20261022001322_attachment_parent.sql and declared in
+Source of truth     transaction_attachments.transaction_id, warranty_id,
+                    shared_group_id and shared_entry_id
+Enforcement         chk_attachment_one_parent requires num_nonnulls of the four
+                    parent columns to equal 1, extended by
+                    20261025192210_shared_expense_documents.sql and declared in
                     database/schema.sql (in SQL only; the entity does not
                     carry it). AttachmentsService.create and findAllFor take
                     an AttachmentParent union (attachment-parent.ts), never
                     two ids, and the controller has one route per parent; both
                     halves of a scan pair carry the parent, and the cap of ten
                     is counted per parent under lockTransactionRow or
-                    lockWarrantyRow. The reach is written once,
+                    lockWarrantyRow (shared parents use lockSharedGroup).
+                    The private transaction/warranty reach is written once,
                     attachmentReachableFromTransactionSql and
                     reachedTransactionIdSql in attachment-parent.ts, used by
                     the transaction's attachment list (each row carrying
@@ -8730,6 +8835,234 @@ Required tests      Present: warranties.integration.spec.ts (truth table C,
                     its row), warranties.service.spec.ts (the transactionId
                     filter for a delegate), warranties.controller.spec.ts,
                     rls-context-smoke.spec.ts.
+Status              enforced
+```
+
+## Shared expenses
+
+The `SE-*` identifiers are retained from the approved
+[shared-expense specification](specs/shared-expenses.md). The group journal and
+each person's accepted ledger are separate sources of truth. The
+[consumer audit](specs/shared-expenses-consumers.md) maps those sources to reports.
+
+### SE-001 — Accepted allocations conserve the total
+
+```text
+Statement           Each accepted contribution and share allocation sums to its
+                    entry's original and group amount; positions sum to zero.
+Source of truth     shared_entries and shared_allocations, including rounding_seed
+Enforcement         BigInt fixed units in shared-allocation.ts; deferred
+                    shared_validate_entry_allocations constraint triggers;
+                    shared-balances.ts derives signed positions from those rows.
+Concurrency scope   group advisory transaction lock
+Retry semantics     shared_commands UUID and payload hash return the committed result.
+Crash semantics     entry, allocations and command receipt share withScopedDb.
+Failure response    invalid allocations refused; incomplete FX uses a draft.
+Required tests      shared-allocation.spec.ts, shared-balances.spec.ts and the
+                    direct-SQL conservation case in shared-expenses.integration.spec.ts
+Status              enforced
+```
+
+### SE-002 — Joining preserves participant history
+
+```text
+Statement           Accepting an invitation binds the existing participant ID;
+                    it does not copy or rewrite that participant's allocations.
+Source of truth     shared_memberships, shared_invitations, shared_participants
+Enforcement         group lock, conditional token consumption, token hash and
+                    expiry check, unique active user/participant membership
+                    indexes; identity triggers forbid moving the binding.
+Concurrency scope   group and invitation token
+Retry semantics     the consuming user can revisit; another claim is refused.
+Crash semantics     membership and consumption commit in one withScopedDb.
+Failure response    unavailable invitation or existing membership, no new rows
+Required tests      invitation race and unchanged allocations in
+                    shared-expenses.integration.spec.ts
+Status              enforced
+```
+
+### SE-003 — Membership is separate from private finance access
+
+```text
+Statement           A member sees shared entries and published files, not another
+                    member's accounts, payees, postings or original documents.
+Source of truth     membership policies and owner-scoped private tables
+Enforcement         group-role RLS, private user_id = effective AND real user,
+                    assertSharedPrincipal, explicit shared response projections
+Concurrency scope   current membership; writers recheck under the group lock
+Retry semantics     access is rechecked; an old token/ID is not a continuing grant.
+Crash semantics     no cached membership replaces the database read.
+Failure response    unavailable/read-only; delegated profiles do not read groups
+Required tests      enforced-role journal/lifecycle suites, rls-enforcement,
+                    shared-review.service.spec.ts delegate projection
+Status              enforced
+```
+
+### SE-004 — One bank fact has one lasting effect
+
+```text
+Statement           Matching an import retains its original transaction ID and
+                    debit; replacing a created payment removes that old debit.
+Source of truth     transactions, shared_ledger_links, before_shape snapshots
+Enforcement         unique transaction_id claim; group lock then sorted account
+                    and transaction locks; source fingerprint and split-capacity
+                    checks; shared-finance-write.ts restores before replacement.
+Concurrency scope   group, own payment accounts and original bank rows
+Retry semantics     command receipt and payload hash prevent a second booking.
+Crash semantics     original shape, links, balance deltas and posting commit together.
+Failure response    stale preview, unavailable source or reconciled row refusal
+Required tests      shared-expenses-booking.integration.spec.ts covers concurrent
+                    replay, imported IDs, category portions, unlink and replacement.
+Status              enforced
+```
+
+### SE-005 — Consumption and repayment have different ledger meanings
+
+```text
+Statement           A shared receipt books the owner's share as consumption;
+                    repayment changes cash and the claim without creating income.
+Source of truth     accepted shared_postings and their ordinary ledger rows
+Enforcement         shared-projection.ts and shared-finance-plan.ts separate
+                    bank transfers, categorized cost and private/FX remainder;
+                    existing report transfer filters exclude the transfer legs.
+Concurrency scope   own group integration and locked accounts
+Retry semantics     one posting per user/entry, with a durable command result
+Crash semantics     atomic SQL balance deltas and rows share withScopedDb;
+                    affected accounts invalidate derived state after commit.
+Failure response    unknown rates and invalid mappings refuse the booking.
+Required tests      projection/plan unit cases; booking integration checks spending,
+                    income, budget actuals, cash and claim before/after repayment.
+Status              enforced
+```
+
+### SE-006 — Peer edits await the ledger owner's review
+
+```text
+Statement           Editing the group journal leaves another member's accepted
+                    ledger intact until that member accepts a new private preview.
+Source of truth     personal fingerprint and accepted snapshot in shared_postings
+Enforcement         owner-only private command and RLS; sharedReviewState compares
+                    the current personal effect, not the metadata revision.
+Concurrency scope   group revision and private posting
+Retry semantics     a new accepted preview replaces the previous booking once.
+Crash semantics     journal changes survive independently of an unaccepted review.
+Failure response    pending review count; request failures and revoked groups are
+                    disclosed separately, not turned into a zero pending count.
+Required tests      shared-review-state/service tests, SharedReviewContent tests,
+                    peer-edit and owner-isolation integration cases
+Status              enforced
+```
+
+### SE-007 — Unknown inputs withhold settlement instructions
+
+```text
+Statement           Missing exchange rates do not become 1:1, zero or a full total;
+                    a future draft is not a completed expense.
+Source of truth     entry currency tuple, state and draft_reason
+Enforcement         shared-entry-plan.ts resolves dated FX or retains a draft;
+                    shared-balances.ts returns completeness and named missing
+                    entries and withholds suggestions; repayment validates it.
+Concurrency scope   a repeatable-read journal snapshot; group lock on repayment
+Retry semantics     an explicit draft repair resolves the rate again.
+Crash semantics     partial rate/allocation writes roll back with the entry.
+Failure response    null total plus known subtotal and entry-level repair action
+Required tests      entry-plan/balances/summary unit cases, missing-rate/future
+                    integration case and SharedBalances UI cases
+Status              enforced
+```
+
+### SE-008 — Rejection precedes financial writes
+
+```text
+Statement           A refused entry, booking or combined command does not leave
+                    an entry, allocation, posting or account delta behind.
+Source of truth     rows reloaded from PostgreSQL after the command
+Enforcement         withScopedDb transaction, group and sorted account/source
+                    locks, revision and preview fingerprint checked before write;
+                    PSE01 triggers protect generic ledger entry points.
+Concurrency scope   group, touched accounts, source transactions
+Retry semantics     same command replays its result; changed payload is refused.
+Crash semantics     rollback covers the combined journal and private posting;
+                    post-commit notification/cache work does not undo the fact.
+Failure response    stale/read-only/invalid preview; PSE01 repair text is shared
+                    by HTTP, bulk, AI and MCP error adapters.
+Required tests      stale second source/group, concurrent replay and rollback
+                    integration cases; shared-ledger-refusal.spec.ts
+Status              enforced
+```
+
+### SE-009 — Financial changes retain an explanation
+
+```text
+Statement           App edits and reversals record the before/after financial
+                    inputs and retain the entry identity and prior activity.
+Source of truth     journal revisions, frozen allocations/rates and shared_activity
+Enforcement         shared-entry-write.ts and sharedActivity run in the same
+                    transaction; reversal updates state instead of deleting;
+                    activity has no application update route or UPDATE policy.
+Concurrency scope   group advisory lock and revision comparison
+Retry semantics     command replay adds no second activity item.
+Crash semantics     edit and activity commit together.
+Failure response    stale edit refused; refunded sources require refund reversal.
+Required tests      metadata-only edit, frozen refund rate, over-refund refusal,
+                    reversal and edit-after-booking cases in the shared suites
+Status              enforced for application changes; owner DELETE policy permits
+                    restore/erasure, so this is not a tamper-proof audit log.
+```
+
+### SE-010 — Restore creates an independent snapshot
+
+```text
+Statement           Restoring one's backup neither rewrites the live group nor
+                    restores invitations, peer grants or another user's ledger.
+Source of truth     shared-backup.ts detached snapshot and restore ID map
+Enforcement         remapped group/participant/entry references; restoring owner
+                    only membership; cleared invitation/ownership-request state;
+                    private rows validated against the restoring user's file.
+Concurrency scope   restoring user's existing backup transaction
+Retry semantics     existing restore replacement semantics, not rejoining live groups
+Crash semantics     database restore rollback; attachment bytes obey the existing
+                    staging-before-commit and deletion-after-commit lifecycle.
+Failure response    invalid participant/group snapshot refused before insertion
+Required tests      shared-backup.spec.ts and detached restore alongside an
+                    unchanged live group in the lifecycle integration suite
+Status              enforced
+```
+
+### SE-011 — Shared documents require explicit publication
+
+```text
+Statement           Group file access covers uploaded/shared copies; private
+                    originals remain private unless explicitly copied too.
+Source of truth     attachment parent, uploader, blob metadata and scan pairing
+Enforcement         independent bytes and metadata on publication; current group
+                    RLS/access checks; num_nonnulls parent constraint; deferred
+                    check_attachment_pair_parent; same-group move trigger.
+Concurrency scope   group lock serializes upload limits and document moves.
+Retry semantics     unique upload_request_id and payload receipt avoid duplicates.
+Crash semantics     bytes before metadata commit; deletion after commit;
+                    original/private copy lifecycles remain independent.
+Failure response    unavailable/read-only, invalid parent or document limit
+Required tests      real-byte lifecycle cases: outsider/revoked/delegate denial,
+                    original opt-in, copied-byte isolation, pair move and retry
+Status              enforced
+```
+
+### SE-012 — Editing preserves accepted pennies until redistribution
+
+```text
+Statement           Opening/cancelling an editor or changing only metadata does
+                    not redistribute a previously accepted split.
+Source of truth     persisted allocation amounts, instructions and rounding seed
+Enforcement         shared-unchanged-allocation.ts keeps accepted allocations;
+                    shared-split-draft.ts isolates edits; explicit save applies
+                    changed amount/mode/participants through the same resolver.
+Concurrency scope   group revision protects save against another editor.
+Retry semantics     stable seed and committed command retain the accepted outcome.
+Crash semantics     cancelled/unsaved drafts have no journal write.
+Failure response    remainder/over-allocation shown; invalid save refused
+Required tests      split-draft, split editor and entry-plan fixtures; lifecycle
+                    defaults test compares exact rows by participant and kind.
 Status              enforced
 ```
 

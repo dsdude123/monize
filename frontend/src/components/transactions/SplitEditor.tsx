@@ -14,7 +14,8 @@ import { Account } from '@/types/account';
 import { Tag, TagUsageMap } from '@/types/tag';
 import { CreateSplitData, InvestmentSplitDetails } from '@/types/transaction';
 import { buildCategoryTree } from '@/lib/categoryUtils';
-import { roundToCents, roundToDecimals, getCurrencySymbol, getDecimalPlacesForCurrency } from '@/lib/format';
+import { FALLBACK_DEFAULT_CURRENCY } from '@/lib/default-currency';
+import { roundMoney, roundToCents, roundToDecimals, getCurrencySymbol, getDecimalPlacesForCurrency } from '@/lib/format';
 import { useLocalizedAmount } from '@/hooks/useLocalizedAmount';
 import { buildAccountDropdownOptions } from '@/lib/account-utils';
 import { useAccountOptionLabel } from '@/hooks/useMainAccountName';
@@ -23,6 +24,7 @@ import { RemoveSplitLineButton } from './SplitLineButtons';
 import { TRANSACTION_NOTE_MAX_LENGTH } from '@/lib/transaction-note';
 import { isUuid } from '@/lib/uuid';
 import { buildTagOptions } from '@/lib/tag-options';
+import { Th } from '@/components/ui/Table';
 
 export type SplitType = 'category' | 'transfer' | 'investment';
 
@@ -99,7 +101,7 @@ export function SplitEditor({
   transactionAmount,
   disabled = false,
   onTransactionAmountChange,
-  currencyCode = 'CAD',
+  currencyCode = FALLBACK_DEFAULT_CURRENCY,
   onConvertToRegular,
   displayCurrencyCode,
   displayRate,
@@ -360,7 +362,7 @@ export function SplitEditor({
       splitType: 'category',
       categoryId: undefined,
       transferAccountId: undefined,
-      amount: Math.round(remaining * 100) / 100, // Pre-fill with remaining amount, rounded to 2 decimals
+      amount: roundMoney(remaining), // Pre-fill with remaining amount, rounded to the stored 4 decimals
       memo: '',
     };
     const newSplits = [...localSplits, newSplit];
@@ -404,15 +406,15 @@ export function SplitEditor({
   const distributeEvenly = () => {
     if (localSplits.length === 0) return;
 
-    const totalAmount = Math.round(Number(transactionAmount) * 100) / 100;
+    const totalAmount = roundMoney(Number(transactionAmount));
     // Round each split to 2 decimal places (cents)
-    const amountPerSplit = Math.round((totalAmount / localSplits.length) * 100) / 100;
+    const amountPerSplit = roundMoney(totalAmount / localSplits.length);
 
     // Distribute evenly, putting the remainder on the last row for an exact sum.
     const newSplits = localSplits.map((split, index) => {
       if (index === localSplits.length - 1) {
-        const otherSplitsTotal = Math.round(amountPerSplit * (localSplits.length - 1) * 100) / 100;
-        const lastAmount = Math.round((totalAmount - otherSplitsTotal) * 100) / 100;
+        const otherSplitsTotal = roundMoney(amountPerSplit * (localSplits.length - 1));
+        const lastAmount = roundMoney(totalAmount - otherSplitsTotal);
         return { ...split, amount: lastAmount };
       }
       return { ...split, amount: amountPerSplit };
@@ -428,7 +430,7 @@ export function SplitEditor({
 
     const newSplits = [...localSplits];
     const currentAmount = Number(newSplits[index].amount) || 0;
-    newSplits[index] = { ...newSplits[index], amount: Math.round((currentAmount + remaining) * 100) / 100 };
+    newSplits[index] = { ...newSplits[index], amount: roundMoney(currentAmount + remaining) };
     setLocalSplits(newSplits);
     onChange(newSplits);
   };
@@ -443,15 +445,15 @@ export function SplitEditor({
 
     // If all splits are zero, fall back to equal distribution.
     if (absTotal < 0.01) {
-      const perSplit = Math.round((remaining / localSplits.length) * 100) / 100;
+      const perSplit = roundMoney(remaining / localSplits.length);
       const newSplits = localSplits.map((split, index) => {
         const currentAmount = Number(split.amount) || 0;
         if (index === localSplits.length - 1) {
-          const distributed = Math.round(perSplit * (localSplits.length - 1) * 100) / 100;
-          const lastPortion = Math.round((remaining - distributed) * 100) / 100;
-          return { ...split, amount: Math.round((currentAmount + lastPortion) * 100) / 100 };
+          const distributed = roundMoney(perSplit * (localSplits.length - 1));
+          const lastPortion = roundMoney(remaining - distributed);
+          return { ...split, amount: roundMoney(currentAmount + lastPortion) };
         }
-        return { ...split, amount: Math.round((currentAmount + perSplit) * 100) / 100 };
+        return { ...split, amount: roundMoney(currentAmount + perSplit) };
       });
       setLocalSplits(newSplits);
       onChange(newSplits);
@@ -465,13 +467,13 @@ export function SplitEditor({
 
       if (split === lastSplit) {
         // Last split absorbs the rounding remainder
-        const lastPortion = Math.round((remaining - distributedSoFar) * 100) / 100;
-        return { ...split, amount: Math.round((currentAmount + lastPortion) * 100) / 100 };
+        const lastPortion = roundMoney(remaining - distributedSoFar);
+        return { ...split, amount: roundMoney(currentAmount + lastPortion) };
       }
 
-      const portion = Math.round(remaining * proportion * 100) / 100;
+      const portion = roundMoney(remaining * proportion);
       distributedSoFar += portion;
-      return { ...split, amount: Math.round((currentAmount + portion) * 100) / 100 };
+      return { ...split, amount: roundMoney(currentAmount + portion) };
     });
 
     setLocalSplits(newSplits);
@@ -481,7 +483,7 @@ export function SplitEditor({
   // Set the transaction total to the sum of splits
   const setTotalToSplitsSum = () => {
     if (onTransactionAmountChange && splitsTotal !== 0) {
-      onTransactionAmountChange(Math.round(splitsTotal * 100) / 100);
+      onTransactionAmountChange(roundMoney(splitsTotal));
     }
   };
 
@@ -725,25 +727,25 @@ export function SplitEditor({
           <thead className="bg-gray-50 dark:bg-gray-800 rounded-t-lg">
             <tr>
               {supportsTransfers && (
-                <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ width: '14%' }}>
+                <Th className="px-1 py-2" style={{ width: '14%' }}>
                   {t('splitEditor.columns.type')}
-                </th>
+                </Th>
               )}
-              <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ width: supportsTransfers ? '32%' : '45%' }}>
+              <Th className="px-1 py-2" style={{ width: supportsTransfers ? '32%' : '45%' }}>
                 {supportsTransfers ? t('splitEditor.columns.categoryAccount') : t('splitEditor.columns.category')}
-              </th>
-              <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ width: supportsTransfers ? '20%' : '13%' }}>
+              </Th>
+              <Th className="px-1 py-2" style={{ width: supportsTransfers ? '20%' : '13%' }}>
                 {t('splitEditor.columns.amount')}
-              </th>
-              <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ width: '17%' }}>
+              </Th>
+              <Th className="px-1 py-2" style={{ width: '17%' }}>
                 {t('splitEditor.columns.memo')}
-              </th>
+              </Th>
               {tagOptions.length > 0 && (
-                <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ width: '15%' }}>
+                <Th className="px-1 py-2" style={{ width: '15%' }}>
                   {t('splitEditor.columns.tags')}
-                </th>
+                </Th>
               )}
-              <th className="px-1 py-2" style={{ width: '5%' }}></th>
+              <Th className="px-1 py-2" style={{ width: '5%' }} />
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -954,8 +956,8 @@ export function SplitEditor({
 
 // Helper function to generate temporary IDs for new splits
 export function createEmptySplits(transactionAmount: number): SplitRow[] {
-  const halfAmount = Math.round((Number(transactionAmount) / 2) * 100) / 100;
-  const otherHalf = Math.round((Number(transactionAmount) - halfAmount) * 100) / 100;
+  const halfAmount = roundMoney(Number(transactionAmount) / 2);
+  const otherHalf = roundMoney(Number(transactionAmount) - halfAmount);
 
   return [
     {

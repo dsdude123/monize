@@ -4,6 +4,7 @@
     "subtitle": "Genera información sobre tu salud financiera",
     "searchPlaceholder": "Buscar informes por nombre o descripción...",
     "allReports": "Todos los informes",
+    "categoryWithCount": "{label} ({count})",
     "removeFavourite": "Eliminar de favoritos",
     "addFavourite": "Agregar a favoritos",
     "tableReport": "Informe",
@@ -38,6 +39,7 @@
       "account-balances": "Saldos de cuentas",
       "cash-flow": "Estado de flujo de caja",
       "tax-summary": "Resumen de impuestos",
+      "payroll-deductions": "Deducciones de nómina",
       "year-over-year": "Comparación año a año",
       "debt-payoff-timeline": "Cronograma de pago de deudas",
       "loan-amortization": "Tabla de amortización del préstamo",
@@ -87,6 +89,7 @@
       "account-balances": "Vea cuánto valía cada cuenta en la fecha que elija, agrupado y ordenado como usted quiera.",
       "cash-flow": "Vista detallada del dinero que entra y sale de todas las cuentas.",
       "tax-summary": "Resumen anual de gastos deducibles de impuestos e ingresos gravables.",
+      "payroll-deductions": "Deducciones de nómina por categoría: el año frente a cada máximo, nómina por nómina y cada año registrado.",
       "year-over-year": "Compara este año con años anteriores para seguir el progreso financiero.",
       "debt-payoff-timeline": "Visualiza el progreso en la reducción de deudas con proyecciones de fechas de pago.",
       "loan-amortization": "Calendarios de pago detallados para hipotecas y préstamos con desglose de capital e intereses.",
@@ -135,7 +138,8 @@
   },
   "reportPage": {
     "notFound": "Informe no encontrado",
-    "notFoundDesc": "El informe solicitado no existe."
+    "notFoundDesc": "El informe solicitado no existe.",
+    "viewLabel": "Vista"
   },
   "error": {
     "defaultMessage": "Error al cargar los datos del informe. Por favor, inténtalo de nuevo.",
@@ -459,6 +463,7 @@
     "generating": "Generando informe...",
     "noData": "No se encontraron datos para los criterios seleccionados",
     "transactionCount": "{count, plural, one {# transacción} other {# transacciones}}",
+    "truncatedNotice": "Este informe alcanzó el límite de filas y solo muestra las más antiguas, por lo que sus cifras son parciales. Acote el período o los filtros para verlas todas.",
     "toasts": {
       "loadFailed": "Error al cargar el informe",
       "executeFailed": "Error al ejecutar el informe"
@@ -512,8 +517,6 @@
     "viewMonthly": "Mensual",
     "viewDaily": "Diario",
     "viewBySecurity": "Por valor",
-    "displayChart": "Gráfico",
-    "displayTable": "Tabla",
     "showLabel": "Mostrar:",
     "seriesDividends": "Dividendos",
     "seriesInterest": "Intereses",
@@ -1249,7 +1252,6 @@
     "incompleteTooltip": "A algunos días de este período les falta un precio, un tipo de cambio o un saldo de efectivo, por lo que no se muestran las cifras que dependen de todos los días.",
     "measuredFromClose": "Desde el cierre de la sesión del {date}",
     "notAvailable": "N/A",
-    "intradayUnavailable": "Precios intradía detallados no disponibles",
     "intradayUnavailableTitle": "Vista intradía no disponible para esta combinación de cuentas",
     "intradayUnavailableDesc": "Una o más posiciones usan un proveedor de cotizaciones (MSN Money) que no expone datos intradía{skipped}. Cambia a un rango más largo para ver instantáneas diarias.",
     "intradayUnavailableSkipped": ": {symbols}",
@@ -1300,8 +1302,6 @@
     "costBasis": "Base de costo",
     "realizedGainLoss": "Ganancia/pérdida realizada",
     "securitiesSold": "Valores vendidos",
-    "viewChart": "Gráfico",
-    "viewTable": "Tabla",
     "noTransactions": "No se encontraron transacciones de venta para este período.",
     "noGainsLosses": "No hay ganancias ni pérdidas para mostrar.",
     "bySecurityTitle": "Ganancias realizadas por valor",
@@ -1337,7 +1337,7 @@
     "sixMonthTotal": "Total de 6 meses",
     "monthlyEstimate": "Estimado mensual",
     "identifiedPayees": "beneficiarios identificados",
-    "minOccurrencesLabel": "Ocurrencias mínimas:",
+    "minOccurrencesLabel": "Ocurrencias mínimas",
     "inLast6Months": "(en los últimos 6 meses)",
     "noRecurring": "No se encontraron gastos recurrentes con {count}+ ocurrencias en los últimos 6 meses.",
     "failedToLoad": "Error al cargar los datos de gastos recurrentes.",
@@ -1475,6 +1475,8 @@
     "totalReturn": "Retorno total",
     "annualizedReturn": "Retorno anualizado",
     "needs1YearNote": "Se necesita 1+ año de datos",
+    "annualizedNeedsSingleBuyNote": "Solo se muestra para una única compra sin actividad posterior",
+    "missingPrice": "Sin precio para {symbol}",
     "priceHistory": "Historial de precios - {symbol}",
     "buyTransaction": "Transacción de compra",
     "sellTransaction": "Transacción de venta",
@@ -1624,6 +1626,48 @@
     "pdfIncomeExpensesDeductions": "Ingresos: {income} | Gastos: {expenses} | Deducciones: {deductions}",
     "pdfTotalsLabel": "Total de ingresos / gastos / deducciones"
   },
+  "payrollDeductions": {
+    "year": "Año",
+    "yearHelp": "El año de cada categoría es el período que comienza en el año seleccionado en la fecha de reinicio de su regla. Con un reinicio el 1 de enero, es el año natural.",
+    "emptyTitle": "Aún no hay reglas de deducciones de nómina",
+    "emptyDescription": "Establezca un máximo anual en las líneas de deducción de su nómina en Herramientas, Impuestos, Deducciones de nómina, y esas categorías aparecerán aquí.",
+    "emptyAction": "Abrir Deducciones de nómina",
+    "summaryTitle": "Resumen de {year}",
+    "summaryHelp": "Lo que cada categoría de deducción recaudó en su período, en todas las cuentas, en la moneda de la factura. Una regla solo guarda el máximo con el que limita ahora, así que el máximo y lo restante se muestran para un período que no ha cerrado, y los de un año anterior no están registrados.",
+    "colCategory": "Categoría",
+    "colBills": "Facturas",
+    "colPeriod": "Período",
+    "colPaid": "Pagado",
+    "colMaximum": "Máximo",
+    "colRemaining": "Restante",
+    "colPercent": "Del máximo",
+    "colPaycheques": "Nóminas",
+    "colAverage": "Promedio por nómina",
+    "colReached": "Máximo alcanzado",
+    "colDate": "Fecha",
+    "colPayee": "Beneficiario",
+    "colTotal": "Total",
+    "colYear": "Año",
+    "periodRange": "{start} a {end}",
+    "toDate": "hasta la fecha",
+    "notRecorded": "No registrado",
+    "notReached": "No alcanzado",
+    "outsidePeriod": "Fuera de su período",
+    "otherCurrency": "Otra moneda",
+    "noPaycheque": "Ninguna",
+    "noPayee": "Sin beneficiario",
+    "foreignRows": "{count, plural, one {# fila} other {# filas}} en otra moneda sin contar",
+    "paychequesTitle": "Nómina por nómina, {year}",
+    "paychequesHelp": "Cada transacción que dedujo a una categoría del informe en su período del año seleccionado, de la más antigua a la más reciente. Cada columna suma el importe pagado de la categoría en el resumen.",
+    "paychequesEmpty": "No se dedujo nada a estas categorías en {year}.",
+    "totalRow": "Total",
+    "mixedCurrencies": "No sumado: las categorías están en más de una moneda.",
+    "historyTitle": "{category} por año",
+    "historyTitleCurrency": "{category} ({currency}) por año",
+    "historyHelp": "Lo que esta categoría recaudó en cada período registrado, del más reciente al más antiguo, en todas las cuentas, en la moneda de la factura.",
+    "csvSummary": "Resumen",
+    "csvPaycheques": "Nóminas"
+  },
   "uncategorizedTransactions": {
     "totalUncategorized": "Total sin categorizar",
     "uncategorizedExpenses": "Gastos sin categorizar",
@@ -1655,8 +1699,6 @@
     "activeBills": "Facturas activas",
     "overdue": "Vencidas",
     "thisMonth": "Este mes",
-    "autoPostsTitle": "Se registra automáticamente al vencer",
-    "manualPostTitle": "Requiere registro manual",
     "autoLabel": "Auto",
     "manualLabel": "Manual",
     "overdueLabel": "Vencida",
@@ -1790,6 +1832,7 @@
     "removeAriaLabel": "Quitar {title} de la comparación",
     "removeTitle": "Quitar de la comparación",
     "runFailed": "La ejecución falló",
+    "never": "Nunca",
     "errors": {
       "loadScenarioFailed": "No se pudo cargar el escenario.",
       "simulationFailed": "La simulación falló."
@@ -1803,7 +1846,6 @@
     "backToReports": "Volver a informes",
     "deleteButton": "Eliminar informe",
     "deleteConfirmMessage": "¿Estás seguro de que quieres eliminar \"{name}\"? Esta acción no se puede deshacer.",
-    "deleting": "Eliminando...",
     "toasts": {
       "loadFailed": "Error al cargar el informe",
       "updated": "Informe actualizado",
@@ -1898,7 +1940,11 @@
     "noticeExcluded": "Algunas cifras son parciales: {count, plural, one {# importe no se pudo calcular y queda} other {# importes no se pudieron calcular y quedan}} excluidos.",
     "pdfNote": "Total parcial: no hay tipo de cambio para {currencies}",
     "pdfNoteExcluded": "Total parcial: {count, plural, one {# importe excluido} other {# importes excluidos}}",
-    "pdfSuffix": "(parcial)"
+    "pdfSuffix": "(parcial)",
+    "knownValue": "Valor conocido",
+    "weightingIntro": "Los porcentajes solo cubren las posiciones que se pudieron valorar.",
+    "weightingNoPrice": "Sin precio para {symbols}: actualiza o añade un precio en la página del valor.",
+    "weightingNoRate": "Sin tipo de cambio para {pairs}: añade uno en la página Divisas."
   },
   "sankey": {
     "help": "El dinero que entró fluye por el centro hacia aquello en lo que se gastó, lo que se ahorró o invirtió y lo que pagó deudas. De forma predeterminada, el informe abarca sus cuentas corrientes, de ahorro, de efectivo, de tarjeta de crédito y de línea de crédito abiertas, y una transferencia entre dos de ellas no se muestra. Excluya una cuenta de ahorro del filtro de cuentas para ver lo que transfirió a ella. Un pago de tarjeta de crédito nunca es un pago de deuda: las compras que liquida ya se cuentan como gastos.",
@@ -1944,7 +1990,9 @@
       "uncategorizedExpense": "Gastos sin categoría",
       "residualUnspent": "Sin gastar",
       "residualDeficit": "Tomado de los saldos",
-      "unlinkedAccount": "(cuenta no vinculada)"
+      "unlinkedAccount": "(cuenta no vinculada)",
+      "classSharedSettlements": "Liquidaciones compartidas",
+      "inflowSharedSettlements": "De liquidaciones compartidas"
     }
   },
   "pdfExport": {

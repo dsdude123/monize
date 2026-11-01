@@ -47,9 +47,9 @@
     "processing": "प्रसंस्करण हो रहा है...",
     "acceptedFormats": "QIF/QMTF, OFX, QFX, CSV, या Microsoft Money (.mny)",
     "mnyFailedHeading": "यह Microsoft Money फ़ाइल खोली नहीं जा सकी",
-    "wikiNotice": {
+    "docsNotice": {
       "title": "आयात करने से पहले",
-      "body": "कुछ भी आयात करने से पहले विकी का <money>Importing from Microsoft Money</money> या <quicken>Importing from Quicken</quicken> अनुभाग पढ़ें।"
+      "body": "कुछ भी आयात करने से पहले दस्तावेज़ का <money>Importing from Microsoft Money</money> या <quicken>Importing from Quicken</quicken> अनुभाग पढ़ें।"
     }
   },
   "selectAccount": {
@@ -81,23 +81,23 @@
     "heading": "CSV कॉलम मैपिंग",
     "description": "अपने CSV कॉलम को लेनदेन फ़ील्ड से मैप करें। नीचे डेटा का पूर्वावलोकन देखें और मैपिंग कॉन्फ़िगर करें।",
     "firstRowIsHeader": "पहली पंक्ति हेडर है",
-    "delimiterLabel": "सीमांकक:",
-    "dateFormatLabel": "दिनांक प्रारूप:",
+    "delimiterLabel": "सीमांकक",
+    "dateFormatLabel": "दिनांक प्रारूप",
     "customOption": "कस्टम...",
     "customPlaceholder": "जैसे DD.MM.YYYY",
     "dataPreview": "डेटा पूर्वावलोकन",
     "columnMappingTitle": "कॉलम मैपिंग",
-    "dateField": "दिनांक *",
+    "dateField": "दिनांक",
     "amountTypeField": "राशि प्रकार",
     "singleAmountOption": "एकल राशि कॉलम",
     "splitAmountOption": "अलग डेबिट/क्रेडिट",
-    "amountField": "राशि *",
+    "amountField": "राशि",
     "signField": "चिह्न",
     "signNormal": "यथावत (सकारात्मक = जमा)",
     "signReverse": "उल्टा (सकारात्मक = निकासी)",
     "signTypeColumn": "लेनदेन प्रकार कॉलम उपयोग करें",
-    "debitField": "डेबिट *",
-    "creditField": "क्रेडिट *",
+    "debitField": "डेबिट",
+    "creditField": "क्रेडिट",
     "typeColumnTitle": "लेनदेन प्रकार कॉलम",
     "typeColumnDescription": "वह कॉलम चुनें जो प्रति पंक्ति आय, व्यय, या स्थानांतरण इंगित करता है।",
     "valuesFound": "पाए गए मान: {values}",
@@ -140,8 +140,8 @@
     "kindBanking": "बैंकिंग लेनदेन",
     "kindInvestment": "निवेश लेनदेन",
     "investmentModeHint": "पंक्तियों को क्रिया कॉलम के आधार पर वर्गीकृत किया जाता है। जो क्रिया मान मेल नहीं खाते, उन्हें जुड़े हुए नकद खाते में नकद जमा या निकासी के रूप में आयात किया जाता है।",
-    "actionField": "क्रिया *",
-    "securityField": "प्रतिभूति (प्रतीक या नाम) *",
+    "actionField": "क्रिया",
+    "securityField": "प्रतिभूति (प्रतीक या नाम)",
     "quantityField": "मात्रा",
     "priceField": "मूल्य",
     "commissionField": "कमीशन",
@@ -349,7 +349,10 @@
     "securitiesNotice": "इस फ़ाइल में {count} प्रतिभूत{plural} हैं जिन्हें आयात से पहले मैप करने की आवश्यकता है।",
     "nextMapSecurities": "अगला: प्रतिभूतियां मैप करें",
     "importAll": "सभी आयात करें",
-    "transactionCount": "{count} लेनदेन{plural}"
+    "transactionCount": "{count} लेनदेन{plural}",
+    "chooseAccountType": "प्रकार चुनें",
+    "accountTypeFor": "{name} के लिए खाता प्रकार",
+    "accountTypesNeeded": "फ़ाइल यह नहीं बताती कि {count, plural, one {# खाता} other {# खाते}} किस प्रकार के हैं। आयात करने से पहले प्रत्येक के लिए एक प्रकार चुनें।"
   },
   "navigation": {
     "back": "वापस",
@@ -366,6 +369,7 @@
     "heading": "अपनी Microsoft Money फ़ाइल की समीक्षा करें",
     "fileSummary": "{filename} -- {era}, आधार मुद्रा {currency}। नीचे दिए शेष फ़ाइल से ही गणना किए गए हैं, इसलिए आयात करने से पहले आप उन्हें Money से मिला सकते हैं।",
     "era": {
+      "money99": "Money 97-99 प्रारूप",
       "money2001": "Money 2001 प्रारूप",
       "money2002": "Money 2002 प्रारूप",
       "moneyPlus": "Money Plus / Sunset प्रारूप",
@@ -447,7 +451,7 @@
     }
   },
   "mnyWipe": {
-    "heading": "पहले अपना मौजूदा डेटा हटाएँ?",
+    "heading": "मौजूदा डेटा हटाएँ",
     "body": "यह आयात शुरू होने से पहले वही \"मेरा डेटा हटाएँ\" कार्रवाई चलाता है जो सेटिंग्स -> खतरा क्षेत्र में है। यह हटाता है:",
     "removes": {
       "transactions": "हर लेन-देन और विभाजन",
@@ -457,8 +461,8 @@
       "budgets": "हर बजट, कस्टम रिपोर्ट, टैग और आयात मैपिंग"
     },
     "irreversible": "इसे पूर्ववत नहीं किया जा सकता। यदि इसके बाद आयात विफल होता है, तो हटाया गया डेटा वापस नहीं आता।",
-    "typeToConfirm": "पुष्टि के लिए {word} टाइप करें:",
-    "passwordLabel": "अपना पासवर्ड दर्ज करें:",
+    "typeToConfirm": "पुष्टि के लिए {word} टाइप करें",
+    "passwordLabel": "पासवर्ड",
     "oidcNote": "आपके पहचान प्रदाता ने इस सत्र की पुष्टि पहले ही कर दी है, इसलिए पासवर्ड की आवश्यकता नहीं है।",
     "confirm": "मेरा डेटा हटाएँ और आयात करें"
   },
@@ -538,6 +542,7 @@
     "duplicateSecuritySymbol": "{count, plural, one {# प्रतिभूति} other {# प्रतिभूतियाँ}} किसी अन्य के साथ प्रतीक साझा करती थीं; अलग बनी रहें इसलिए बाद वाली का नाम बदल दिया गया।",
     "generatedSecuritySymbol": "{count, plural, one {# प्रतिभूति} other {# प्रतिभूतियों}} का Money में कोई प्रतीक नहीं है, इसलिए एक अस्थायी प्रतीक बनाया गया और मूल्य अद्यतन बंद रखे गए।",
     "unknownInvestmentAction": "{count, plural, one {# निवेश लेन-देन} other {# निवेश लेन-देन}} में ऐसी क्रिया थी जिसे Monize नहीं पहचानता, और उन्हें छोड़ दिया गया।",
+    "stockOptionNotImported": "{count, plural, one {# कर्मचारी स्टॉक विकल्प घटना} other {# कर्मचारी स्टॉक विकल्प घटनाएँ}} (अनुदान, निहित होना और समाप्ति) में न नकद आया-गया न शेयर, इसलिए उन्हें आयात नहीं किया गया।",
     "unconfirmedInvestmentAction": "{count, plural, one {# निवेश लेन-देन} other {# निवेश लेन-देन}} में Money की ऐसी क्रिया थी जिसका अर्थ अनुमानित है, प्रलेखित नहीं; उन्हें Money से मिलाकर देखें।",
     "missingInvestmentDetail": "{count, plural, one {# निवेश लेन-देन} other {# निवेश लेन-देन}} में फ़ाइल में शेयर विवरण नहीं था और उन्हें केवल नकद राशि के रूप में आयात किया गया।",
     "investmentAccountMismatch": "{count, plural, one {# निवेश लेन-देन} other {# निवेश लेन-देन}} ऐसे खाते में था जो निवेश खाता नहीं है, और उन्हें छोड़ दिया गया।",
@@ -548,7 +553,8 @@
     "billFrequencyApproximated": "{count, plural, one {# निर्धारित बिल} other {# निर्धारित बिल}} ऐसा दोहराव अंतराल उपयोग करते हैं जिसे Monize ठीक-ठीक व्यक्त नहीं कर सकता, इसलिए निकटतम छोटा अंतराल उपयोग किया गया।",
     "loanInterestCategoryUnclear": "{count, plural, one {# ऋण भुगतान में} other {# ऋण भुगतानों में}} मूलधन के अलावा कई श्रेणियाँ शामिल थीं, इसलिए ऋण की ब्याज श्रेणी अनसेट रह गई। जाँचें कि क्या भुगतान में एस्क्रो (escrow) शामिल है और आयात के बाद ब्याज श्रेणी सेट करें।",
     "transferAmountMismatch": "{count, plural, one {# निवेश खाते में ट्रांसफ़र} other {# निवेश खाते में ट्रांसफ़र}} में निवेश पक्ष पर बैंक पक्ष से अलग राशि दर्ज थी। निवेश पक्ष को दर्ज राशि के अनुसार ही आयात किया गया।",
-    "crossCurrencyTradeUnconverted": "{count, plural, one {# लेन-देन, जिसमें प्रतिभूति किसी दूसरी मुद्रा में उद्धृत थी,} other {# लेन-देन, जिनमें प्रतिभूति किसी दूसरी मुद्रा में उद्धृत थी,}} खाते की मुद्रा में सहेजे गए, क्योंकि फ़ाइल में लेन-देन की तारीख़ के आसपास उस मुद्रा जोड़ी की विनिमय दर नहीं है। विनिमय दर जोड़ें, फिर हर लेन-देन की कीमत सुधारें।",
+    "crossCurrencyTradeUnconverted": "{count, plural, one {# लेन-देन, जिसमें प्रतिभूति किसी दूसरी मुद्रा में उद्धृत थी,} other {# लेन-देन, जिनमें प्रतिभूति किसी दूसरी मुद्रा में उद्धृत थी,}} खाते की मुद्रा में सहेजे गए, क्योंकि न तो फ़ाइल में और न ही विनिमय दर प्रदाता के पास लेन-देन की तारीख़ के आसपास उस मुद्रा जोड़ी की विनिमय दर है। विनिमय दर जोड़ें, फिर हर लेन-देन की कीमत सुधारें।",
+    "crossCurrencyTradeMarketRate": "{count, plural, one {# लेन-देन, जिसमें प्रतिभूति किसी दूसरी मुद्रा में उद्धृत थी,} other {# लेन-देन, जिनमें प्रतिभूति किसी दूसरी मुद्रा में उद्धृत थी,}} लेन-देन की तारीख़ की बाज़ार विनिमय दर पर बदले गए, क्योंकि फ़ाइल में उस तारीख़ के आसपास कोई दर नहीं है। अपने रिकॉर्ड से हर लेन-देन की कीमत जाँचें।",
     "showTransactions": "{count, plural, one {# लेन-देन दिखाएँ} other {# लेन-देन दिखाएँ}}",
     "hideTransactions": "लेन-देन छिपाएँ",
     "reviewInMoney": "इन्हें Microsoft Money में खोलकर जाँचें या ठीक करें, फिर दोबारा निर्यात और आयात करें।",
@@ -572,7 +578,7 @@
     "mnyStagedFileMissing": "अपलोड की गई Money फ़ाइल अब उपलब्ध नहीं है। कृपया इसे फिर से अपलोड करें।",
     "mnyFileTruncated": "यह Money फ़ाइल अपूर्ण लगती है। अपलोड बाधित हो सकता है।",
     "mnyNotAMoneyFile": "यह फ़ाइल Microsoft Money (.mny) फ़ाइल नहीं है।",
-    "mnyUnsupportedVersion": "यह फ़ाइल Money 97 या 98 से बनी है। इसे निःशुल्क Money Plus Sunset संस्करण में एक बार खोलकर सहेजें, फिर परिणाम आयात करें।",
+    "mnyUnsupportedVersion": "यह फ़ाइल Microsoft Money के ऐसे संस्करण से बनी है जिसे Monize पढ़ नहीं सकता। इसे निःशुल्क Money Plus Sunset संस्करण में एक बार खोलकर सहेजें, फिर परिणाम आयात करें।",
     "mnyPasswordRequired": "यह Money फ़ाइल पासवर्ड से सुरक्षित है।",
     "mnyPasswordIncorrect": "यह पासवर्ड Money फ़ाइल को नहीं खोलता।",
     "mnyUnreadableDatabase": "यह Money फ़ाइल डिक्रिप्ट हो गई, लेकिन इसकी सामग्री पढ़ी नहीं जा सकी। यह क्षतिग्रस्त हो सकती है।"

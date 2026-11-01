@@ -4,6 +4,7 @@
     "subtitle": "Beheer valuta's die worden gebruikt in je rekeningen en waardepapieren",
     "refreshRates": "Koersen vernieuwen",
     "refreshing": "Vernieuwen...",
+    "statusFilterLabel": "Status",
     "newCurrency": "+ Nieuwe valuta",
     "searchPlaceholder": "Zoeken op code of naam...",
     "statusAll": "Alle ({count})",
@@ -70,9 +71,9 @@
       "activate": "Activeren",
       "deleteCurrency": "Valuta verwijderen"
     },
-    "usageTooltip": "{accounts} rekening(en), {securities} waardepapier(en)",
     "usageAccounts": "{count, plural, one {# rek.} other {# rek.}}",
     "usageSecurities": "{count, plural, one {# wp.} other {# wp.'s}}",
+    "rateHelp": "Wat één eenheid van elke valuta waard is in {currency}.",
     "empty": {
       "title": "Geen valuta's",
       "subtitle": "Begin door een valuta toe te voegen."

@@ -28,6 +28,10 @@ import type {
   QifFullParseResult,
   QifAccountBlock,
 } from "./qif-parser";
+import {
+  accountsMissingType,
+  applyAccountTypeChoices,
+} from "./qif-account-type-choice";
 import { parseOfx, validateOfxContent } from "./ofx-parser";
 import {
   parseCsv,
@@ -57,6 +61,7 @@ import {
   restoreRowCounters,
   snapshotRowCounters,
   updateAccountBalance,
+  closedAccountError,
 } from "./import-context";
 import { loadHeldExternalIds } from "./ofx-external-id";
 import { isExternalIdConflict } from "../transactions/transaction-external-id";
@@ -256,13 +261,33 @@ export class ImportService {
       throw new BadRequestException(validation.error);
     }
 
-    const result = parseQifFull(dto.content, dto.dateFormat as DateFormat);
+    const parsed = parseQifFull(dto.content, dto.dateFormat as DateFormat);
+    const result: QifFullParseResult = {
+      ...parsed,
+      accountBlocks: applyAccountTypeChoices(
+        parsed.accountBlocks,
+        dto.accountTypes,
+      ),
+    };
 
     if (result.accountBlocks.length === 0) {
       throw new BadRequestException(
         tr(
           "errors.import.noAccountBlocks",
           "No account blocks found in QIF file. This file may not be a multi-account export.",
+        ),
+      );
+    }
+
+    // An account the file gives no type is never created under an assumed
+    // one; the review step asks, and the import refuses before writing.
+    const untyped = accountsMissingType(result.accountBlocks);
+    if (untyped.length > 0) {
+      throw new BadRequestException(
+        tr(
+          "errors.import.accountTypeRequired",
+          `Choose an account type for: ${untyped.join(", ")}`,
+          { accounts: untyped.join(", ") },
         ),
       );
     }
@@ -418,6 +443,7 @@ export class ImportService {
             );
             continue;
           }
+          if (account.isClosed) throw closedAccountError();
 
           const isInvestment = block.accountType === "INVESTMENT";
           if (isInvestment) hasInvestment = true;
@@ -763,9 +789,9 @@ export class ImportService {
         continue;
       }
 
-      // Create new account
-      const accountType =
-        (block.accountType as AccountType) || AccountType.CHEQUING;
+      // Create new account. Every named block has a type by now: the
+      // import refused before its transaction began otherwise.
+      const accountType = block.accountType as AccountType;
 
       if (accountType === AccountType.INVESTMENT) {
         // Create investment account pair
@@ -1218,6 +1244,7 @@ export class ImportService {
         tr("errors.import.accountNotFound", "Account not found"),
       );
     }
+    if (account.isClosed) throw closedAccountError();
 
     // Validate file type matches destination account type
     const isInvestment = result.accountType === "INVESTMENT";

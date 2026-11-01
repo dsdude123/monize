@@ -4,6 +4,7 @@
     "subtitle": "Genera informazioni sulla tua salute finanziaria",
     "searchPlaceholder": "Cerca report per nome o descrizione...",
     "allReports": "Tutti i report",
+    "categoryWithCount": "{label} ({count})",
     "removeFavourite": "Rimuovi dai preferiti",
     "addFavourite": "Aggiungi ai preferiti",
     "tableReport": "Report",
@@ -38,6 +39,7 @@
       "account-balances": "Saldi dei conti",
       "cash-flow": "Rendiconto finanziario",
       "tax-summary": "Riepilogo imposte",
+      "payroll-deductions": "Trattenute sullo stipendio",
       "year-over-year": "Confronto anno su anno",
       "debt-payoff-timeline": "Cronologia estinzione debiti",
       "loan-amortization": "Piano di ammortamento prestito",
@@ -87,6 +89,7 @@
       "account-balances": "Scopri quanto valeva ogni conto in qualsiasi data tu scelga, raggruppato e ordinato come preferisci.",
       "cash-flow": "Vista dettagliata del denaro in entrata e in uscita su tutti i conti.",
       "tax-summary": "Riepilogo annuale delle spese deducibili e dei redditi imponibili.",
+      "payroll-deductions": "Trattenute sullo stipendio per categoria: l'anno rispetto a ogni massimale, busta paga per busta paga e ogni anno registrato.",
       "year-over-year": "Confronta quest'anno con gli anni precedenti per monitorare i progressi finanziari.",
       "debt-payoff-timeline": "Visualizza l'avanzamento nella riduzione dei debiti con proiezioni sulle date di estinzione.",
       "loan-amortization": "Piani di pagamento dettagliati per mutui e prestiti con ripartizione capitale vs interessi.",
@@ -135,7 +138,8 @@
   },
   "reportPage": {
     "notFound": "Report non trovato",
-    "notFoundDesc": "Il report richiesto non esiste."
+    "notFoundDesc": "Il report richiesto non esiste.",
+    "viewLabel": "Vista"
   },
   "error": {
     "defaultMessage": "Caricamento dati del report non riuscito. Riprova.",
@@ -459,6 +463,7 @@
     "generating": "Generazione report...",
     "noData": "Nessun dato trovato per i criteri selezionati",
     "transactionCount": "{count, plural, one {# transazione} other {# transazioni}}",
+    "truncatedNotice": "Questo report ha raggiunto il limite di righe e mostra solo le più vecchie, quindi i suoi valori sono parziali. Restringi il periodo o i filtri per vederle tutte.",
     "toasts": {
       "loadFailed": "Caricamento report non riuscito",
       "executeFailed": "Esecuzione report non riuscita"
@@ -512,8 +517,6 @@
     "viewMonthly": "Mensile",
     "viewDaily": "Giornaliero",
     "viewBySecurity": "Per titolo",
-    "displayChart": "Grafico",
-    "displayTable": "Tabella",
     "showLabel": "Mostra:",
     "seriesDividends": "Dividendi",
     "seriesInterest": "Interessi",
@@ -1249,7 +1252,6 @@
     "incompleteTooltip": "Alcuni giorni di questo periodo non hanno un prezzo, un tasso di cambio o un saldo di liquidità, quindi i dati che dipendono da ogni giorno non vengono mostrati.",
     "measuredFromClose": "Dalla chiusura delle contrattazioni del {date}",
     "notAvailable": "N/D",
-    "intradayUnavailable": "Prezzi intraday dettagliati non disponibili",
     "intradayUnavailableTitle": "Vista intraday non disponibile per questa combinazione di conti",
     "intradayUnavailableDesc": "Una o più posizioni utilizzano un fornitore di quotazioni (MSN Money) che non espone dati intraday{skipped}. Passa a un intervallo più lungo per vedere gli snapshot giornalieri.",
     "intradayUnavailableSkipped": ": {symbols}",
@@ -1300,8 +1302,6 @@
     "costBasis": "Costo di acquisto",
     "realizedGainLoss": "Guadagno/Perdita realizzato",
     "securitiesSold": "Titoli venduti",
-    "viewChart": "Grafico",
-    "viewTable": "Tabella",
     "noTransactions": "Nessuna transazione di vendita trovata per questo periodo.",
     "noGainsLosses": "Nessun guadagno o perdita da visualizzare.",
     "bySecurityTitle": "Plusvalenze realizzate per titolo",
@@ -1337,7 +1337,7 @@
     "sixMonthTotal": "Totale 6 mesi",
     "monthlyEstimate": "Stima mensile",
     "identifiedPayees": "beneficiari identificati",
-    "minOccurrencesLabel": "Occorrenze minime:",
+    "minOccurrencesLabel": "Occorrenze minime",
     "inLast6Months": "(negli ultimi 6 mesi)",
     "noRecurring": "Nessuna spesa ricorrente trovata con {count}+ occorrenze negli ultimi 6 mesi.",
     "failedToLoad": "Caricamento dati spese ricorrenti non riuscito.",
@@ -1475,6 +1475,8 @@
     "totalReturn": "Rendimento totale",
     "annualizedReturn": "Rendimento annualizzato",
     "needs1YearNote": "Richiede almeno 1 anno di dati",
+    "annualizedNeedsSingleBuyNote": "Mostrato solo per un singolo acquisto senza attività successive",
+    "missingPrice": "Nessun prezzo per {symbol}",
     "priceHistory": "Storico prezzi - {symbol}",
     "buyTransaction": "Transazione di acquisto",
     "sellTransaction": "Transazione di vendita",
@@ -1624,6 +1626,48 @@
     "pdfIncomeExpensesDeductions": "Entrate: {income} | Uscite: {expenses} | Deduzioni: {deductions}",
     "pdfTotalsLabel": "Totale entrate / uscite / deduzioni"
   },
+  "payrollDeductions": {
+    "year": "Anno",
+    "yearHelp": "L'anno di una categoria è il periodo che inizia nell'anno selezionato alla data di azzeramento della sua regola. Con un azzeramento al 1° gennaio, è l'anno solare.",
+    "emptyTitle": "Ancora nessuna regola per le trattenute",
+    "emptyDescription": "Imposta un massimale annuo sulle righe di trattenuta della tua busta paga in Strumenti, Tasse, Trattenute sullo stipendio, e quelle categorie compariranno qui.",
+    "emptyAction": "Apri Trattenute sullo stipendio",
+    "summaryTitle": "Riepilogo {year}",
+    "summaryHelp": "Quanto ha trattenuto ogni categoria nel suo periodo, su tutti i conti, nella valuta della fattura. Una regola conserva solo il massimale che applica ora, quindi massimale e importo rimanente sono mostrati per un periodo non chiuso, e quelli di un anno precedente non sono registrati.",
+    "colCategory": "Categoria",
+    "colBills": "Fatture",
+    "colPeriod": "Periodo",
+    "colPaid": "Pagato",
+    "colMaximum": "Massimale",
+    "colRemaining": "Rimanente",
+    "colPercent": "Del massimale",
+    "colPaycheques": "Buste paga",
+    "colAverage": "Media per busta paga",
+    "colReached": "Massimale raggiunto",
+    "colDate": "Data",
+    "colPayee": "Beneficiario",
+    "colTotal": "Totale",
+    "colYear": "Anno",
+    "periodRange": "Dal {start} al {end}",
+    "toDate": "finora",
+    "notRecorded": "Non registrato",
+    "notReached": "Non raggiunto",
+    "outsidePeriod": "Fuori dal suo periodo",
+    "otherCurrency": "Altra valuta",
+    "noPaycheque": "Nessuna",
+    "noPayee": "Nessun beneficiario",
+    "foreignRows": "{count, plural, one {# riga} other {# righe}} in un'altra valuta non conteggiate",
+    "paychequesTitle": "Busta paga per busta paga, {year}",
+    "paychequesHelp": "Ogni transazione che ha trattenuto per una categoria del report nel suo periodo dell'anno selezionato, dalla più vecchia. Ogni colonna somma all'importo pagato della categoria nel riepilogo.",
+    "paychequesEmpty": "Nel {year} non è stato trattenuto nulla per queste categorie.",
+    "totalRow": "Totale",
+    "mixedCurrencies": "Non sommato: le categorie sono in più di una valuta.",
+    "historyTitle": "{category} per anno",
+    "historyTitleCurrency": "{category} ({currency}) per anno",
+    "historyHelp": "Quanto ha trattenuto questa categoria in ogni periodo registrato, dal più recente, su tutti i conti, nella valuta della fattura.",
+    "csvSummary": "Riepilogo",
+    "csvPaycheques": "Buste paga"
+  },
   "uncategorizedTransactions": {
     "totalUncategorized": "Totale senza categoria",
     "uncategorizedExpenses": "Uscite senza categoria",
@@ -1655,8 +1699,6 @@
     "activeBills": "Fatture attive",
     "overdue": "In scadenza",
     "thisMonth": "Questo mese",
-    "autoPostsTitle": "Registrazione automatica alla scadenza",
-    "manualPostTitle": "Richiede registrazione manuale",
     "autoLabel": "Auto",
     "manualLabel": "Manuale",
     "overdueLabel": "In scadenza",
@@ -1790,6 +1832,7 @@
     "removeAriaLabel": "Rimuovi {title} dal confronto",
     "removeTitle": "Rimuovi dal confronto",
     "runFailed": "Esecuzione non riuscita",
+    "never": "Mai",
     "errors": {
       "loadScenarioFailed": "Impossibile caricare lo scenario.",
       "simulationFailed": "Simulazione non riuscita."
@@ -1803,7 +1846,6 @@
     "backToReports": "Torna ai report",
     "deleteButton": "Elimina report",
     "deleteConfirmMessage": "Sei sicuro di voler eliminare \"{name}\"? Questa operazione non può essere annullata.",
-    "deleting": "Eliminazione...",
     "toasts": {
       "loadFailed": "Caricamento report non riuscito",
       "updated": "Report aggiornato",
@@ -1898,7 +1940,11 @@
     "noticeExcluded": "Alcuni valori sono parziali: {count, plural, one {# importo non è stato calcolato ed è escluso} other {# importi non sono stati calcolati e sono esclusi}}.",
     "pdfNote": "Totale parziale: nessun tasso di cambio per {currencies}",
     "pdfNoteExcluded": "Totale parziale: {count, plural, one {# importo escluso} other {# importi esclusi}}",
-    "pdfSuffix": "(parziale)"
+    "pdfSuffix": "(parziale)",
+    "knownValue": "Valore noto",
+    "weightingIntro": "Le percentuali coprono solo le posizioni che è stato possibile valutare.",
+    "weightingNoPrice": "Nessun prezzo per {symbols}: aggiorna o aggiungi un prezzo nella pagina del titolo.",
+    "weightingNoRate": "Nessun tasso di cambio per {pairs}: aggiungine uno nella pagina Valute."
   },
   "sankey": {
     "help": "Il denaro entrato scorre attraverso il centro verso ciò in cui è stato speso, ciò che è stato risparmiato o investito e ciò che ha rimborsato debiti. Per impostazione predefinita il report copre i tuoi conti correnti, di risparmio, contanti, carte di credito e linee di credito aperti, e un trasferimento tra due di essi non viene mostrato. Escludi un conto di risparmio dal filtro dei conti per vedere quanto vi hai trasferito. Il pagamento di una carta di credito non è mai un rimborso di debito: gli acquisti che salda sono già contati come spese.",
@@ -1944,7 +1990,9 @@
       "uncategorizedExpense": "Spese senza categoria",
       "residualUnspent": "Non speso",
       "residualDeficit": "Prelevato dai saldi",
-      "unlinkedAccount": "(conto non collegato)"
+      "unlinkedAccount": "(conto non collegato)",
+      "classSharedSettlements": "Regolamenti condivisi",
+      "inflowSharedSettlements": "Dai saldi condivisi"
     }
   },
   "pdfExport": {

@@ -51,6 +51,29 @@ import { I18nService } from "nestjs-i18n";
 import { emailTranslator } from "../i18n/email-translator";
 import { resolveUserEmailLocale } from "../i18n/resolve-user-email-locale";
 import { isTwoFactorActive } from "./two-factor-state";
+import {
+  localPasswordUsable,
+  oidcPasswordLoginAllowed,
+} from "./oidc/oidc-password-login";
+
+/**
+ * Make `user` an SSO account. The local password and any backup key wrapped
+ * under it stay: whether the password may sign in is OIDC_ALLOW_PASSWORD_LOGIN's
+ * decision (`loginWithinContext`), not the link's. A reset link minted before
+ * the link always ends (INV-AUTH-005). With password sign-in off the account
+ * can never finish a forced password change, so that flag is cleared too.
+ */
+function adoptOidcIdentity(
+  user: User,
+  subject: string | null,
+  passwordLoginAllowed: boolean,
+): void {
+  user.oidcSubject = subject;
+  user.authProvider = "oidc";
+  user.resetToken = null;
+  user.resetTokenExpiry = null;
+  if (!passwordLoginAllowed) user.mustChangePassword = false;
+}
 
 @Injectable()
 export class AuthService {
@@ -58,6 +81,7 @@ export class AuthService {
   private jwtSecret: string;
   /** Derived key for CSRF HMAC -- cryptographically isolated from the JWT signing key */
   private csrfKey: string;
+  private readonly oidcPasswordLogin: boolean;
 
   constructor(
     private jwtService: JwtService,
@@ -74,6 +98,7 @@ export class AuthService {
   ) {
     this.jwtSecret = this.configService.get<string>("JWT_SECRET")!;
     this.csrfKey = derivePurposeKey(this.jwtSecret, "csrf-token");
+    this.oidcPasswordLogin = oidcPasswordLoginAllowed(this.configService);
   }
 
   /**
@@ -82,6 +107,27 @@ export class AuthService {
    * same autocommit boundary each of those calls had. Multi-statement units use
    * an explicit `withScopedDb` block so their statements share one transaction.
    */
+  /**
+   * Merge an OIDC identity into an existing account with no confirmation step
+   * (an OIDC-only account, or OIDC_REQUIRE_VERIFIED_EMAIL=false). When the
+   * account had a local password, every credential issued on it ends with the
+   * change of method,
+   * as on the confirmed link (`confirmOidcLinkWithinContext`; INV-AUTH-005).
+   */
+  private async mergeOidcIdentity(user: User, subject: string): Promise<void> {
+    // Only a merge that turns a password account into SSO revokes credentials.
+    const revoke = !!user.passwordHash && user.authProvider !== "oidc";
+    adoptOidcIdentity(user, subject, this.oidcPasswordLogin);
+    await withScopedDb(this.dataSource, async (manager) => {
+      await manager.getRepository(User).save(user);
+      if (revoke) await revokeStandingCredentials(manager, user.id);
+    });
+    if (revoke) {
+      await this.tokenService.revokeAllUserRefreshTokens(user.id);
+      await revokeOAuthGrantsAfterCommit(this.moduleRef, user.id, this.logger);
+    }
+  }
+
   private scoped<E extends ObjectLiteral, T>(
     entity: EntityTarget<E>,
     fn: (repo: Repository<E>) => Promise<T>,
@@ -440,9 +486,12 @@ export class AuthService {
       );
     }
 
-    // An SSO account signs in through its provider; the hash a link keeps is
-    // not a login credential (the OIDC login drops the TOTP secret).
-    if (user.authProvider === "oidc") {
+    // An SSO account signs in through its provider. A link keeps the hash, but
+    // the OIDC login drops the TOTP secret, so the hash alone is a single
+    // factor. With OIDC_ALLOW_PASSWORD_LOGIN the OIDC login keeps the TOTP, so
+    // the password plus the normal lockout and 2FA challenge below is the
+    // fallback sign-in.
+    if (user.authProvider === "oidc" && !this.oidcPasswordLogin) {
       this.logger.warn(
         `Login failed: password sign-in refused for SSO user ${user.id}`,
       );
@@ -683,7 +732,10 @@ export class AuthService {
         );
 
         if (existingUser) {
-          if (existingUser.passwordHash && requireVerifiedEmail) {
+          if (
+            localPasswordUsable(existingUser, this.oidcPasswordLogin) &&
+            requireVerifiedEmail
+          ) {
             // SECURITY: Local account requires user confirmation before merging.
             const linkToken = await this.initiateOidcLink(existingUser, sub);
             this.logger.warn(
@@ -694,9 +746,7 @@ export class AuthService {
           } else {
             // OIDC-only account, or OIDC_REQUIRE_VERIFIED_EMAIL=false bypasses
             // the confirmation step -- merge the OIDC identity in directly.
-            existingUser.oidcSubject = sub;
-            existingUser.authProvider = "oidc";
-            await this.scoped(User, (repo) => repo.save(existingUser));
+            await this.mergeOidcIdentity(existingUser, sub);
             user = existingUser;
           }
         }
@@ -752,7 +802,10 @@ export class AuthService {
               }),
             );
             if (existingUser) {
-              if (existingUser.passwordHash && requireVerifiedEmail) {
+              if (
+                localPasswordUsable(existingUser, this.oidcPasswordLogin) &&
+                requireVerifiedEmail
+              ) {
                 // SECURITY: Local account requires confirmation
                 const linkToken = await this.initiateOidcLink(
                   existingUser,
@@ -766,9 +819,7 @@ export class AuthService {
               } else {
                 // OIDC-only account, or OIDC_REQUIRE_VERIFIED_EMAIL=false --
                 // merge directly
-                existingUser.oidcSubject = sub;
-                existingUser.authProvider = "oidc";
-                await this.scoped(User, (repo) => repo.save(existingUser));
+                await this.mergeOidcIdentity(existingUser, sub);
                 user = existingUser;
               }
             } else {
@@ -785,7 +836,7 @@ export class AuthService {
 
       // Ensure authProvider reflects OIDC usage
       if (user.authProvider !== "oidc") {
-        user.authProvider = "oidc";
+        adoptOidcIdentity(user, user.oidcSubject, this.oidcPasswordLogin);
         needsUpdate = true;
       }
 
@@ -809,11 +860,12 @@ export class AuthService {
       }
     }
 
-    // Strip any 2FA config from SSO users -- 2FA is managed by the identity provider
+    // Strip any 2FA config from SSO users -- 2FA is managed by the identity
+    // provider. Skipped with OIDC_ALLOW_PASSWORD_LOGIN: the kept password then
+    // needs the app TOTP as its second factor.
     if (
-      user.twoFactorSecret ||
-      user.pendingTwoFactorSecret ||
-      user.backupCodes
+      !this.oidcPasswordLogin &&
+      (user.twoFactorSecret || user.pendingTwoFactorSecret || user.backupCodes)
     ) {
       user.twoFactorSecret = null;
       user.pendingTwoFactorSecret = null;
@@ -961,11 +1013,10 @@ export class AuthService {
     }
 
     // Complete the link. The account now signs in through the identity
-    // provider, so every credential issued on the strength of the local
-    // password ends with it: PATs and trusted devices in the same transaction,
+    // provider, so every credential issued on the local password ends with the
+    // change of method: PATs and trusted devices in the same transaction,
     // sessions and OAuth grants after it (`credential-revocation.ts`).
-    user.oidcSubject = user.pendingOidcSubject;
-    user.authProvider = "oidc";
+    adoptOidcIdentity(user, user.pendingOidcSubject, this.oidcPasswordLogin);
     user.oidcLinkPending = false;
     user.oidcLinkToken = null;
     user.oidcLinkExpiresAt = null;

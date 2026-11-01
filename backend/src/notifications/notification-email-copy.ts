@@ -408,6 +408,8 @@ export function composeLocalizedNotificationCopy(
         date: dateLabel(earliest),
       });
     }
+    case NotificationType.SHARED_EXPENSE_UPDATED:
+      return pair("shared.title", "shared.message", {});
     case NotificationType.WARRANTY_EXPIRING:
     case NotificationType.WARRANTY_EXPIRES_TODAY: {
       // The name and the stored expiry date only: nothing counts days from
@@ -419,6 +421,32 @@ export function composeLocalizedNotificationCopy(
         today ? "warranty.todayTitle" : "warranty.expiringTitle",
         today ? "warranty.todayMessage" : "warranty.expiringMessage",
         { name: data.name, date: dateLabel(expires) },
+      );
+    }
+    case NotificationType.PAYROLL_DEDUCTION_RESET_DUE: {
+      // The names, the reset date and the maximum that applies again: facts
+      // only, so a copy composed later says the same thing.
+      const resetOn = calendarDate(data.resetOn);
+      if (
+        !strings(
+          data,
+          "categoryName",
+          "scheduledTransactionName",
+          "currencyCode",
+        ) ||
+        !numbers(data, "yearlyMaximum") ||
+        resetOn === null
+      )
+        return null;
+      return pair(
+        "payrollDeduction.resetTitle",
+        "payrollDeduction.resetMessage",
+        {
+          category: data.categoryName,
+          bill: data.scheduledTransactionName,
+          date: dateLabel(resetOn),
+          amount: money(data.yearlyMaximum, data.currencyCode),
+        },
       );
     }
     case NotificationType.BILL_DUE: {

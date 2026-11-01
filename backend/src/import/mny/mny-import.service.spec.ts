@@ -11,7 +11,8 @@ import {
   importAlreadyRunningException,
 } from "./mny-import-job.service";
 import { MnyImportService } from "./mny-import.service";
-import { MnyParsedFile, MnyParserService } from "./mny-parser.service";
+import { MnyParsedFile } from "./mny-parser.service";
+import { MnyMarketRateService } from "./mny-market-rates.service";
 import { MnyStagingService } from "./mny-staging.service";
 import { DEFAULT_MNY_IMPORT_OPTIONS } from "./model/mny-import-options";
 import {
@@ -226,6 +227,7 @@ function parsedFile(overrides: Partial<MnyParsedFile> = {}): MnyParsedFile {
       referencedPayees: new Set(),
       referencedCategories: new Set(),
       transfersPaired: 0,
+      rateGaps: [],
       skipped: 0,
       warnings: [],
     },
@@ -334,6 +336,7 @@ describe("MnyImportService", () => {
       idByKey: new Map([["acct-1", "account-1"]]),
       created: 1,
       reused: 0,
+      reusedIds: new Set<string>(),
     });
     mockedWriteCategories.mockResolvedValue({
       idByFullName: new Map([["Groceries", "category-1"]]),
@@ -393,7 +396,7 @@ describe("MnyImportService", () => {
     service = new MnyImportService(
       {} as DataSource,
       staging as unknown as MnyStagingService,
-      parser as unknown as MnyParserService,
+      parser as unknown as MnyMarketRateService,
       jobs as unknown as MnyImportJobService,
       postProcessing as unknown as ImportPostProcessingService,
       usersService as unknown as UsersService,
@@ -793,6 +796,37 @@ describe("MnyImportService", () => {
       expect([...balances]).toEqual([["account-1", 120.5]]);
     });
 
+    it("leaves a reused account's balance to the ledger and recomputes it", async () => {
+      mockedWriteAccounts.mockResolvedValue({
+        idByKey: new Map([
+          ["acct-1", "account-1"],
+          ["acct-2", "account-reused"],
+        ]),
+        created: 1,
+        reused: 1,
+        reusedIds: new Set(["account-reused"]),
+      });
+      parser.parse.mockReturnValue(
+        parsedFile({
+          expectedBalances: new Map([
+            ["acct-1", 120.5],
+            ["acct-2", 1000],
+          ]),
+        }),
+      );
+
+      await run();
+
+      const [, balances] = mockedWriteBalances.mock.calls[0];
+      expect([...balances]).toEqual([["account-1", 120.5]]);
+      expect(postProcessing.run).toHaveBeenCalledWith(
+        "user-1",
+        false,
+        new Set(["account-reused", "account-1"]),
+        new Set(),
+      );
+    });
+
     it("hands post-processing only the accounts that were touched", async () => {
       await run();
 
@@ -980,6 +1014,7 @@ describe("MnyImportService", () => {
         idByKey: new Map(),
         created: 0,
         reused: 0,
+        reusedIds: new Set<string>(),
       });
 
       const result = await run();

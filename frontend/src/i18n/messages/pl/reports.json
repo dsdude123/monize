@@ -4,6 +4,7 @@
     "subtitle": "Twórz analizy swojej kondycji finansowej",
     "searchPlaceholder": "Szukaj raportów po nazwie lub opisie...",
     "allReports": "Wszystkie raporty",
+    "categoryWithCount": "{label} ({count})",
     "removeFavourite": "Usuń z ulubionych",
     "addFavourite": "Dodaj do ulubionych",
     "tableReport": "Raport",
@@ -38,6 +39,7 @@
       "account-balances": "Salda kont",
       "cash-flow": "Rachunek przepływów pieniężnych",
       "tax-summary": "Podsumowanie podatkowe",
+      "payroll-deductions": "Potrącenia z wynagrodzenia",
       "year-over-year": "Porównanie rok do roku",
       "debt-payoff-timeline": "Harmonogram spłaty długu",
       "loan-amortization": "Harmonogram amortyzacji pożyczki",
@@ -87,6 +89,7 @@
       "account-balances": "Zobacz, ile było warte każde konto w dowolnie wybranym dniu, z grupowaniem i sortowaniem według uznania.",
       "cash-flow": "Szczegółowy widok pieniędzy wpływających i wypływających na wszystkich kontach.",
       "tax-summary": "Roczne podsumowanie wydatków podlegających odliczeniu i przychodów do opodatkowania.",
+      "payroll-deductions": "Potrącenia z wynagrodzenia według kategorii: rok wobec każdego limitu, wypłata po wypłacie i każdy zapisany rok.",
       "year-over-year": "Porównaj bieżący rok z poprzednimi latami, aby śledzić postępy finansowe.",
       "debt-payoff-timeline": "Wizualizuj postęp redukcji długu wraz z prognozami terminów spłaty.",
       "loan-amortization": "Szczegółowe harmonogramy spłat hipotek i pożyczek z podziałem na kapitał i odsetki.",
@@ -135,7 +138,8 @@
   },
   "reportPage": {
     "notFound": "Nie znaleziono raportu",
-    "notFoundDesc": "Żądany raport nie istnieje."
+    "notFoundDesc": "Żądany raport nie istnieje.",
+    "viewLabel": "Widok"
   },
   "error": {
     "defaultMessage": "Nie udało się załadować danych raportu. Spróbuj ponownie.",
@@ -459,6 +463,7 @@
     "generating": "Generowanie raportu...",
     "noData": "Nie znaleziono danych dla wybranych kryteriów",
     "transactionCount": "{count, plural, one {# transakcja} few {# transakcje} many {# transakcji} other {# transakcji}}",
+    "truncatedNotice": "Ten raport osiągnął limit wierszy i pokazuje tylko najstarsze wiersze, więc jego wartości są niepełne. Zawęź okres lub filtry, aby zobaczyć wszystkie wiersze.",
     "toasts": {
       "loadFailed": "Nie udało się załadować raportu",
       "executeFailed": "Nie udało się wykonać raportu"
@@ -512,8 +517,6 @@
     "viewMonthly": "Miesięczny",
     "viewDaily": "Codziennie",
     "viewBySecurity": "Wg papieru",
-    "displayChart": "Wykres",
-    "displayTable": "Tabela",
     "showLabel": "Pokaż:",
     "seriesDividends": "Dywidendy",
     "seriesInterest": "Odsetki",
@@ -1249,7 +1252,6 @@
     "incompleteTooltip": "W niektórych dniach tego okresu brakuje ceny, kursu wymiany lub salda gotówkowego, dlatego wartości zależne od każdego dnia nie są wyświetlane.",
     "measuredFromClose": "Od zamknięcia notowań {date}",
     "notAvailable": "Brak",
-    "intradayUnavailable": "Szczegółowe ceny śróddzienne niedostępne",
     "intradayUnavailableTitle": "Widok śróddzienny niedostępny dla tego zestawu kont",
     "intradayUnavailableDesc": "Jedna lub więcej pozycji korzysta z dostawcy notowań (MSN Money), który nie udostępnia danych śróddziennych{skipped}. Przełącz na dłuższy zakres, aby zobaczyć migawki dzienne.",
     "intradayUnavailableSkipped": ": {symbols}",
@@ -1300,8 +1302,6 @@
     "costBasis": "Koszt nabycia",
     "realizedGainLoss": "Zrealizowany zysk/strata",
     "securitiesSold": "Sprzedane papiery",
-    "viewChart": "Wykres",
-    "viewTable": "Tabela",
     "noTransactions": "Nie znaleziono transakcji sprzedaży w tym okresie.",
     "noGainsLosses": "Brak zysków ani strat do wyświetlenia.",
     "bySecurityTitle": "Zrealizowane zyski wg papieru",
@@ -1337,7 +1337,7 @@
     "sixMonthTotal": "Suma z 6 miesięcy",
     "monthlyEstimate": "Szacunek miesięczny",
     "identifiedPayees": "zidentyfikowanych odbiorców",
-    "minOccurrencesLabel": "Minimalna liczba wystąpień:",
+    "minOccurrencesLabel": "Minimalna liczba wystąpień",
     "inLast6Months": "(w ostatnich 6 miesiącach)",
     "noRecurring": "Nie znaleziono wydatków cyklicznych z co najmniej {count} wystąpieniami w ostatnich 6 miesiącach.",
     "failedToLoad": "Nie udało się załadować danych o wydatkach cyklicznych.",
@@ -1475,6 +1475,8 @@
     "totalReturn": "Całkowity zwrot",
     "annualizedReturn": "Zwrot roczny",
     "needs1YearNote": "Wymaga co najmniej 1 roku danych",
+    "annualizedNeedsSingleBuyNote": "Wartość jest widoczna tylko dla jednego zakupu bez późniejszych operacji",
+    "missingPrice": "Brak ceny dla {symbol}",
     "priceHistory": "Historia cen - {symbol}",
     "buyTransaction": "Transakcja kupna",
     "sellTransaction": "Transakcja sprzedaży",
@@ -1624,6 +1626,48 @@
     "pdfIncomeExpensesDeductions": "Przychody: {income} | Wydatki: {expenses} | Odliczenia: {deductions}",
     "pdfTotalsLabel": "Przychody / Wydatki / Odliczenia łącznie"
   },
+  "payrollDeductions": {
+    "year": "Rok",
+    "yearHelp": "Rok kategorii to okres, który zaczyna się w wybranym roku w dniu resetu jej reguły. Przy resecie 1 stycznia jest to rok kalendarzowy.",
+    "emptyTitle": "Brak reguł potrąceń z wynagrodzenia",
+    "emptyDescription": "Ustaw roczny limit na pozycjach potrąceń wypłaty w Narzędzia, Podatki, Potrącenia z wynagrodzenia, a te kategorie pojawią się tutaj.",
+    "emptyAction": "Otwórz Potrącenia z wynagrodzenia",
+    "summaryTitle": "Podsumowanie {year}",
+    "summaryHelp": "Ile każda kategoria potrąceń pobrała w swoim okresie, na wszystkich kontach, w walucie rachunku. Reguła przechowuje tylko limit, którym ogranicza teraz, więc limit i pozostała kwota są pokazywane dla okresu, który się nie zakończył, a limity z wcześniejszych lat nie są zapisane.",
+    "colCategory": "Kategoria",
+    "colBills": "Rachunki",
+    "colPeriod": "Okres",
+    "colPaid": "Zapłacono",
+    "colMaximum": "Limit",
+    "colRemaining": "Pozostało",
+    "colPercent": "Z limitu",
+    "colPaycheques": "Wypłaty",
+    "colAverage": "Średnio na wypłatę",
+    "colReached": "Limit osiągnięty",
+    "colDate": "Data",
+    "colPayee": "Odbiorca",
+    "colTotal": "Suma",
+    "colYear": "Rok",
+    "periodRange": "Od {start} do {end}",
+    "toDate": "do dziś",
+    "notRecorded": "Nie zapisano",
+    "notReached": "Nie osiągnięto",
+    "outsidePeriod": "Poza okresem",
+    "otherCurrency": "Inna waluta",
+    "noPaycheque": "Brak",
+    "noPayee": "Brak odbiorcy",
+    "foreignRows": "{count, plural, one {# pozycja} few {# pozycje} many {# pozycji} other {# pozycji}} w innej walucie nie policzono",
+    "paychequesTitle": "Wypłata po wypłacie, {year}",
+    "paychequesHelp": "Każda transakcja, która w swoim okresie wybranego roku potrąciła na kategorię z raportu, od najstarszej. Każda kolumna sumuje się do kwoty zapłaconej kategorii w podsumowaniu.",
+    "paychequesEmpty": "W {year} nic nie zostało potrącone na te kategorie.",
+    "totalRow": "Suma",
+    "mixedCurrencies": "Nie zsumowano: kategorie są w więcej niż jednej walucie.",
+    "historyTitle": "{category} według lat",
+    "historyTitleCurrency": "{category} ({currency}) według lat",
+    "historyHelp": "Ile ta kategoria pobrała w każdym zapisanym okresie, od najnowszego, na wszystkich kontach, w walucie rachunku.",
+    "csvSummary": "Podsumowanie",
+    "csvPaycheques": "Wypłaty"
+  },
   "uncategorizedTransactions": {
     "totalUncategorized": "Bez kategorii łącznie",
     "uncategorizedExpenses": "Wydatki bez kategorii",
@@ -1655,8 +1699,6 @@
     "activeBills": "Aktywne rachunki",
     "overdue": "Zaległe",
     "thisMonth": "Bieżący miesiąc",
-    "autoPostsTitle": "Księguje automatycznie w terminie",
-    "manualPostTitle": "Wymaga ręcznego zaksięgowania",
     "autoLabel": "Auto",
     "manualLabel": "Ręczne",
     "overdueLabel": "Zaległe",
@@ -1790,6 +1832,7 @@
     "removeAriaLabel": "Usuń {title} z porównania",
     "removeTitle": "Usuń z porównania",
     "runFailed": "Uruchomienie nie powiodło się",
+    "never": "Nigdy",
     "errors": {
       "loadScenarioFailed": "Nie udało się załadować scenariusza.",
       "simulationFailed": "Symulacja nie powiodła się."
@@ -1803,7 +1846,6 @@
     "backToReports": "Powrót do raportów",
     "deleteButton": "Usuń raport",
     "deleteConfirmMessage": "Czy na pewno chcesz usunąć tag \"{name}\"? Tej operacji nie można cofnąć.",
-    "deleting": "Usuwanie...",
     "toasts": {
       "loadFailed": "Nie udało się załadować raportu",
       "updated": "Zaktualizowano raport",
@@ -1898,7 +1940,11 @@
     "noticeExcluded": "Niektóre wartości są częściowe: {count, plural, one {# kwoty nie udało się obliczyć i została pominięta} few {# kwot nie udało się obliczyć i zostały pominięte} many {# kwot nie udało się obliczyć i zostały pominięte} other {# kwoty nie udało się obliczyć i zostały pominięte}}.",
     "pdfNote": "Suma częściowa: brak kursu wymiany dla {currencies}",
     "pdfNoteExcluded": "Suma częściowa: pominięto {count, plural, one {# kwotę} few {# kwoty} many {# kwot} other {# kwoty}}",
-    "pdfSuffix": "(częściowa)"
+    "pdfSuffix": "(częściowa)",
+    "knownValue": "Znana wartość",
+    "weightingIntro": "Procenty obejmują tylko pozycje, które udało się wycenić.",
+    "weightingNoPrice": "Brak ceny dla {symbols}: odśwież lub dodaj cenę na stronie papieru wartościowego.",
+    "weightingNoRate": "Brak kursu wymiany dla {pairs}: dodaj go na stronie Waluty."
   },
   "sankey": {
     "help": "Pieniądze, które wpłynęły, płyną przez środek do tego, na co je wydano, co zaoszczędzono lub zainwestowano i co spłaciło długi. Domyślnie raport obejmuje Twoje otwarte konta osobiste, oszczędnościowe, gotówkowe, karty kredytowe i linie kredytowe, a przelew między dwoma z nich nie jest pokazywany. Usuń konto oszczędnościowe z filtra kont, aby zobaczyć, co na nie przelałeś. Spłata karty kredytowej nigdy nie jest spłatą długu: zakupy, które rozlicza, są już liczone jako wydatki.",
@@ -1944,7 +1990,9 @@
       "uncategorizedExpense": "Wydatki bez kategorii",
       "residualUnspent": "Niewydane",
       "residualDeficit": "Pobrane z sald",
-      "unlinkedAccount": "(niepowiązane konto)"
+      "unlinkedAccount": "(niepowiązane konto)",
+      "classSharedSettlements": "Wspólne rozliczenia",
+      "inflowSharedSettlements": "Ze wspólnych rozliczeń"
     }
   },
   "pdfExport": {

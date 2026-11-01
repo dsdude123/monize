@@ -26,6 +26,7 @@ import { isShareBundleId } from '@/lib/share-target';
 import { createLogger } from '@/lib/logger';
 import { useAuthStore } from '@/store/authStore';
 import { formatCategoryPath } from './import-utils';
+import { docsUrl } from '@/lib/docs-links';
 
 const logger = createLogger('Import');
 
@@ -256,6 +257,9 @@ function ImportContent() {
             onImport={wizard.handleMultiAccountImport}
             setStep={wizard.setStep}
             hasSecuritiesToMap={wizard.securityMappings.length > 0}
+            accountTypeChoices={wizard.multiAccountTypeChoices}
+            onAccountTypeChoiceChange={wizard.handleMultiAccountAccountTypeChange}
+            accountTypeOptions={wizard.accountTypeOptions}
           />
         ) : null;
 
@@ -337,7 +341,7 @@ function ImportContent() {
         <PageHeader
           title={t('page.title')}
           subtitle={t('page.subtitle')}
-          helpUrl="https://github.com/kenlasko/monize/wiki/Importing-from-Microsoft-Money"
+          helpUrl={docsUrl('importTransactions')}
         />
         {/* Progress indicator */}
         <div className="mb-8">

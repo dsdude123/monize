@@ -25,7 +25,7 @@ import { useLoanProjection } from '@/hooks/useLoanProjection';
 import { InstitutionLogo, InstitutionLogoData } from '@/components/institutions/InstitutionLogo';
 import { InfoTooltip } from '@/components/ui/InfoTooltip';
 import { EntitySwitcher, type EntitySwitcherItem } from '@/components/ui/EntitySwitcher';
-import { safeHttpUrl } from '@/lib/safe-url';
+import { toSafeExternalUrl } from '@/lib/external-url';
 import { getNextScheduled } from '@/lib/scheduled-utils';
 import { UnknownAmount } from '@/components/ui/UnknownAmount';
 
@@ -108,7 +108,7 @@ export function AccountInfoWidget({
   const institutionName = institution?.name ?? account.institution ?? null;
   // Only treat http(s) URLs as a safe link target, to avoid javascript:/data:
   // URIs ever reaching the href.
-  const institutionWebsite = safeHttpUrl(institution?.website);
+  const institutionWebsite = toSafeExternalUrl(institution?.website);
 
   // One row per account the Accounts filter offers, each qualified by its type
   // the way the account detail page's switcher does, so alike-named accounts at
@@ -293,7 +293,10 @@ export function AccountInfoWidget({
           )}
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-1">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
+              <h3
+                className="min-w-0 break-words text-lg font-semibold text-gray-900 sm:truncate dark:text-gray-100"
+                title={account.name}
+              >
                 {account.name}
               </h3>
               {/* Jump straight to another account the Accounts filter offers,
@@ -312,7 +315,10 @@ export function AccountInfoWidget({
             {(institutionName || account.isClosed) && (
               <div className="flex items-center gap-2 min-w-0">
                 {institutionName && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                  <p
+                    className="min-w-0 break-words text-sm text-gray-500 sm:truncate dark:text-gray-400"
+                    title={institutionName}
+                  >
                     {institutionName}
                   </p>
                 )}
@@ -454,7 +460,10 @@ export function AccountInfoWidget({
                 </button>
               </dd>
             ) : (
-              <dd className="text-gray-900 dark:text-gray-100 text-right truncate">
+              <dd
+                className="min-w-0 break-words text-gray-900 dark:text-gray-100 text-right sm:truncate"
+                title={detail.value}
+              >
                 {detail.value}
               </dd>
             )}

@@ -42,6 +42,7 @@
     "institutionNotFound": "Instituição não encontrada",
     "updateClosed": "Não é possível atualizar uma conta encerrada",
     "changeCurrencyWithTransactions": "Não é possível alterar a moeda de uma conta que tem transações.",
+    "changeCurrencyWithBalanceOrSchedules": "Não é possível alterar a moeda de uma conta com saldo inicial ou transações agendadas.",
     "alreadyClosed": "A conta já está encerrada",
     "closeNonZeroBalance": "Não é possível encerrar a conta com saldo diferente de zero. Saldo atual: {{ currentBalance }}",
     "closeWithFutureTransactions": "Não é possível fechar uma conta com transações com data futura. Tem {{ count }} transação(ões) com data posterior a hoje; elimine-as ou anule-as primeiro.",
@@ -100,7 +101,8 @@
     "unsupportedInvestmentAction": "Ação de investimento não suportada: {{ action }}",
     "unsupportedBulkAction": "Ação em massa não suportada: {{ action }}",
     "unsupportedSimpleAction": "Ação não suportada: {{ action }}",
-    "unsupportedTableForReinsert": "Tabela não suportada para reinserção: {{ tableName }}"
+    "unsupportedTableForReinsert": "Tabela não suportada para reinserção: {{ tableName }}",
+    "undoConversion": "Esta alteração converteu uma transação em transferência ou vice-versa, por isso não pode ser anulada automaticamente. Converta-a de volta."
   },
   "admin": {
     "passwordOrInviteNotBoth": "Forneça uma palavra-passe ou um convite por e-mail, não ambos.",
@@ -114,6 +116,11 @@
     "deleteLastAdmin": "Não é possível eliminar a última conta de administrador.",
     "cannotResetOwnPassword": "Não pode redefinir a sua própria palavra-passe através do painel de administração",
     "noLocalPassword": "Não é possível redefinir a palavra-passe de contas sem palavra-passe local",
+    "cannotUnlinkOwnSso": "Não pode desassociar a sua própria conta SSO através do painel de administração",
+    "notSsoAccount": "Esta conta não é uma conta SSO",
+    "unlinkSsoNeedsEmail": "Esta conta não tem endereço de e-mail, por isso não pode iniciar sessão com palavra-passe",
+    "localAuthDisabled": "O início de sessão com palavra-passe está desativado neste servidor",
+    "ssoPasswordLoginDisabled": "O início de sessão com palavra-passe está desativado para contas SSO. Use Desassociar SSO.",
     "cannotResetOwnTwoFactor": "Não pode repor a sua própria autenticação de dois fatores através do painel de administração",
     "twoFactorNotEnabled": "Este utilizador não tem a autenticação de dois fatores configurada."
   },
@@ -308,6 +315,11 @@
     "noOpenPeriod": "Não há período aberto para encerrar",
     "categoryIdsNotOwned": "IDs de categoria não encontrados ou não pertencentes ao utilizador: {{ ids }}"
   },
+  "payrollDeductions": {
+    "notFound": "Regra de dedução salarial {{ id }} não encontrada",
+    "duplicate": "Esta fatura já tem uma regra para essa categoria",
+    "expectedRequired": "A fatura não tem uma linha para esta categoria; introduza o montante previsto por salário"
+  },
   "categories": {
     "notFound": "Categoria com ID {{ id }} não encontrada",
     "cannotModifySystem": "Não é possível modificar categorias do sistema",
@@ -469,6 +481,7 @@
   },
   "import": {
     "noAccountBlocks": "Nenhum bloco de conta encontrado no ficheiro QIF. Este ficheiro pode não ser uma exportação multi-conta.",
+    "accountTypeRequired": "Escolha um tipo de conta para estas contas antes de importar: {{ accounts }}",
     "importFailed": "Importação falhou após {{ imported }} transações: {{ message }}",
     "investmentFileNeedsBrokerageAccount": "Este ficheiro contém transações de investimento, mas a conta selecionada não é uma conta de corretagem de investimento. Selecione uma conta de corretagem para esta importação.",
     "regularFileNeedsCashAccount": "Este ficheiro contém transações bancárias regulares, mas a conta selecionada é uma conta de corretagem de investimento. Selecione uma conta de dinheiro (incluindo contas de dinheiro de investimento) para esta importação.",
@@ -481,7 +494,7 @@
     "mnyNoFile": "Nenhum ficheiro do Money foi carregado",
     "mnyFileTruncated": "Este ficheiro do Money parece incompleto. O carregamento pode ter sido interrompido -- tente novamente.",
     "mnyNotAMoneyFile": "Este ficheiro não é um ficheiro do Microsoft Money (.mny)",
-    "mnyUnsupportedVersion": "Este ficheiro foi criado no Money 97 ou 98, que o Monize não consegue ler. Abra-o e guarde-o uma vez na edição gratuita Money Plus Sunset e depois importe o resultado.",
+    "mnyUnsupportedVersion": "Este ficheiro foi criado numa versão do Microsoft Money que o Monize não consegue ler. Abra-o e guarde-o uma vez na edição gratuita Money Plus Sunset e depois importe o resultado.",
     "mnyPasswordRequired": "Este ficheiro do Money está protegido por palavra-passe. Introduza-a para continuar.",
     "mnyPasswordIncorrect": "Essa palavra-passe não abre o ficheiro do Money. Verifique-a e tente novamente.",
     "mnyUnreadableDatabase": "Este ficheiro do Money foi desencriptado, mas não foi possível ler o seu conteúdo. Pode estar danificado.",
@@ -489,9 +502,12 @@
     "mnyStagedFileInUse": "Este ficheiro do Money está a ser importado. Aguarde que a importação termine antes de o descartar.",
     "mnyImportAlreadyRunning": "Já está a decorrer uma importação. Aguarde que termine antes de iniciar outra.",
     "mnyAlreadyImported": "Este ficheiro já foi importado em {{ date }} (importação {{ jobId }}) e os seus registos continuam na sua conta. Importá-lo novamente iria duplicá-los. Para os substituir, recomece e escolha substituir os seus dados existentes.",
+    "mnyExistingAccountClosed": "A conta existente \"{{ name }}\" está encerrada, por isso o ficheiro do Money não pode ser fundido com ela. Reabra-a ou mude-lhe o nome e importe novamente.",
+    "mnyExistingAccountCurrency": "A conta existente \"{{ name }}\" usa {{ existing }}, mas a conta do ficheiro do Money usa {{ file }}. Mude o nome de uma delas e importe novamente.",
     "mnyJobNotFound": "Tarefa de importação não encontrada",
     "mnyFileTooLarge": "Este ficheiro do Money excede o limite de importação de {{ limit }} MB.",
-    "noRateForSplitTransfer": "Não há taxa de câmbio para {{ pair }} em {{ date }}: uma linha dividida transfere para uma conta noutra moeda. Adicione uma taxa de câmbio para esse par e essa data e importe novamente."
+    "noRateForSplitTransfer": "Não há taxa de câmbio para {{ pair }} em {{ date }}: uma linha dividida transfere para uma conta noutra moeda. Adicione uma taxa de câmbio para esse par e essa data e importe novamente.",
+    "accountClosed": "A conta está encerrada. Reabra-a ou escolha outra conta."
   },
   "monteCarlo": {
     "scenarioNotFound": "Cenário {{ id }} não encontrado",
@@ -767,6 +783,7 @@
     "notATransfer": "A transação não é uma transferência",
     "splitTransferLegAccountLocked": "Esta transferência faz parte de uma transação dividida. Para alterar as contas, edite a parcela na transação de origem.",
     "splitTransferLegStatusLocked": "Esta transferência faz parte de uma transação dividida. Anule-a ou restaure-a editando a transação dividida a que pertence, para que ambos os lados mudem em conjunto.",
+    "investmentCashLegLocked": "Esta transação é o lado em dinheiro de uma transação de investimento. Altere ou elimine antes a transação de investimento, para que ambos os lados mudem em conjunto.",
     "investmentCashLegStatusLocked": "Esta transação é o lado de numerário de uma transação de investimento. Anule-a ou restaure-a alterando o estado da transação de investimento, para que ambos os lados mudem em conjunto.",
     "notFoundById": "Transação com ID {{ id }} não encontrada",
     "bulkUpdateNoFields": "Deve ser fornecido pelo menos um campo de atualização",
@@ -786,7 +803,11 @@
     "transferRateUnavailable": "Não foi possível determinar uma taxa de câmbio para {{ from }} -> {{ to }}. Forneça um exchangeRate ou um valor de destino para que a transferência seja registada corretamente.",
     "transferAmountsMustAgreeOnZero": "Uma transferência tem de mover um valor diferente de zero em ambos os lados, ou zero em ambos",
     "transferImpliedRateInvalid": "O valor de destino implica uma taxa de câmbio inutilizável face ao valor de origem",
-    "externalIdNotThisTransfer": "Este externalId já é usado na conta de origem por uma transação que não é uma transferência para esta conta de destino"
+    "externalIdNotThisTransfer": "Este externalId já é usado na conta de origem por uma transação que não é uma transferência para esta conta de destino",
+    "alreadyATransfer": "Esta transação já é uma transferência. Edite a própria transferência.",
+    "convertTransferCrossOwner": "Uma transferência com a conta de outro proprietário não pode ser convertida. Elimine-a e crie a entrada pretendida.",
+    "splitTransferLegConvertLocked": "Esta transferência faz parte de uma transação dividida. Remova-a editando a divisão na transação de origem.",
+    "transferCounterpartChanged": "O outro lado desta transferência mudou enquanto editava. Recarregue e tente novamente."
   },
   "users": {
     "userNotFound": "Utilizador não encontrado",

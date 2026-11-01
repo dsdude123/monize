@@ -31,6 +31,12 @@ server stores three things on `users`, and nothing that decrypts to a password:
 | `backup_key_wrap` | the data key wrapped under `scrypt(password, salt)` (AES-256-GCM): `salt(16) \|\| iv(12) \|\| tag(16) \|\| wrapped(32)`, base64 | whoever knows the password |
 | `backup_key_password_ref` | SHA-256 of the `password_hash` the wrap was made for (local accounts); `NULL` for an OIDC dedicated backup password | nobody; a staleness check |
 
+**An SSO link keeps the key.** Linking a local account to SSO keeps its
+`password_hash` and `backup_key_password_ref` (`adoptOidcIdentity`,
+`backend/src/auth/auth.service.ts`), so the wrap stays tied to the hash it was
+made for. Whether that password may sign in is `OIDC_ALLOW_PASSWORD_LOGIN`'s
+decision, not the link's.
+
 The scrypt parameters are the envelope's existing ones (`deriveKey` in
 `backup-envelope.ts`, N=32768, r=8, p=1), so opening a file costs what it
 always did.

@@ -1580,7 +1580,15 @@ describe("BackupService", () => {
 
     it("should stream gzip-compressed JSON to the response", async () => {
       const mockCategories = [{ id: "cat-1", name: "Food", user_id: userId }];
-      const mockAccounts = [{ id: "acc-1", name: "Checking", user_id: userId }];
+      const mockAccounts = [
+        {
+          id: "acc-1",
+          name: "Checking",
+          user_id: userId,
+          managed_purpose: null,
+          shared_expense_group_id: null,
+        },
+      ];
 
       mockDataSource.query.mockImplementation((sql: string) => {
         if (sql.includes("categories")) return Promise.resolve(mockCategories);
@@ -1958,6 +1966,29 @@ describe("BackupService", () => {
           -1,
         );
         expect(clear).toBeGreaterThan(lastInsert);
+      });
+
+      it("recomputes current_balance of the restored accounts from the ledger after the inserts", async () => {
+        mockUserRepo.findOne.mockResolvedValue(mockUser);
+        (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+        await service.restoreData(userId, makeInput({ password: "test" }));
+        const calls = mockQueryRunner.query.mock.calls.map(([sql]: [string]) =>
+          String(sql),
+        );
+        const recompute = calls.findIndex(
+          (sql) =>
+            /UPDATE accounts a\s+SET current_balance/.test(sql) &&
+            sql.includes("transaction_date <= $2"),
+        );
+        expect(recompute).toBeGreaterThan(-1);
+        const params = mockQueryRunner.query.mock.calls[recompute][1];
+        expect(params[0]).toBe(userId);
+        expect(params[1]).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        const lastInsert = calls.reduce(
+          (last, sql, i) => (/^\s*INSERT INTO/.test(sql) ? i : last),
+          -1,
+        );
+        expect(recompute).toBeGreaterThan(lastInsert);
       });
 
       describe("bond series recovery", () => {
@@ -3542,17 +3573,30 @@ describe("BackupService", () => {
           expect(beforeRestoreRead).toContain("loadOwnedAttachmentSources(");
           expect(beforeRestoreRead).toContain("ownedSources.get(");
 
-          // The export never sees an uploaded document at all: the only ids it
-          // is ever handed come from its own `user_id`-scoped sweep, which is
-          // the single query in `export-attachments.ts` that produces them.
+          // The export never sees an uploaded document at all. Its only ids
+          // come from private ownership or current group access, including
+          // entry documents. An uploader whose access ended has no export grant.
           const exportBody = exporting.text.slice(
             exporting.start,
             exporting.end,
           );
           expect(exportBody).not.toContain("BackupData");
           const attachmentSql = sourceOf(sources, "export-attachments.ts");
-          expect(ATTACHMENT_EXPORT_SQL.metadata).toContain(
-            "WHERE user_id = $1",
+          const normalizeSql = (sql: string) => sql.replace(/\s+/g, " ").trim();
+          const visibleGroups = `SELECT g.id FROM shared_groups g WHERE
+            g.owner_user_id = $1 OR EXISTS (SELECT 1 FROM shared_memberships m
+              WHERE m.group_id = g.id AND m.user_id = $1 AND m.revoked_at IS NULL)`;
+          const visibleAttachments = (alias: string) =>
+            `(${alias}.user_id = $1 AND ${alias}.shared_group_id IS NULL AND ${alias}.shared_entry_id IS NULL)
+             OR ${alias}.shared_group_id IN (${visibleGroups})
+             OR ${alias}.shared_entry_id IN (SELECT id FROM shared_entries WHERE group_id IN (${visibleGroups}))`;
+          expect(normalizeSql(ATTACHMENT_EXPORT_SQL.metadata)).toBe(
+            normalizeSql(`SELECT id, storage_provider, byte_size, sha256
+              FROM transaction_attachments WHERE ${visibleAttachments("transaction_attachments")}
+              ORDER BY id`),
+          );
+          expect(normalizeSql(ATTACHMENT_EXPORT_SQL.blobDigests)).toContain(
+            normalizeSql(`WHERE ${visibleAttachments("ta")}`),
           );
           // ...and that sweep is the only place the export names an attachment
           // id, so there is no second, unscoped route to one.

@@ -60,6 +60,7 @@ import { OAuthModule } from "./oauth/oauth.module";
 import { BudgetsModule } from "./budgets/budgets.module";
 import { CalendarModule } from "./calendar/calendar.module";
 import { WarrantiesModule } from "./warranties/warranties.module";
+import { PayrollDeductionsModule } from "./payroll-deductions/payroll-deductions.module";
 import { TagsModule } from "./tags/tags.module";
 import { TransactionRulesModule } from "./transaction-rules/transaction-rules.module";
 import { AiReviewModule } from "./ai-review/ai-review.module";
@@ -76,6 +77,7 @@ import { DelegationModule } from "./delegation/delegation.module";
 import { EmergencyAccessModule } from "./emergency-access/emergency-access.module";
 import { BondsModule } from "./bonds/bonds.module";
 import { I18nModule } from "./i18n/i18n.module";
+import { SharedExpensesModule } from "./shared-expenses/shared-expenses.module";
 
 @Module({
   imports: [
@@ -84,6 +86,7 @@ import { I18nModule } from "./i18n/i18n.module";
       isGlobal: true,
       envFilePath: "../.env",
     }),
+    SharedExpensesModule,
 
     // Database
     TypeOrmModule.forRootAsync({
@@ -209,6 +212,7 @@ import { I18nModule } from "./i18n/i18n.module";
     BudgetsModule,
     CalendarModule,
     WarrantiesModule,
+    PayrollDeductionsModule,
     TagsModule,
     TransactionRulesModule,
     AiReviewModule,

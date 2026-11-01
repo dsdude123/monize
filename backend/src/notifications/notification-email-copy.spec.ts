@@ -24,6 +24,7 @@ const bondFacts = {
 // Producer-shaped facts, including zero and negative money. PACE_WARNING has
 // no producer or payload contract; its explicit legacy fallback is tested below.
 const examples = {
+  SHARED_EXPENSE_UPDATED: { groupId: "group-1", accessChanged: false },
   OVER_BUDGET: {
     categoryName: "Food",
     amount: 120,
@@ -229,6 +230,14 @@ const examples = {
     ],
     coverage: [],
   },
+  PAYROLL_DEDUCTION_RESET_DUE: {
+    ruleId: "rule-1",
+    categoryName: "EI",
+    scheduledTransactionName: "Paycheque",
+    resetOn: "2027-01-01",
+    yearlyMaximum: 1077.48,
+    currencyCode: "CAD",
+  },
 } satisfies Record<
   Exclude<NotificationType, NotificationType.PACE_WARNING>,
   Record<string, unknown>
@@ -344,6 +353,38 @@ describe("notification email copy", () => {
         { now: new Date("2026-09-30T12:00:00Z") },
       );
       expect(later).toEqual(expiring);
+    });
+  });
+
+  describe("payroll deduction reset reminder", () => {
+    it("names the category, the bill, the reset date and the maximum that applies again", () => {
+      const copy = notificationEmailCopy(
+        source(
+          NotificationType.PAYROLL_DEDUCTION_RESET_DUE,
+          examples.PAYROLL_DEDUCTION_RESET_DUE,
+        ),
+        englishEmailT,
+        "en",
+        { now },
+      );
+      expect(copy.title).toBe("EI: confirm next year's maximum");
+      expect(copy.message).toContain("Paycheque");
+      expect(copy.message).toContain("Jan 1, 2027");
+      expect(copy.message).toContain("1,077.48");
+    });
+
+    it("keeps the stored copy when a fact is missing", () => {
+      const { yearlyMaximum: _omitted, ...withoutMaximum } =
+        examples.PAYROLL_DEDUCTION_RESET_DUE;
+      void _omitted;
+      expect(
+        notificationEmailCopy(
+          source(NotificationType.PAYROLL_DEDUCTION_RESET_DUE, withoutMaximum),
+          englishEmailT,
+          "en",
+          { now },
+        ),
+      ).toEqual({ title: "Stored title", message: "Stored message" });
     });
   });
 
