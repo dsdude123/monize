@@ -267,9 +267,13 @@ The trigger used to be `hidden md:inline-flex`, because its popover opened only 
 
 `ui-conventions.test.ts` fails a `role="tooltip"` outside `InfoTooltip` (two hover-only exceptions, listed with their reasons); `InfoTooltip.touch.test.tsx` holds the tap, the outside press, the keyboard path and the one-text rule.
 
-## A random value is `crypto.randomUUID()`, never `Math.random()`
+## A random value is `randomUuid()`, never `Math.random()`
 
-Every client-side use so far has been an id -- a list key, a removal handle, a temporary split row -- and those want uniqueness, which `crypto.randomUUID()` gives (`lib/ai-attachments.ts` is the pattern). `Math.random()` is not a security primitive, and Bearer flags it as CWE-330; `SplitEditor` carried that as a dated exception rather than a fix until issue #1323. `ui-conventions.test.ts` fails on `Math.random` in any production source.
+Every client-side use so far has been an id -- a list key, a removal handle, a temporary split row -- and those want uniqueness, which a random v4 UUID gives (`lib/ai-attachments.ts` is the pattern). `Math.random()` is not a security primitive, and Bearer flags it as CWE-330; `SplitEditor` carried that as a dated exception rather than a fix until issue #1323.
+
+The UUID comes from `randomUuid()` in `lib/uuid.ts`, never a bare `crypto.randomUUID()`. Browsers expose `randomUUID` only in a secure context (HTTPS or `localhost`), and a self-hosted instance served over plain HTTP on a LAN is not one: the call threw "crypto.randomUUID is not a function" and the rules page would not open. `randomUuid()` uses `randomUUID` where it exists and otherwise builds the same v4 UUID from `crypto.getRandomValues`, which every context has. `src/proxy.ts` runs on the server and may call `crypto.randomUUID()` directly; the service worker (`public/sw.js`) only ever runs in a secure context.
+
+`ui-conventions.test.ts` fails on `Math.random` in any production source, and on `crypto.randomUUID(` anywhere but `lib/uuid.ts` and `src/proxy.ts`.
 
 ## The demo login is `lib/demo-credentials.ts`, and it matches the server's
 

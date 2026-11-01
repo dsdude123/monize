@@ -16,6 +16,7 @@ import { useAuthStore } from "@/store/authStore";
 import { preferredCurrency } from "@/lib/default-currency";
 import { sharedExpensesApi } from "@/lib/shared-expenses";
 import { SharedCurrencySelect, SharedError } from "./SharedPrimitives";
+import { randomUuid } from "@/lib/uuid";
 
 export function SharedGroupForm({
   onClose,
@@ -32,14 +33,14 @@ export function SharedGroupForm({
   const [initialCurrency] = useState(() =>
     preferredCurrency(preferences?.defaultCurrency),
   );
-  const [operationId] = useState(() => crypto.randomUUID());
+  const [operationId] = useState(() => randomUuid());
   const [name, setName] = useState("");
   const [myName, setMyName] = useState(initialName);
   const [currencyCode, setCurrency] = useState(initialCurrency);
   const contacts = useReportData(sharedExpensesApi.people, []);
   const [people, setPeople] = useState<
     { id: string; name: string; personId?: string }[]
-  >([{ id: crypto.randomUUID(), name: "" }]);
+  >([{ id: randomUuid(), name: "" }]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [discard, setDiscard] = useState(false);
@@ -158,7 +159,7 @@ export function SharedGroupForm({
                       setPeople([
                         ...people.filter((person) => person.name.trim()),
                         {
-                          id: crypto.randomUUID(),
+                          id: randomUuid(),
                           name: contact.name,
                           personId: contact.id,
                         },
@@ -206,7 +207,7 @@ export function SharedGroupForm({
                 variant="outline"
                 disabled={people.length >= 49}
                 onClick={() =>
-                  setPeople([...people, { id: crypto.randomUUID(), name: "" }])
+                  setPeople([...people, { id: randomUuid(), name: "" }])
                 }
               >
                 {t("addPerson")}

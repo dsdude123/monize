@@ -22,7 +22,7 @@ import { useAccountOptionLabel } from '@/hooks/useMainAccountName';
 import { InvestmentSplitFields } from './InvestmentSplitFields';
 import { RemoveSplitLineButton } from './SplitLineButtons';
 import { TRANSACTION_NOTE_MAX_LENGTH } from '@/lib/transaction-note';
-import { isUuid } from '@/lib/uuid';
+import { isUuid, randomUuid } from '@/lib/uuid';
 import { buildTagOptions } from '@/lib/tag-options';
 import { Th } from '@/components/ui/Table';
 
@@ -358,7 +358,7 @@ export function SplitEditor({
 
   const addSplit = () => {
     const newSplit: SplitRow = {
-      id: `temp-${crypto.randomUUID()}`,
+      id: `temp-${randomUuid()}`,
       splitType: 'category',
       categoryId: undefined,
       transferAccountId: undefined,

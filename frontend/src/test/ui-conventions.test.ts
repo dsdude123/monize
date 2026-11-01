@@ -2884,8 +2884,16 @@ describe("a random value comes from the Web Crypto API", () => {
    * CWE-330, which cost an exception with a review date rather than a fix
    * (issue #1323). `lib/ai-attachments.ts` is the pattern; `SplitEditor` was
    * the last holdout.
+   *
+   * The id itself comes from `randomUuid()` (`lib/uuid.ts`), not a bare
+   * `crypto.randomUUID()`: the browser offers `randomUUID` only in a secure
+   * context, so a self-hosted instance served over plain HTTP on a LAN threw
+   * "crypto.randomUUID is not a function" and the rules page would not open.
+   * `src/proxy.ts` runs on the server, where `randomUUID` always exists.
    */
   const WEAK_RANDOM = /\bMath\.random\b/;
+  const BARE_RANDOM_UUID = /\bcrypto\.randomUUID\s*\(/;
+  const RANDOM_UUID_ALLOWED = new Set(['/src/lib/uuid.ts', '/src/proxy.ts']);
 
   it("never calls Math.random in a production source", () => {
     const offenders = productionSources()
@@ -2895,11 +2903,22 @@ describe("a random value comes from the Web Crypto API", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("calls crypto.randomUUID only through randomUuid, which works over plain HTTP", () => {
+    const offenders = productionSources()
+      .filter(([path]) => !RANDOM_UUID_ALLOWED.has(path))
+      .filter(([, source]) => BARE_RANDOM_UUID.test(withoutComments(source)))
+      .map(([path]) => path);
+
+    expect(offenders).toEqual([]);
+  });
+
   it("still finds the sanctioned helper, so the rule cannot pass by accident", () => {
     const users = productionSources().filter(([, source]) =>
-      /crypto\.randomUUID\(\)/.test(withoutComments(source)),
+      /\brandomUuid\(\)/.test(withoutComments(source)),
     );
     expect(users.length).toBeGreaterThan(0);
+    const allowed = productionSources().filter(([path]) => RANDOM_UUID_ALLOWED.has(path));
+    expect(allowed.map(([path]) => path).sort()).toEqual([...RANDOM_UUID_ALLOWED].sort());
   });
 
   it("catches the pattern it bans", () => {
@@ -2908,6 +2927,8 @@ describe("a random value comes from the Web Crypto API", () => {
     ).toBe(true);
     // ...and reads its own explanation as prose, not as a violation.
     expect(WEAK_RANDOM.test(withoutComments("// not Math.random"))).toBe(false);
+    expect(BARE_RANDOM_UUID.test(withoutComments("id: `temp-${crypto.randomUUID()}`"))).toBe(true);
+    expect(BARE_RANDOM_UUID.test(withoutComments("// crypto.randomUUID() needs HTTPS"))).toBe(false);
   });
 });
 

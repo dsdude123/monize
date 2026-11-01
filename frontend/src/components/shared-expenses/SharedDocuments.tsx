@@ -32,6 +32,7 @@ import {
   type DocumentKind,
 } from "@/types/attachment";
 import { SharedError, SharedNotice } from "./SharedPrimitives";
+import { randomUuid } from "@/lib/uuid";
 const SharedDocumentCopy = dynamic(
   () => import("./SharedDocumentCopy").then((m) => m.SharedDocumentCopy),
   { ssr: false },
@@ -92,7 +93,7 @@ export function SharedDocuments({
         operationId:
           files.find(
             (old) => old.file === file.file && old.original === file.original,
-          )?.operationId ?? crypto.randomUUID(),
+          )?.operationId ?? randomUuid(),
       })),
     );
   const upload = async () => {
