@@ -343,6 +343,42 @@ describe("TransactionsService (integration)", () => {
       expect(byId.get(never.id)).toBeNull();
     });
   });
+  describe("bulkReconcile beyond the bind-parameter limit", () => {
+    /**
+     * A first reconciliation of an imported history covers every row the
+     * account holds, and it commits whole or not at all. The ids once went to
+     * Postgres as an IN list, one bound parameter each, and Postgres refuses a
+     * statement with more than 65,535; this account holds more than that.
+     */
+    it("reconciles 70,000 rows in one call", async () => {
+      const count = 70_000;
+      const rows: { id: string }[] = await dataSource.query(
+        `INSERT INTO transactions
+           (user_id, account_id, transaction_date, amount, currency_code, status)
+         SELECT $1, $2, DATE '2020-01-01' + (g % 2000), 0.01, 'USD', $3
+           FROM generate_series(1, $4) AS g
+         RETURNING id`,
+        [userId, accountId, TransactionStatus.CLEARED, count],
+      );
+
+      const result = await withUserContext(userId, () =>
+        service.bulkReconcile(
+          userId,
+          accountId,
+          rows.map((r) => r.id),
+          "2026-10-31",
+        ),
+      );
+
+      expect(result).toEqual({ reconciled: count });
+      const [left] = await dataSource.query(
+        `SELECT COUNT(*)::int AS n FROM transactions
+          WHERE account_id = $1 AND status <> $2`,
+        [accountId, TransactionStatus.RECONCILED],
+      );
+      expect(left.n).toBe(0);
+    }, 120_000);
+  });
   describe("AccountsService.findAll() unreconciledCount", () => {
     /**
      * The accounts list's Unreconciled column: the rows the reconcile screen
