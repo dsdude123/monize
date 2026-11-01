@@ -18,13 +18,17 @@ import {
   returnOfCapitalAmount,
   INVESTMENT_REPLAY_ORDER,
   reinvestedIncomeAmount,
+  isQuantityOnlyAction,
 } from "../securities/investment-replay.util";
 import { Account } from "../accounts/entities/account.entity";
 import { ExchangeRateService } from "../currencies/exchange-rate.service";
 import { InvestmentCellValue } from "./dto/execute-investment-report.dto";
 import { roundToDecimals, sumMoney } from "../common/round.util";
+import { daysBetween } from "../common/time-series/price-boundary.util";
 import { FxAggregate } from "../common/fx-aggregate";
 import { todayYMD } from "../common/date-utils";
+import { addMonthsClamped } from "../common/recurrence";
+import { resolveDailyPriceChange } from "../securities/daily-change.util";
 
 /**
  * The rows of a holdings computation and how complete their conversion was.
@@ -89,6 +93,13 @@ interface ReplayState {
   sales: number;
   reinvestments: number;
   realizedGains: number;
+  /**
+   * False once shares of unknown cost (ADD_SHARES / REMOVE_SHARES, an unpriced
+   * acquisition) join the position, until it closes to zero.
+   */
+  basisKnown: boolean;
+  /** False once a sale drew on an unknown basis: `realizedGains` is then a subtotal. */
+  realizedKnown: boolean;
   lastTransactionDate: string | null;
 }
 
@@ -104,17 +115,6 @@ function isoAddDays(iso: string, days: number): string {
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + days);
   return dt.toISOString().slice(0, 10);
-}
-
-function isoAddMonths(iso: string, months: number): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCMonth(dt.getUTCMonth() + months);
-  return dt.toISOString().slice(0, 10);
-}
-
-function isoAddYears(iso: string, years: number): string {
-  return isoAddMonths(iso, years * 12);
 }
 
 const SECURITY_TYPE_LABELS: Record<string, string> = {
@@ -310,9 +310,9 @@ export class InvestmentReportDataService {
     const periodStarts: Record<string, string> = {
       totalReturn1Week: isoAddDays(asOfDate, -7),
       totalReturn4Weeks: isoAddDays(asOfDate, -28),
-      totalReturn3Month: isoAddMonths(asOfDate, -3),
-      totalReturn1Year: isoAddYears(asOfDate, -1),
-      totalReturn3Year: isoAddYears(asOfDate, -3),
+      totalReturn3Month: addMonthsClamped(asOfDate, -3),
+      totalReturn1Year: addMonthsClamped(asOfDate, -12),
+      totalReturn3Year: addMonthsClamped(asOfDate, -36),
       totalReturnYtd: `${year - 1}-12-31`,
     };
 
@@ -334,6 +334,17 @@ export class InvestmentReportDataService {
       const prevRow = asOfIdx >= 1 ? prices[asOfIdx - 1] : null;
 
       const lastPrice = asOfRow ? asOfRow.close : null;
+      // A daily move only between adjacent, current sessions; otherwise null.
+      const daily =
+        asOfRow && prevRow
+          ? resolveDailyPriceChange(
+              [
+                { price: asOfRow.close, date: asOfRow.date },
+                { price: prevRow.close, date: prevRow.date },
+              ],
+              asOfDate,
+            )
+          : null;
       const previousClose = prevRow ? prevRow.close : null;
 
       let quantity = roundToDecimals(group.state.quantity, 8);
@@ -368,31 +379,32 @@ export class InvestmentReportDataService {
         continue;
       }
 
+      // Shares of unknown cost are in this position: the basis, and everything
+      // measured against it, is unknown rather than the priced part alone.
+      const knownBasis = group.state.basisKnown ? costBasis : null;
       const averageCost =
-        quantity !== 0 ? roundToDecimals(costBasis / quantity, 6) : null;
+        knownBasis !== null && quantity !== 0
+          ? roundToDecimals(knownBasis / quantity, 6)
+          : null;
       const marketValue =
         lastPrice !== null ? roundToDecimals(quantity * lastPrice, 4) : null;
       const income = roundToDecimals(group.state.income, 4);
       const gain =
-        marketValue !== null
-          ? roundToDecimals(marketValue + income - costBasis, 4)
+        marketValue !== null && knownBasis !== null
+          ? roundToDecimals(marketValue + income - knownBasis, 4)
           : null;
       const priceAppreciation =
-        marketValue !== null
-          ? roundToDecimals(marketValue - costBasis, 4)
+        marketValue !== null && knownBasis !== null
+          ? roundToDecimals(marketValue - knownBasis, 4)
           : null;
       const gainPercent =
-        gain !== null && costBasis > 0
-          ? roundToDecimals((gain / costBasis) * 100, 4)
+        gain !== null && knownBasis !== null && knownBasis > 0
+          ? roundToDecimals((gain / knownBasis) * 100, 4)
           : null;
-      const change =
-        lastPrice !== null && previousClose !== null
-          ? roundToDecimals(lastPrice - previousClose, 6)
-          : null;
-      const changePercent =
-        change !== null && previousClose
-          ? roundToDecimals((change / previousClose) * 100, 4)
-          : null;
+      const change = daily ? roundToDecimals(daily.dailyChange, 6) : null;
+      const changePercent = daily
+        ? roundToDecimals(daily.dailyChangePercent, 4)
+        : null;
       const todaysTotalChange =
         change !== null ? roundToDecimals(change * quantity, 4) : null;
 
@@ -425,7 +437,7 @@ export class InvestmentReportDataService {
         account: accountName,
         quantity,
         averageCost,
-        costBasis,
+        costBasis: knownBasis,
         lastPrice,
         marketValue,
         gain,
@@ -446,7 +458,11 @@ export class InvestmentReportDataService {
         purchases: roundToDecimals(group.state.purchases, 4),
         sales: roundToDecimals(group.state.sales, 4),
         reinvestments: roundToDecimals(group.state.reinvestments, 4),
-        realizedGains: roundToDecimals(group.state.realizedGains, 4),
+        // A sale drawn on shares of unknown cost has no gain; the column is
+        // unknown, not the proceeds measured against the priced part.
+        realizedGains: group.state.realizedKnown
+          ? roundToDecimals(group.state.realizedGains, 4)
+          : null,
         exchangeRate: fxRate === null ? null : roundToDecimals(fxRate, 6),
         lastUpdated: asOfRow?.date ?? null,
         fiftyTwoWeekHigh: high52,
@@ -457,7 +473,7 @@ export class InvestmentReportDataService {
           asOfDate,
           periodStarts,
           marketValue,
-          costBasis,
+          knownBasis,
         ),
       };
 
@@ -661,6 +677,8 @@ export class InvestmentReportDataService {
       sales: 0,
       reinvestments: 0,
       realizedGains: 0,
+      basisKnown: true,
+      realizedKnown: true,
       lastTransactionDate: null,
     };
   }
@@ -683,6 +701,7 @@ export class InvestmentReportDataService {
         // say what it cost, and unknown is not free.
         const cost = securityCurrencyAcquisitionCost(tx);
         if (cost !== null) state.costBasis += cost;
+        else state.basisKnown = false;
         state.quantity = applyActionToQuantity(
           state.quantity,
           tx.action,
@@ -704,16 +723,24 @@ export class InvestmentReportDataService {
       }
       case InvestmentAction.SELL:
       case InvestmentAction.TRANSFER_OUT: {
-        const sellQty = Math.min(quantity, state.quantity);
+        const sellQty = Math.min(quantity, Math.max(state.quantity, 0));
         const avgCost =
           state.quantity > 0 ? state.costBasis / state.quantity : 0;
         const costSold = sellQty * avgCost;
         state.costBasis -= costSold;
-        state.quantity -= sellQty;
+        // The whole sale comes off, as in the holdings rebuild (INV-HOLDING-002);
+        // the part the position did not hold has no known cost.
+        if (sellQty < quantity - 0.0001) state.basisKnown = false;
+        state.quantity = applyActionToQuantity(
+          state.quantity,
+          tx.action,
+          quantity,
+        );
         // Base-normalized: a REDEEM realizes its proceeds like the sale it is.
         if (baseInvestmentAction(tx.action) === InvestmentAction.SELL) {
           state.sales += totalAmount;
           state.realizedGains += totalAmount - costSold;
+          if (!state.basisKnown) state.realizedKnown = false;
         }
         break;
       }
@@ -730,10 +757,19 @@ export class InvestmentReportDataService {
           const effect = applyReturnOfCapital(state.costBasis, amount);
           state.costBasis = effect.costBasis;
           state.realizedGains += effect.realizedGain;
+          if (!state.basisKnown && effect.realizedGain > 0) {
+            state.realizedKnown = false;
+          }
+        } else {
+          state.basisKnown = false;
         }
         break;
       }
       default:
+        // ADD_SHARES / REMOVE_SHARES move units with no cost in the ledger.
+        if (isQuantityOnlyAction(tx.action) && quantity !== 0) {
+          state.basisKnown = false;
+        }
         state.quantity = applyActionToQuantity(
           state.quantity,
           tx.action,
@@ -745,6 +781,7 @@ export class InvestmentReportDataService {
     if (Math.abs(state.quantity) < 0.0001) {
       state.quantity = 0;
       state.costBasis = 0;
+      state.basisKnown = true;
     }
   }
 
@@ -865,6 +902,12 @@ export class InvestmentReportDataService {
    * deposit would hide that income (`incomeBetween`). A return of capital is a
    * cash distribution `incomeBetween` already counts.
    *
+   * `weightedNet` is the Modified Dietz weighting of those flows: each is
+   * weighted by the share of the window's days it was invested, counting its
+   * own day (start-of-day convention: a flow on the window's first day weighs
+   * 1, one on `upto` weighs 1/days), inflows positive and outflows negative
+   * (`docs/specs/investment-report-period-returns.md`).
+   *
    * `null` when a flow cannot be valued: a missing price is unknown, not free.
    */
   private flowsBetween(
@@ -872,9 +915,12 @@ export class InvestmentReportDataService {
     prices: PriceRow[],
     after: string,
     upto: string,
-  ): { inflows: number; outflows: number } | null {
+  ): { inflows: number; outflows: number; weightedNet: number } | null {
     const inflows: number[] = [];
     const outflows: number[] = [];
+    // `after < upto` for every window the report asks for, so windowDays > 0.
+    const windowDays = daysBetween(after, upto);
+    const weighted: number[] = [];
     for (const tx of group.txs) {
       if (tx.transactionDate <= after || tx.transactionDate > upto) continue;
       const base = baseInvestmentAction(tx.action);
@@ -898,14 +944,22 @@ export class InvestmentReportDataService {
       }
       if (amount === null) return null;
       (kind === "capitalIn" ? inflows : outflows).push(amount);
+      const weight = (daysBetween(tx.transactionDate, upto) + 1) / windowDays;
+      weighted.push((kind === "capitalIn" ? amount : -amount) * weight);
     }
-    return { inflows: sumMoney(inflows), outflows: sumMoney(outflows) };
+    return {
+      inflows: sumMoney(inflows),
+      outflows: sumMoney(outflows),
+      weightedNet: sumMoney(weighted),
+    };
   }
 
   /**
-   * Compute the MS Money-style total return columns:
+   * Compute the per-security total return columns by the Modified Dietz
+   * method (`docs/specs/investment-report-period-returns.md`):
    *   (current value + income + sales - beginning value - purchases)
-   *   / (beginning value + purchases), flows taken inside the window.
+   *   / (beginning value + day-weighted purchases - day-weighted sales),
+   * flows taken inside the window. Income stays out of the denominator.
    * "All dates" measures against cost basis (return since inception); the
    * annualized column annualizes that figure over the holding period.
    */
@@ -915,7 +969,7 @@ export class InvestmentReportDataService {
     asOfDate: string,
     periodStarts: Record<string, string>,
     marketValue: number | null,
-    costBasis: number,
+    costBasis: number | null,
   ): Record<string, number | null> {
     const result: Record<string, number | null> = {
       totalReturn1Week: null,
@@ -939,16 +993,18 @@ export class InvestmentReportDataService {
       const flows = this.flowsBetween(group, prices, start, asOfDate);
       // A flow that cannot be valued leaves the return unknown, not wrong.
       if (flows === null) continue;
+      const denominator = beginValue + flows.weightedNet;
+      if (denominator <= 0) continue;
       result[key] = roundToDecimals(
         ((marketValue + income + flows.outflows - beginValue - flows.inflows) /
-          (beginValue + flows.inflows)) *
+          denominator) *
           100,
         4,
       );
     }
 
     // All-dates total return is measured against invested cost.
-    if (marketValue !== null && costBasis > 0) {
+    if (marketValue !== null && costBasis !== null && costBasis > 0) {
       const allIncome = group.state.income;
       const allDates =
         ((marketValue + allIncome - costBasis) / costBasis) * 100;

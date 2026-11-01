@@ -234,6 +234,36 @@ describe('AccountList', () => {
     expect(densityButton).toHaveTextContent('Normal');
   });
 
+  it('draws Normal row actions as icons on a table too narrow for their labels', () => {
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) { observers.push(callback); }
+      observe() {}
+      disconnect() {}
+    });
+    const resizeTable = (width: number) =>
+      act(() => observers.forEach((notify) =>
+        notify([{ contentRect: { width } } as ResizeObserverEntry], {} as ResizeObserver)));
+    try {
+      render(
+        <AccountList
+          accounts={[createAccount()]}
+          onEdit={mockOnEdit}
+          defaultCurrency="CAD" convertToDefault={exchangeMocks.convertToDefault} onRefresh={mockOnRefresh}
+        />
+      );
+      expect(screen.getByRole('button', { name: 'Edit' })).toHaveTextContent('Edit');
+
+      resizeTable(1000);
+      expect(screen.getByRole('button', { name: 'Edit' })).toHaveTextContent('');
+
+      resizeTable(1400);
+      expect(screen.getByRole('button', { name: 'Edit' })).toHaveTextContent('Edit');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('shows Active and Closed status badges', () => {
     const accounts = [
       createAccount({ name: 'Active Account', isClosed: false }),
@@ -377,7 +407,7 @@ describe('AccountList', () => {
     // Click the "Active" status filter button
     const statusButtons = screen.getAllByRole('button');
     const activeFilterButton = statusButtons.find(
-      (btn) => btn.textContent === 'Active' && btn.closest('.inline-flex.rounded-md')
+      (btn) => !!btn.textContent?.startsWith('Active (') && !!btn.closest('[role="group"]')
     );
     expect(activeFilterButton).toBeTruthy();
     fireEvent.click(activeFilterButton!);
@@ -399,7 +429,7 @@ describe('AccountList', () => {
 
     // Click the "Closed" status filter button in the segmented control
     const closedFilterButton = screen.getAllByRole('button').find(
-      (btn) => btn.textContent === 'Closed' && btn.closest('.inline-flex.rounded-md')
+      (btn) => !!btn.textContent?.startsWith('Closed (') && !!btn.closest('[role="group"]')
     );
     expect(closedFilterButton).toBeTruthy();
     fireEvent.click(closedFilterButton!);
@@ -673,7 +703,7 @@ describe('AccountList', () => {
 
     // Filter by closed status when all accounts are active
     const closedFilterButton = screen.getAllByRole('button').find(
-      (btn) => btn.textContent === 'Closed' && btn.closest('.inline-flex.rounded-md')
+      (btn) => !!btn.textContent?.startsWith('Closed (') && !!btn.closest('[role="group"]')
     );
     expect(closedFilterButton).toBeTruthy();
     fireEvent.click(closedFilterButton!);
@@ -748,6 +778,53 @@ describe('AccountList', () => {
     const rows = screen.getAllByRole('row');
     expect(rows[2]).toHaveTextContent('Active Acct');
     expect(rows[3]).toHaveTextContent('Closed Acct');
+  });
+
+  it('sorts by Last Reconciled, longest-unreconciled first', () => {
+    const accounts = [
+      createAccount({ id: 'a1', name: 'Alpha', lastReconciledDate: '2026-09-30' }),
+      createAccount({ id: 'a2', name: 'Bravo', lastReconciledDate: null }),
+      createAccount({ id: 'a3', name: 'Charlie', lastReconciledDate: '2026-06-30' }),
+    ];
+
+    render(
+      <AccountList accounts={accounts} onEdit={mockOnEdit} defaultCurrency="CAD" convertToDefault={exchangeMocks.convertToDefault} onRefresh={mockOnRefresh} />
+    );
+
+    fireEvent.click(screen.getByText('Last Reconciled'));
+
+    // rows[0] = table header, rows[1] = the CHEQUING group header.
+    const rows = screen.getAllByRole('row');
+    expect(rows[2]).toHaveTextContent('Bravo');
+    expect(rows[3]).toHaveTextContent('Charlie');
+    expect(rows[4]).toHaveTextContent('Alpha');
+  });
+
+  it('sorts by Unreconciled, fewest outstanding first', () => {
+    const accounts = [
+      createAccount({ id: 'a1', name: 'Alpha', unreconciledCount: 12 }),
+      createAccount({ id: 'a2', name: 'Bravo', unreconciledCount: 0 }),
+      createAccount({ id: 'a3', name: 'Charlie', unreconciledCount: 3 }),
+    ];
+
+    render(
+      <AccountList accounts={accounts} onEdit={mockOnEdit} defaultCurrency="CAD" convertToDefault={exchangeMocks.convertToDefault} onRefresh={mockOnRefresh} />
+    );
+
+    fireEvent.click(screen.getByText('Unreconciled'));
+
+    // rows[0] = table header, rows[1] = the CHEQUING group header.
+    let rows = screen.getAllByRole('row');
+    expect(rows[2]).toHaveTextContent('Bravo');
+    expect(rows[3]).toHaveTextContent('Charlie');
+    expect(rows[4]).toHaveTextContent('Alpha');
+
+    fireEvent.click(screen.getByText('Unreconciled'));
+
+    rows = screen.getAllByRole('row');
+    expect(rows[2]).toHaveTextContent('Alpha');
+    expect(rows[3]).toHaveTextContent('Charlie');
+    expect(rows[4]).toHaveTextContent('Bravo');
   });
 
   it('enables Close button when account balance is zero', () => {
@@ -1014,9 +1091,8 @@ describe('AccountList', () => {
     expect(screen.getAllByText('$12345.67').length).toBeGreaterThanOrEqual(1);
     // The row now states what the total is made of rather than labelling it
     // "Market value": an investment account's worth is holdings plus cash.
-    expect(
-      screen.getByText('Investments $12345.67 · Cash $0.00'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Investments $12345.67')).toBeInTheDocument();
+    expect(screen.getByText('Cash $0.00')).toBeInTheDocument();
   });
 
   it('combines a pair market value and cash balance into one row total', () => {
@@ -1050,9 +1126,8 @@ describe('AccountList', () => {
     );
 
     expect(screen.getAllByText('$15500.00').length).toBeGreaterThanOrEqual(1);
-    expect(
-      screen.getByText('Investments $12000.00 · Cash $3500.00'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Investments $12000.00')).toBeInTheDocument();
+    expect(screen.getByText('Cash $3500.00')).toBeInTheDocument();
   });
 
   // The defect the combined value exists to prevent: an account whose holdings
@@ -1246,6 +1321,27 @@ describe('AccountList', () => {
     expect(mockOnRefresh).not.toHaveBeenCalled();
   });
 
+  it('puts the search first and counts every status segment', () => {
+    const accounts = [
+      createAccount({ id: 'a1', name: 'Open One' }),
+      createAccount({ id: 'a2', name: 'Open Two' }),
+      createAccount({ id: 'a3', name: 'Shut', isClosed: true }),
+    ];
+
+    render(
+      <AccountList accounts={accounts} onEdit={mockOnEdit} defaultCurrency="CAD" convertToDefault={exchangeMocks.convertToDefault} onRefresh={mockOnRefresh} />
+    );
+
+    const group = screen.getByRole('group', { name: 'Status' });
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'All (3)',
+      'Active (2)',
+      'Closed (1)',
+    ]);
+    const search = screen.getByRole('textbox', { name: 'Search accounts by name' });
+    expect(search.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows the "All" segmented button as selected by default', () => {
     const accounts = [createAccount()];
 
@@ -1255,10 +1351,10 @@ describe('AccountList', () => {
 
     // The "All" button in the segmented control should have active styling
     const allButton = screen.getAllByRole('button').find(
-      (btn) => btn.textContent === 'All' && btn.closest('.inline-flex.rounded-md')
+      (btn) => !!btn.textContent?.startsWith('All (') && !!btn.closest('[role="group"]')
     );
     expect(allButton).toBeTruthy();
-    expect(allButton!.className).toContain('bg-blue-600');
+    expect(allButton).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('shows an interactive favourite star for favourite accounts', () => {
@@ -1529,7 +1625,7 @@ describe('AccountList', () => {
 
     // Filter by closed status when all accounts are active to produce empty results
     const closedFilterButton = screen.getAllByRole('button').find(
-      (btn) => btn.textContent === 'Closed' && btn.closest('.inline-flex.rounded-md')
+      (btn) => !!btn.textContent?.startsWith('Closed (') && !!btn.closest('[role="group"]')
     );
     expect(closedFilterButton).toBeTruthy();
     fireEvent.click(closedFilterButton!);
@@ -2917,18 +3013,18 @@ describe('AccountList', () => {
 
       // Click Active filter to change filterStatus away from ''
       const activeBtn = screen.getAllByRole('button').find(
-        (btn) => btn.textContent === 'Active' && btn.closest('.inline-flex.rounded-md')
+        (btn) => !!btn.textContent?.startsWith('Active (') && !!btn.closest('[role="group"]')
       )!;
       fireEvent.click(activeBtn);
 
-      // Now "All" button should not have bg-blue-600 (it's no longer selected)
+      // Now "All" is no longer the pressed segment
       const allBtn = screen.getAllByRole('button').find(
-        (btn) => btn.textContent === 'All' && btn.closest('.inline-flex.rounded-md')
+        (btn) => !!btn.textContent?.startsWith('All (') && !!btn.closest('[role="group"]')
       )!;
-      expect(allBtn.className).not.toContain('bg-blue-600');
+      expect(allBtn).toHaveAttribute('aria-pressed', 'false');
 
-      // Active button now has bg-blue-600
-      expect(activeBtn.className).toContain('bg-blue-600');
+      // Active is now the pressed segment
+      expect(activeBtn).toHaveAttribute('aria-pressed', 'true');
     });
 
     it('dense mode with deletable active brokerage account hides reconcile button', () => {

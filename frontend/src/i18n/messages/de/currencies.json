@@ -4,6 +4,7 @@
     "subtitle": "Verwalten Sie die Währungen, die in Ihren Konten und Wertpapieren verwendet werden",
     "refreshRates": "Kurse aktualisieren",
     "refreshing": "Wird aktualisiert...",
+    "statusFilterLabel": "Status",
     "newCurrency": "+ Neue Währung",
     "searchPlaceholder": "Nach Code oder Name suchen...",
     "statusAll": "Alle ({count})",
@@ -70,9 +71,9 @@
       "activate": "Aktivieren",
       "deleteCurrency": "Währung löschen"
     },
-    "usageTooltip": "{accounts} Konto/Konten, {securities} Wertpapier/e",
     "usageAccounts": "{count, plural, one {# Kto.} other {# Kten.}}",
     "usageSecurities": "{count, plural, one {# WP} other {# WP}}",
+    "rateHelp": "Was eine Einheit jeder Währung in {currency} wert ist.",
     "empty": {
       "title": "Keine Währungen",
       "subtitle": "Fügen Sie eine Währung hinzu, um zu beginnen."

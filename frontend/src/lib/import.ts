@@ -325,8 +325,10 @@ export function autoMatchCsvColumns(headers: string[]): Partial<CsvColumnMapping
     delete result.debit;
     delete result.credit;
   } else if (result.debit !== undefined && result.credit !== undefined) {
-    // Both debit and credit matched without amount -- keep split mode
-    delete result.amount;
+    // Both debit and credit matched without amount -- keep split mode. The
+    // key is set, not deleted, so it overrides the wizard's default amount
+    // column when spread over it; the backend reads amount before debit/credit.
+    result.amount = undefined;
   }
 
   return result;
@@ -477,7 +479,8 @@ export interface ParsedQifMultiAccountResponse {
   }>;
   accounts: Array<{
     accountName: string;
-    accountType: string;
+    /** `null` when the file names no type; the user chooses one before import. */
+    accountType: string | null;
     transactionCount: number;
     dateRange: { start: string; end: string };
   }>;
@@ -492,6 +495,8 @@ export interface ImportQifMultiAccountRequest {
   currencyCode: string;
   dateFormat?: DateFormat;
   securityMappings?: SecurityMapping[];
+  /** The user's type for each account the file leaves untyped. */
+  accountTypes?: Array<{ accountName: string; accountType: string }>;
 }
 
 export const importApi = {

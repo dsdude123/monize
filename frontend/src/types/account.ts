@@ -120,6 +120,8 @@ export function toMortgagePaymentFrequency(
 }
 
 export interface Account {
+  managedPurpose?: "SHARED_SETTLEMENT" | null;
+  sharedExpenseGroupId?: string | null;
   id: string;
   userId: string;
   accountType: AccountType;
@@ -201,6 +203,13 @@ export interface Account {
   paymentMatchingError?: PaymentMatchingFailure | null;
   canDelete?: boolean;
   futureTransactionsSum?: number;
+  // The statement date the account was last reconciled to (YYYY-MM-DD), or
+  // null when nothing in it is reconciled. Absent means no information: a
+  // joint row shared to this user, or a backend that predates the field.
+  lastReconciledDate?: string | null;
+  // How many top-level rows are UNRECONCILED or CLEARED, whatever their date:
+  // what the reconcile screen lists. Absent means no information, as above.
+  unreconciledCount?: number;
   // ── Joint accounts ──
   // Present on rows shared TO the current user (grantee view): the account
   // belongs to another user but appears natively in this user's lists.

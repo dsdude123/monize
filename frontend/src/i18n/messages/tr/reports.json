@@ -4,6 +4,7 @@
     "subtitle": "Finansal sağlığınız hakkında bilgiler edinin",
     "searchPlaceholder": "Raporları ad veya açıklamaya göre arayın...",
     "allReports": "Tüm Raporlar",
+    "categoryWithCount": "{label} ({count})",
     "removeFavourite": "Favorilerden kaldır",
     "addFavourite": "Favorilere ekle",
     "tableReport": "Rapor",
@@ -38,6 +39,7 @@
       "account-balances": "Hesap Bakiyeleri",
       "cash-flow": "Nakit Akışı",
       "tax-summary": "Vergi Özeti",
+      "payroll-deductions": "Bordro Kesintileri",
       "year-over-year": "Yıldan Yıla Karşılaştırma",
       "debt-payoff-timeline": "Borç Kapatma Takvimi",
       "loan-amortization": "Kredi İtfa Planı",
@@ -87,6 +89,7 @@
       "account-balances": "Seçtiğiniz herhangi bir tarihte her hesabın değerini, istediğiniz gibi gruplayarak ve sıralayarak görün.",
       "cash-flow": "Tüm hesaplarda giren ve çıkan paranın ayrıntılı görünümü.",
       "tax-summary": "Vergiden düşülebilir giderlerin ve vergilendirilebilir gelirin yıllık özeti.",
+      "payroll-deductions": "Kategoriye göre bordro kesintileri: her üst sınıra karşı yıl, bordro bordro ve kayıtlı her yıl.",
       "year-over-year": "Mali ilerlemeyi takip etmek için bu yılı önceki yıllarla karşılaştırın.",
       "debt-payoff-timeline": "Kapatma tarihleri projeksiyonlarıyla borç azaltma ilerlemenizi görselleştirin.",
       "loan-amortization": "Anapara - faiz dökümüyle ipotek ve krediler için ayrıntılı ödeme planları.",
@@ -135,7 +138,8 @@
   },
   "reportPage": {
     "notFound": "Rapor Bulunamadı",
-    "notFoundDesc": "İstenen rapor mevcut değil."
+    "notFoundDesc": "İstenen rapor mevcut değil.",
+    "viewLabel": "Görünüm"
   },
   "error": {
     "defaultMessage": "Rapor verileri yüklenemedi. Lütfen tekrar deneyin.",
@@ -459,6 +463,7 @@
     "generating": "Rapor oluşturuluyor...",
     "noData": "Seçilen ölçütler için veri bulunamadı",
     "transactionCount": "{count, plural, one {# işlem} other {# işlem}}",
+    "truncatedNotice": "Bu rapor satır sınırına ulaştı ve yalnızca en eski satırları gösteriyor, bu yüzden rakamları kısmidir. Tümünü görmek için dönemi veya filtreleri daraltın.",
     "toasts": {
       "loadFailed": "Rapor yüklenemedi",
       "executeFailed": "Rapor çalıştırılamadı"
@@ -512,8 +517,6 @@
     "viewMonthly": "Aylık",
     "viewDaily": "Günlük",
     "viewBySecurity": "Menkul Kıymete Göre",
-    "displayChart": "Grafik",
-    "displayTable": "Tablo",
     "showLabel": "Göster:",
     "seriesDividends": "Temettüler",
     "seriesInterest": "Faiz",
@@ -1249,7 +1252,6 @@
     "incompleteTooltip": "Bu dönemdeki bazı günlerde fiyat, döviz kuru veya nakit bakiyesi eksik, bu yüzden her güne bağlı olan rakamlar gösterilmiyor.",
     "measuredFromClose": "{date} tarihli işlem kapanışından bu yana",
     "notAvailable": "Y/A",
-    "intradayUnavailable": "Ayrıntılı gün içi fiyatlandırma mevcut değil",
     "intradayUnavailableTitle": "Bu hesap kombinasyonu için gün içi görünüm mevcut değil",
     "intradayUnavailableDesc": "Bir veya daha fazla varlık, gün içi veri sunmayan bir fiyat sağlayıcısı (MSN Money) kullanıyor{skipped}. Günlük anlık görüntüleri görmek için daha uzun bir aralığa geçin.",
     "intradayUnavailableSkipped": ": {symbols}",
@@ -1300,8 +1302,6 @@
     "costBasis": "Maliyet Bazı",
     "realizedGainLoss": "Gerçekleşen Kazanç/Kayıp",
     "securitiesSold": "Satılan Menkul Kıymetler",
-    "viewChart": "Grafik",
-    "viewTable": "Tablo",
     "noTransactions": "Bu dönem için satış işlemi bulunamadı.",
     "noGainsLosses": "Gösterilecek kazanç veya kayıp yok.",
     "bySecurityTitle": "Menkul Kıymete Göre Gerçekleşen Kazançlar",
@@ -1337,7 +1337,7 @@
     "sixMonthTotal": "6 Aylık Toplam",
     "monthlyEstimate": "Aylık Tahmin",
     "identifiedPayees": "tanımlanan alacaklı",
-    "minOccurrencesLabel": "Minimum tekrar:",
+    "minOccurrencesLabel": "Minimum tekrar",
     "inLast6Months": "(son 6 ayda)",
     "noRecurring": "Son 6 ayda {count}+ tekrarla tekrarlayan gider bulunamadı.",
     "failedToLoad": "Tekrarlayan gider verileri yüklenemedi.",
@@ -1475,6 +1475,8 @@
     "totalReturn": "Toplam Getiri",
     "annualizedReturn": "Yıllıklaştırılmış Getiri",
     "needs1YearNote": "1+ yıl veri gerektirir",
+    "annualizedNeedsSingleBuyNote": "Yalnızca sonrasında işlem olmayan tek bir alımda gösterilir",
+    "missingPrice": "{symbol} için fiyat yok",
     "priceHistory": "Fiyat Geçmişi - {symbol}",
     "buyTransaction": "Alım işlemi",
     "sellTransaction": "Satım işlemi",
@@ -1624,6 +1626,48 @@
     "pdfIncomeExpensesDeductions": "Gelir: {income} | Giderler: {expenses} | Kesintiler: {deductions}",
     "pdfTotalsLabel": "Toplam Gelir / Giderler / Kesintiler"
   },
+  "payrollDeductions": {
+    "year": "Yıl",
+    "yearHelp": "Bir kategorinin yılı, kuralının sıfırlama tarihinde seçilen yıl içinde başlayan dönemdir. 1 Ocak sıfırlamasında bu takvim yılıdır.",
+    "emptyTitle": "Henüz bordro kesintisi kuralı yok",
+    "emptyDescription": "Araçlar, Vergiler, Bordro Kesintileri altında bordronuzun kesinti satırlarına yıllık üst sınır koyun; bu kategoriler burada raporlanır.",
+    "emptyAction": "Bordro Kesintilerini Aç",
+    "summaryTitle": "{year} özeti",
+    "summaryHelp": "Her kesinti kategorisinin döneminde tahsil ettiği tutar; tüm hesaplarda, faturanın para biriminde. Bir kural yalnızca şu anda uyguladığı üst sınırı tutar; bu nedenle üst sınır ve kalan tutar kapanmamış bir dönem için gösterilir, önceki yılınki kayıtlı değildir.",
+    "colCategory": "Kategori",
+    "colBills": "Faturalar",
+    "colPeriod": "Dönem",
+    "colPaid": "Ödenen",
+    "colMaximum": "Üst sınır",
+    "colRemaining": "Kalan",
+    "colPercent": "Üst sınırın",
+    "colPaycheques": "Bordrolar",
+    "colAverage": "Bordro başına ortalama",
+    "colReached": "Üst sınıra ulaşıldı",
+    "colDate": "Tarih",
+    "colPayee": "Alacaklı",
+    "colTotal": "Toplam",
+    "colYear": "Yıl",
+    "periodRange": "{start} - {end}",
+    "toDate": "bugüne kadar",
+    "notRecorded": "Kayıtlı değil",
+    "notReached": "Ulaşılmadı",
+    "outsidePeriod": "Dönemi dışında",
+    "otherCurrency": "Başka para birimi",
+    "noPaycheque": "Yok",
+    "noPayee": "Alacaklı yok",
+    "foreignRows": "Başka para birimindeki {count, plural, one {# satır} other {# satır}} sayılmadı",
+    "paychequesTitle": "Bordro bordro, {year}",
+    "paychequesHelp": "Seçilen yılın döneminde raporlanan bir kategoriye kesinti yapan her işlem, en eskiden başlayarak. Her sütunun toplamı özetteki kategorinin ödenen tutarına eşittir.",
+    "paychequesEmpty": "{year} yılında bu kategorilere kesinti yapılmadı.",
+    "totalRow": "Toplam",
+    "mixedCurrencies": "Toplanmadı: kategoriler birden fazla para biriminde.",
+    "historyTitle": "Yıllara göre {category}",
+    "historyTitleCurrency": "Yıllara göre {category} ({currency})",
+    "historyHelp": "Bu kategorinin kayıtlı her dönemde tahsil ettiği tutar; en yeniden başlayarak, tüm hesaplarda, faturanın para biriminde.",
+    "csvSummary": "Özet",
+    "csvPaycheques": "Bordrolar"
+  },
   "uncategorizedTransactions": {
     "totalUncategorized": "Toplam Kategorisiz",
     "uncategorizedExpenses": "Kategorisiz Giderler",
@@ -1655,8 +1699,6 @@
     "activeBills": "Aktif Faturalar",
     "overdue": "Gecikmiş",
     "thisMonth": "Bu Ay",
-    "autoPostsTitle": "Vadesi geldiğinde otomatik kaydedilir",
-    "manualPostTitle": "Manuel kayıt gerektirir",
     "autoLabel": "Otomatik",
     "manualLabel": "Manuel",
     "overdueLabel": "Gecikmiş",
@@ -1790,6 +1832,7 @@
     "removeAriaLabel": "{title} öğesini karşılaştırmadan kaldır",
     "removeTitle": "Karşılaştırmadan kaldır",
     "runFailed": "Çalıştırma başarısız oldu",
+    "never": "Hiç",
     "errors": {
       "loadScenarioFailed": "Senaryo yüklenemedi.",
       "simulationFailed": "Simülasyon başarısız."
@@ -1803,7 +1846,6 @@
     "backToReports": "Raporlara Geri Dön",
     "deleteButton": "Raporu Sil",
     "deleteConfirmMessage": "\"{name}\" raporunu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
-    "deleting": "Siliniyor...",
     "toasts": {
       "loadFailed": "Rapor yüklenemedi",
       "updated": "Rapor güncellendi",
@@ -1898,7 +1940,11 @@
     "noticeExcluded": "Bazı değerler kısmidir: {count, plural, other {# tutar hesaplanamadı ve}} hariç tutuldu.",
     "pdfNote": "Kısmi toplam: {currencies} için döviz kuru yok",
     "pdfNoteExcluded": "Kısmi toplam: {count, plural, other {# tutar}} hariç tutuldu",
-    "pdfSuffix": "(kısmi)"
+    "pdfSuffix": "(kısmi)",
+    "knownValue": "Bilinen Değer",
+    "weightingIntro": "Yüzdeler yalnızca değerlenebilen pozisyonları kapsar.",
+    "weightingNoPrice": "{symbols} için fiyat yok: menkul kıymet sayfasında fiyatı güncelleyin veya ekleyin.",
+    "weightingNoRate": "{pairs} için döviz kuru yok: Para Birimleri sayfasından ekleyin."
   },
   "sankey": {
     "help": "Gelen para ortadan geçerek harcandığı yerlere, biriktirilen veya yatırılan kısma ve borç ödemelerine akar. Rapor varsayılan olarak açık vadesiz, birikim, nakit, kredi kartı ve kredili mevduat hesaplarınızı kapsar ve bunlardan ikisi arasındaki transfer gösterilmez. Bir birikim hesabına ne aktardığınızı görmek için o hesabı hesap filtresinden çıkarın. Kredi kartı ödemesi asla borç ödemesi değildir: kapattığı alışverişler zaten harcama olarak sayılmıştır.",
@@ -1944,7 +1990,9 @@
       "uncategorizedExpense": "Kategorisiz giderler",
       "residualUnspent": "Harcanmayan",
       "residualDeficit": "Bakiyelerden çekilen",
-      "unlinkedAccount": "(bağlantısız hesap)"
+      "unlinkedAccount": "(bağlantısız hesap)",
+      "classSharedSettlements": "Paylaşılan giderlerin ödenmesi",
+      "inflowSharedSettlements": "Ortak hesaplaşmalardan"
     }
   },
   "pdfExport": {

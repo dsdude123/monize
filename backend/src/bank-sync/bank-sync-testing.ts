@@ -34,6 +34,24 @@ export function testRsaPem(): string {
   return cachedPem;
 }
 
+/**
+ * A SimpleFIN access URL for a fixture, its userinfo set through `URL` so no
+ * spec spells a credential-bearing URL literally (secret scanners flag one).
+ * Pass an opaque `secret` such as `"demo-opaque"`: a call with a password-like
+ * argument returns a password to CodeQL, and this URL reaches `hashToken`
+ * (`codeql-password-source.guard.spec.ts`).
+ */
+export function simplefinAccessUrl(
+  base: string,
+  user: string,
+  secret: string,
+): string {
+  const url = new URL(base);
+  url.username = user;
+  url.password = secret;
+  return url.href;
+}
+
 /** The real `EncryptionService` over a fixed key, or with none configured. */
 export function testEncryption(configured = true): EncryptionService {
   const config = {

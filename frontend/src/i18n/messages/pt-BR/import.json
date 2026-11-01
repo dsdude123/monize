@@ -47,9 +47,9 @@
     "processing": "Processando...",
     "acceptedFormats": "QIF/QMTF, OFX, QFX, CSV ou Microsoft Money (.mny)",
     "mnyFailedHeading": "Não foi possível abrir este arquivo do Microsoft Money",
-    "wikiNotice": {
+    "docsNotice": {
       "title": "Antes de importar",
-      "body": "Leia a seção <money>Importing from Microsoft Money</money> ou <quicken>Importing from Quicken</quicken> da wiki antes de importar qualquer coisa."
+      "body": "Leia a seção <money>Importing from Microsoft Money</money> ou <quicken>Importing from Quicken</quicken> da documentação antes de importar qualquer coisa."
     }
   },
   "selectAccount": {
@@ -81,23 +81,23 @@
     "heading": "Mapeamento de Colunas CSV",
     "description": "Mapeie as colunas do seu CSV para os campos das transações. Pré-visualize os dados abaixo e configure o mapeamento.",
     "firstRowIsHeader": "A primeira linha é o cabeçalho",
-    "delimiterLabel": "Delimitador:",
-    "dateFormatLabel": "Formato de data:",
+    "delimiterLabel": "Delimitador",
+    "dateFormatLabel": "Formato de data",
     "customOption": "Personalizado...",
     "customPlaceholder": "ex.: DD.MM.YYYY",
     "dataPreview": "Pré-visualização dos Dados",
     "columnMappingTitle": "Mapeamento de Colunas",
-    "dateField": "Data *",
+    "dateField": "Data",
     "amountTypeField": "Tipo de valor",
     "singleAmountOption": "Coluna de valor único",
     "splitAmountOption": "Débito/crédito separados",
-    "amountField": "Valor *",
+    "amountField": "Valor",
     "signField": "Sinal",
     "signNormal": "Como está (positivo = depósito)",
     "signReverse": "Inverso (positivo = saque)",
     "signTypeColumn": "Usar coluna de tipo de transação",
-    "debitField": "Débito *",
-    "creditField": "Crédito *",
+    "debitField": "Débito",
+    "creditField": "Crédito",
     "typeColumnTitle": "Coluna do tipo de transação",
     "typeColumnDescription": "Selecione a coluna que indica receita, despesa ou transferência por linha.",
     "valuesFound": "Valores encontrados: {values}",
@@ -140,8 +140,8 @@
     "kindBanking": "Transações bancárias",
     "kindInvestment": "Transações de investimento",
     "investmentModeHint": "As linhas são classificadas pela coluna de ação. Valores de ação não reconhecidos são importados como depósitos ou saques em dinheiro na conta de caixa vinculada.",
-    "actionField": "Ação *",
-    "securityField": "Título (símbolo ou nome) *",
+    "actionField": "Ação",
+    "securityField": "Título (símbolo ou nome)",
     "quantityField": "Quantidade",
     "priceField": "Preço",
     "commissionField": "Comissão",
@@ -349,7 +349,10 @@
     "securitiesNotice": "Este arquivo contém {count} título{plural} que precisam ser mapeados antes da importação.",
     "nextMapSecurities": "Próximo: Mapear Títulos",
     "importAll": "Importar Tudo",
-    "transactionCount": "{count} transação{plural}"
+    "transactionCount": "{count} transação{plural}",
+    "chooseAccountType": "Escolha um tipo",
+    "accountTypeFor": "Tipo de conta para {name}",
+    "accountTypesNeeded": "O arquivo não informa o tipo {count, plural, one {de # conta} other {de # contas}}. Escolha um tipo para cada uma antes de importar."
   },
   "navigation": {
     "back": "Anterior",
@@ -366,6 +369,7 @@
     "heading": "Revise seu arquivo do Microsoft Money",
     "fileSummary": "{filename} -- {era}, moeda base {currency}. Os saldos abaixo são calculados a partir do próprio arquivo, então você pode compará-los com o Money antes de importar.",
     "era": {
+      "money99": "formato Money 97-99",
       "money2001": "formato Money 2001",
       "money2002": "formato Money 2002",
       "moneyPlus": "formato Money Plus / Sunset",
@@ -447,7 +451,7 @@
     }
   },
   "mnyWipe": {
-    "heading": "Remover primeiro seus dados existentes?",
+    "heading": "Remover os dados existentes",
     "body": "Isso executa a mesma operação Excluir meus dados de Configurações -> Zona de perigo, antes de a importação começar. Remove:",
     "removes": {
       "transactions": "Todas as transações e divisões",
@@ -457,8 +461,8 @@
       "budgets": "Todos os orçamentos, relatórios personalizados, tags e mapeamentos de importação"
     },
     "irreversible": "Isso não pode ser desfeito. Se a importação falhar depois, os dados removidos não voltam.",
-    "typeToConfirm": "Digite {word} para confirmar:",
-    "passwordLabel": "Digite sua senha:",
+    "typeToConfirm": "Digite {word} para confirmar",
+    "passwordLabel": "Senha",
     "oidcNote": "Seu provedor de identidade já confirmou esta sessão, então não é necessária senha.",
     "confirm": "Excluir meus dados e importar"
   },
@@ -538,6 +542,7 @@
     "duplicateSecuritySymbol": "{count, plural, one {# título compartilha} other {# títulos compartilham}} o símbolo com outro; os posteriores foram renomeados para continuarem separados.",
     "generatedSecuritySymbol": "{count, plural, one {# título não tem} other {# títulos não têm}} símbolo no Money, então foi gerado um marcador e as atualizações de preço ficaram desativadas.",
     "unknownInvestmentAction": "{count, plural, one {# transação de investimento usou} other {# transações de investimento usaram}} uma ação que o Monize não reconhece e foram ignoradas.",
+    "stockOptionNotImported": "{count, plural, one {# evento de opções de ações para funcionários} other {# eventos de opções de ações para funcionários}} (concessões, aquisição de direitos e vencimento) não movimentaram dinheiro nem ações e não foram importados.",
     "unconfirmedInvestmentAction": "{count, plural, one {# transação de investimento usou} other {# transações de investimento usaram}} uma ação do Money cujo significado é deduzido e não documentado; confira no Money.",
     "missingInvestmentDetail": "{count, plural, one {# transação de investimento não tinha} other {# transações de investimento não tinham}} detalhe de ações no arquivo e foram importadas apenas pelo valor em dinheiro.",
     "investmentAccountMismatch": "{count, plural, one {# transação de investimento estava} other {# transações de investimento estavam}} em uma conta que não é de investimento e foram ignoradas.",
@@ -548,7 +553,8 @@
     "billFrequencyApproximated": "{count, plural, one {# conta agendada usa} other {# contas agendadas usam}} um intervalo de repetição que o Monize não consegue expressar exatamente, então foi usado o mais curto mais próximo.",
     "loanInterestCategoryUnclear": "{count, plural, one {# pagamento de empréstimo incluía} other {# pagamentos de empréstimo incluíam}} várias categorias além do principal, então a categoria de juros do empréstimo ficou sem definição. Verifique se o pagamento inclui uma conta de garantia (escrow) e defina a categoria de juros após a importação.",
     "transferAmountMismatch": "{count, plural, one {# transferência para uma conta de investimento registrou} other {# transferências para uma conta de investimento registraram}} no lado do investimento um valor diferente do lado bancário. O lado do investimento foi importado como registrado.",
-    "crossCurrencyTradeUnconverted": "{count, plural, one {# operação com um ativo cotado em outra moeda foi salva} other {# operações com um ativo cotado em outra moeda foram salvas}} na moeda da conta, porque o arquivo não tem taxa de câmbio para esse par de moedas perto da data da operação. Adicione a taxa de câmbio e corrija o preço de cada operação.",
+    "crossCurrencyTradeUnconverted": "{count, plural, one {# operação com um ativo cotado em outra moeda foi salva} other {# operações com um ativo cotado em outra moeda foram salvas}} na moeda da conta, porque nem o arquivo nem o provedor de taxas de câmbio têm taxa de câmbio para esse par de moedas perto da data da operação. Adicione a taxa de câmbio e corrija o preço de cada operação.",
+    "crossCurrencyTradeMarketRate": "{count, plural, one {# operação com um ativo cotado em outra moeda foi convertida} other {# operações com um ativo cotado em outra moeda foram convertidas}} pela taxa de câmbio de mercado da data da operação, porque o arquivo não tem taxa perto dessa data. Confira o preço de cada operação com seus registros.",
     "showTransactions": "{count, plural, one {Mostrar a # transação} other {Mostrar as # transações}}",
     "hideTransactions": "Ocultar transações",
     "reviewInMoney": "Abra-as no Microsoft Money para conferir ou corrigir e depois exporte e importe novamente.",
@@ -572,7 +578,7 @@
     "mnyStagedFileMissing": "O arquivo do Money enviado não está mais disponível. Envie-o novamente.",
     "mnyFileTruncated": "Este arquivo do Money parece incompleto. O envio pode ter sido interrompido.",
     "mnyNotAMoneyFile": "Este arquivo não é um arquivo do Microsoft Money (.mny).",
-    "mnyUnsupportedVersion": "Este arquivo foi criado no Money 97 ou 98. Abra e salve o arquivo uma vez na edição gratuita Money Plus Sunset e depois importe o resultado.",
+    "mnyUnsupportedVersion": "Este arquivo foi criado em uma versão do Microsoft Money que o Monize não consegue ler. Abra e salve o arquivo uma vez na edição gratuita Money Plus Sunset e depois importe o resultado.",
     "mnyPasswordRequired": "Este arquivo do Money é protegido por senha.",
     "mnyPasswordIncorrect": "Essa senha não abre o arquivo do Money.",
     "mnyUnreadableDatabase": "Este arquivo do Money foi descriptografado, mas não foi possível ler o conteúdo. Ele pode estar danificado."

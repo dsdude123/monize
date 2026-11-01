@@ -1,5 +1,9 @@
 'use client';
 
+import { SharedLinkedTransactionNotice } from "@/components/shared-expenses/SharedLinkedTransactionNotice";
+import { isSharedPaymentAccount } from "@/lib/shared-bank-eligibility";
+
+import { FALLBACK_DEFAULT_CURRENCY } from '@/lib/default-currency';
 import { useState, useEffect, useMemo, useRef, useCallback, MutableRefObject, type BaseSyntheticEvent } from 'react';
 import { useTranslations } from 'next-intl';
 import { useForm, useWatch, Resolver } from 'react-hook-form';
@@ -28,6 +32,7 @@ import {
   rememberTransactionCurrency,
 } from '@/lib/lastTransactionCurrency';
 import { TransferTransactionFields } from './TransferTransactionFields';
+import { useTransferFxAutofill } from './useTransferFxAutofill';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import { Modal } from '@/components/ui/Modal';
 import { TagForm } from '@/components/tags/TagForm';
@@ -87,7 +92,7 @@ const buildTransactionSchema = (t: (key: string) => string) => z.object({
   payeeName: optionalString,
   categoryId: optionalUuid,
   amount: z.number({ error: 'Amount is required' }),
-  currencyCode: z.string().default('CAD'),
+  currencyCode: z.string().default(FALLBACK_DEFAULT_CURRENCY),
   description: optionalString,
   referenceNumber: optionalString,
   status: z.nativeEnum(TransactionStatus).default(TransactionStatus.UNRECONCILED),
@@ -129,6 +134,40 @@ function reconciledEditAffectsReconciliation(
     : Number(original.amount);
   const amountChanged = roundMoney(Number(data.amount)) !== roundMoney(originalAmount);
   return dateChanged || amountChanged;
+}
+
+/**
+ * A transfer leg whose pairing the form cannot change: a split-transfer leg
+ * (its link names the split parent, which owns the pairing) or a leg whose
+ * counterpart is another owner's row. The server refuses converting either,
+ * so the form offers them no other mode.
+ *
+ * Judged only on what was loaded: a row whose `linkedTransaction` relation was
+ * never fetched (`undefined`) says nothing and is not locked; one fetched and
+ * missing (`null`) is the owner-scoped read missing a foreign row; one fetched
+ * in an account the user cannot see (not in `accounts`, once they are loaded)
+ * is another owner's as well, as `TransferTransactionFields` judges it.
+ */
+function conversionLocked(
+  transaction: Transaction | undefined,
+  accounts: readonly Account[],
+): boolean {
+  if (!transaction?.isTransfer || !transaction.linkedTransactionId) return false;
+  const linked = transaction.linkedTransaction;
+  if (linked === undefined) return false;
+  if (linked === null) return true;
+  if (linked.isSplit) return true;
+  return accounts.length > 0 && !accounts.some((account) => account.id === linked.accountId);
+}
+
+/**
+ * Whether converting this transfer away deletes a counterpart somebody has
+ * already checked against a statement: the form warns first (issue #1937);
+ * the server refuses a RECONCILED one outright under the strict lock.
+ */
+function counterpartChecked(transaction: Transaction): boolean {
+  const status = transaction.linkedTransaction?.status;
+  return status === TransactionStatus.CLEARED || status === TransactionStatus.RECONCILED;
 }
 
 interface TransactionFormProps {
@@ -181,6 +220,8 @@ interface TransactionFormProps {
    * transaction shows no Warranties line.
    */
   onAddWarrantyAfterCreate?: (created: Transaction) => void;
+  /** Continue with the saved bank row; the host closes its modal before navigating. */
+  onShareAfterCreate?: (created: Transaction) => void;
   /**
    * Opens one linked warranty's page from the Warranties line, through the
    * same close-then-navigate as `onAddWarranty`. A plain link cannot do it:
@@ -202,8 +243,11 @@ type AfterCreate = 'addWarranty';
 // Transaction mode type
 type TransactionMode = 'normal' | 'split' | 'transfer';
 
-function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, defaultCategoryId, defaultDate, onSuccess, onCancel, onDirtyChange, submitRef, onCreateAnother, initialStagedFiles, onAddWarranty, onAddWarrantyAfterCreate, onOpenWarranty }: TransactionFormFieldsProps) {
+function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, defaultCategoryId, defaultDate, onSuccess, onCancel, onDirtyChange, submitRef, onCreateAnother, initialStagedFiles, onAddWarranty, onAddWarrantyAfterCreate, onShareAfterCreate, onOpenWarranty }: TransactionFormFieldsProps) {
   const t = useTranslations('transactions');
+  const sharedT = useTranslations('sharedExpenses');
+  const userId = useAuthStore((s) => s.user?.id);
+  const [shareAfterCreate, setShareAfterCreate] = useState(false);
   // An acting delegate never sees the Warranties line: a warranty is the
   // owner's to add, and the same rule makes the Warranties page read-only.
   const actingAsDelegate = useAuthStore((s) => s.actingAsUserId) !== null;
@@ -283,6 +327,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
 
   // Transaction mode state (normal, split, or transfer)
   const [mode, setMode] = useState<TransactionMode>(getInitialMode());
+  const isConversionLocked = conversionLocked(transaction, accounts);
   // A tour can grey out Split; false whenever no such tour is running.
   const splitDisabled = useDisableTransactionSplit();
 
@@ -411,6 +456,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
 
   const watchedAccountId = useWatch({ control, name: 'accountId' });
   const watchedAmount = useWatch({ control, name: 'amount' });
+  const watchedStatus = useWatch({ control, name: 'status' });
   const watchedCurrencyCode = useWatch({ control, name: 'currencyCode' });
   const watchedPayeeName = useWatch({ control, name: 'payeeName' });
   // Read live so the links under the field track what is being typed. The
@@ -504,6 +550,29 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
     };
   }, [mode, watchedAccountId, transferToAccountId, accounts]);
 
+  // Cross-currency transfer: typing either amount fills the other from the
+  // day's rate less the FX fee, while the other side is empty or still
+  // auto-filled. The fee is the sending account's, which is the one that
+  // converts; a receiving account's fee applies only when the sender has none.
+  const transferFxFeePercent = useMemo(() => {
+    if (!crossCurrencyInfo) return null;
+    const feeOf = (id: string) => {
+      const fee = accounts.find((a) => a.id === id)?.fxFeePercent;
+      return fee != null && Number(fee) > 0 ? Number(fee) : null;
+    };
+    return feeOf(watchedAccountId) ?? feeOf(transferToAccountId);
+  }, [crossCurrencyInfo, accounts, watchedAccountId, transferToAccountId]);
+  const transferFx = useTransferFxAutofill({
+    fromCurrency: crossCurrencyInfo?.fromCurrency ?? null,
+    toCurrency: crossCurrencyInfo?.toCurrency ?? null,
+    date: watchedDate,
+    fxFeePercent: transferFxFeePercent,
+    amount: watchedAmount,
+    targetAmount: transferTargetAmount,
+    setAmount: (value) => setValue('amount', value, { shouldValidate: true }),
+    setTargetAmount: setTransferTargetAmount,
+  });
+
   // Joint context swaps the picker sources for the owner's lists. While the
   // owner lists are still loading the pickers are empty rather than showing
   // the caller's own (unusable) reference data.
@@ -547,18 +616,39 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
   const handleModeChange = (newMode: TransactionMode) => {
     setMode(newMode);
 
+    // An existing transfer leg loads the PAIR into the form: the account field
+    // is the source account and the amount the source leg's, whichever leg was
+    // opened. Leaving the pair, the row's own account and signed amount come
+    // back, so the conversion keeps the row where it is; returning to Transfer
+    // restores the pair as it was loaded.
+    const leavingTransfer = !!transaction?.isTransfer && newMode !== 'transfer';
+    let amountForSplits = watchedAmount || 0;
+    if (leavingTransfer && transaction) {
+      amountForSplits = roundMoney(Number(transaction.amount));
+      setValue('accountId', transaction.accountId, { shouldDirty: true });
+      setValue('amount', amountForSplits, { shouldDirty: true, shouldValidate: true });
+    }
+
     if (newMode === 'split') {
       setIsSplitMode(true);
       if (splits.length === 0) {
-        const amount = watchedAmount || 0;
-        setSplits(createEmptySplits(amount));
+        setSplits(createEmptySplits(amountForSplits));
       }
       setTransferToAccountId('');
     } else if (newMode === 'transfer') {
       setIsSplitMode(false);
       setSplits([]);
-      // Make amount positive for transfers
-      if (watchedAmount && watchedAmount < 0) {
+      if (transaction?.isTransfer) {
+        setValue('accountId', initialTransferAccounts.fromAccountId || transaction.accountId, {
+          shouldDirty: true,
+        });
+        setValue('amount', roundMoney(transferSourceAmount(transaction)), {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+        setTransferToAccountId(initialTransferAccounts.toAccountId);
+      } else if (watchedAmount && watchedAmount < 0) {
+        // Make amount positive for transfers
         setValue('amount', Math.abs(watchedAmount), { shouldDirty: true, shouldValidate: true });
       }
     } else {
@@ -624,7 +714,11 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
       accountsApi.getTransferCandidates().catch(() => []),
     ])
       .then(async ([accountsData, categoriesData, payeesData, tagsData, aliasesData, candidatesData]) => {
-        setAccounts(accountsData);
+        setAccounts(accountsData.filter(
+              (account) =>
+                !account.managedPurpose ||
+                account.id === transaction?.accountId,
+            ),);
         setTransferCandidates(candidatesData);
         setCategories(categoriesData);
         setTags(tagsData);
@@ -651,12 +745,12 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         } else {
           setPayees(payeesData);
         }
-      })
+      },)
       .catch((error) => {
         toast.error(getErrorMessage(error, t('form.toasts.loadFailed')));
         logger.error(error);
       });
-  }, [transaction?.payeeId, t]);
+  }, [transaction?.accountId, transaction?.payeeId, t]);
 
   // Quick-fill the form from a previously entered transaction (chosen from
   // the history popover next to the Payee field). Resets status to
@@ -903,17 +997,17 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
   // fee itself, and the resulting total charged to the account.
   const convertedBase =
     isForeign && foreignAmount !== undefined && fxRate != null
-      ? roundToCents(foreignAmount * fxRate)
+      ? roundMoney(foreignAmount * fxRate)
       : undefined;
   const fxFeePercent = selectedAccount?.fxFeePercent ?? undefined;
   const fxFeeApplies =
     isForeign && convertedBase !== undefined && !!fxFeePercent && fxFeePercent > 0;
   const fxFeeAmount = fxFeeApplies
-    ? -roundToCents((Math.abs(convertedBase as number) * (fxFeePercent as number)) / 100)
+    ? -roundMoney((Math.abs(convertedBase as number) * (fxFeePercent as number)) / 100)
     : 0;
   const fxTotal =
     convertedBase !== undefined
-      ? roundToCents(convertedBase + fxFeeAmount)
+      ? roundMoney(convertedBase + fxFeeAmount)
       : undefined;
 
   // Recompute the account-currency `amount` from the foreign amount and rate.
@@ -927,13 +1021,13 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
   ) => {
     if (fAmount === undefined || rate == null) return;
     const base =
-      overrideBase !== undefined ? overrideBase : roundToCents(fAmount * rate);
+      overrideBase !== undefined ? overrideBase : roundMoney(fAmount * rate);
     const feePercent = selectedAccount?.fxFeePercent;
     const fee =
       feePercent && feePercent > 0
-        ? -roundToCents((Math.abs(base) * feePercent) / 100)
+        ? -roundMoney((Math.abs(base) * feePercent) / 100)
         : 0;
-    setValue('amount', roundToCents(base + fee), {
+    setValue('amount', roundMoney(base + fee), {
       shouldDirty: true,
       shouldValidate: true,
     });
@@ -1214,6 +1308,10 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
   // transaction; null when no such confirmation is pending.
   const [reconciledConfirmData, setReconciledConfirmData] =
     useState<TransactionFormData | null>(null);
+  // Likewise while the user confirms converting a transfer whose other leg was
+  // already cleared or reconciled.
+  const [counterpartConfirmData, setCounterpartConfirmData] =
+    useState<TransactionFormData | null>(null);
 
   // Upload any files staged in the New Transaction window to the freshly
   // created transaction. The transaction already exists at this point, so a
@@ -1238,6 +1336,15 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
   };
 
   const modeLabel = t(mode === 'transfer' ? 'form.modeLabel.transfer' : 'form.modeLabel.transaction');
+  const canCreateShared = !transaction && !!onShareAfterCreate && !actingAsDelegate &&
+    !!userId && selectedAccount?.userId === userId && !selectedIsJoint &&
+    isSharedPaymentAccount(selectedAccount) && mode !== 'transfer' &&
+    watchedStatus !== TransactionStatus.VOID && watchedStatus !== TransactionStatus.RECONCILED &&
+    watchedAmount !== undefined && watchedAmount !== 0 &&
+    (mode !== 'split' || splits.every((split) => split.splitType === 'category'));
+  // Saving an existing row in the other family of modes converts it in place
+  // (issue #1937): the button says so, and the submit takes the conversion route.
+  const isConversion = !!transaction && (mode === 'transfer') !== !!transaction.isTransfer;
   // The two behaviours the create button can carry. Order is fixed: 'close'
   // first, because it is what the button did before this choice existed.
   const submitOptions = [
@@ -1246,11 +1353,12 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
       label: t('form.submitCreate', { mode: modeLabel }),
       description: t('form.submitCreateDescription'),
     },
-    {
+    ...(canCreateAnother ? [{
       id: 'new',
       label: t('form.submitCreateAndNew', { mode: modeLabel }),
       description: t('form.submitCreateAndNewDescription'),
-    },
+    }] : []),
+    ...(canCreateShared ? [{ id: 'shared', label: sharedT('saveAndShare'), description: sharedT('saveAndShareHelp') }] : []),
   ];
 
   /**
@@ -1262,6 +1370,10 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
   const finishAfterCreate = (accountId: string, created: Transaction, then?: AfterCreate) => {
     if (then === 'addWarranty' && onAddWarrantyAfterCreate) {
       onAddWarrantyAfterCreate(created);
+      return;
+    }
+    if (canCreateShared && shareAfterCreate) {
+      onShareAfterCreate?.(created);
       return;
     }
     if (canCreateAnother && submitMode === 'new') {
@@ -1289,15 +1401,6 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
     try {
       // Handle transfer mode
       if (mode === 'transfer') {
-        // An existing income, expense or split cannot become a transfer from
-        // here: creating one would leave the edited row in place and book the
-        // money twice (A26-H14). The mode is not offered on such an edit; this
-        // refuses it should anything else ever select it.
-        if (transaction && !transaction.isTransfer) {
-          toast.error(t('form.toasts.convertToTransferUnsupported'));
-          setIsLoading(false);
-          return;
-        }
         if (!transferToAccountId) {
           toast.error(t('form.toasts.destinationRequired'));
           setIsLoading(false);
@@ -1347,6 +1450,14 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
           }
           await transactionsApi.updateTransfer(transaction.id, transferData);
           toast.success(t('form.toasts.transferUpdated'));
+          onSuccess?.();
+        } else if (transaction) {
+          // An existing income, expense or split becomes one leg of this
+          // transfer in place. Creating a transfer beside it would leave the
+          // edited row standing and book the money twice (A26-H14), which is
+          // why this is its own route rather than createTransfer.
+          await transactionsApi.convertToTransfer(transaction.id, transferData);
+          toast.success(t('form.toasts.convertedToTransfer'));
           onSuccess?.();
         } else {
           const transfer = await transactionsApi.createTransfer(transferData);
@@ -1434,8 +1545,15 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         if (showCreatedAt && createdAtValue && createdAtValue !== createdAtOriginal) {
           updatePayload.createdAt = datetimeLocalToIso(createdAtValue, userTimezone);
         }
-        await transactionsApi.update(transaction.id, updatePayload);
-        toast.success(t('form.toasts.transactionUpdated'));
+        if (transaction.isTransfer) {
+          // A transfer leg becomes a transaction or a split in place: the
+          // server removes the counterpart and applies this body to the row.
+          await transactionsApi.convertToTransaction(transaction.id, updatePayload);
+          toast.success(t('form.toasts.convertedToTransaction'));
+        } else {
+          await transactionsApi.update(transaction.id, updatePayload);
+          toast.success(t('form.toasts.transactionUpdated'));
+        }
         onSuccess?.();
       } else {
         const created = await transactionsApi.create(payload);
@@ -1461,6 +1579,16 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
   // affect the reconciliation and save without a prompt. New/duplicated
   // transactions start UNRECONCILED, so this only gates genuine edits.
   const submitThen = async (data: TransactionFormData, then?: AfterCreate) => {
+    // Converting a transfer away deletes its other leg; one that was cleared or
+    // reconciled is pointed out first. The strict lock's refusal is the server's.
+    if (transaction?.isTransfer && mode !== 'transfer' && counterpartChecked(transaction)) {
+      setCounterpartConfirmData(data);
+      return;
+    }
+    await submitAfterCounterpartCheck(data, then);
+  };
+
+  const submitAfterCounterpartCheck = async (data: TransactionFormData, then?: AfterCreate) => {
     if (
       transaction?.status === TransactionStatus.RECONCILED &&
       reconciledEditAffectsReconciliation(transaction, data)
@@ -1502,6 +1630,12 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
     const data = reconciledConfirmData;
     setReconciledConfirmData(null);
     if (data) await performSubmit(data);
+  };
+
+  const handleCounterpartConfirm = async () => {
+    const data = counterpartConfirmData;
+    setCounterpartConfirmData(null);
+    if (data) await submitAfterCounterpartCheck(data);
   };
 
   useFormSubmitRef(submitRef, handleSubmit, onSubmit);
@@ -1606,17 +1740,19 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
     </p>
   ) : undefined;
 
+  if (transaction?.sharedExpensePostingId) return <SharedLinkedTransactionNotice postingId={transaction.sharedExpensePostingId} transactionId={transaction.id} onClose={onCancel} />;
+
   return (
     <form
       {...tourAnchor(TOUR_ANCHORS.transactionForm)}
       onSubmit={(event) => guardedSubmit(undefined, event)}
       className="space-y-4"
     >
-      {/* Mode selector - show for new/duplicate transactions, or non-transfer
-          edits. Transfer is offered only on a new entry: an edit has no route
-          that converts the row, and creating a transfer beside it would book
-          the money twice (A26-H14). */}
-      {(!transaction || !transaction.isTransfer) && (
+      {/* Mode selector: every mode, for a new entry and for an edit alike. An
+          edit saved in the other family converts the row in place through its
+          own route (issue #1937). Only a leg whose pairing is not this form's
+          to change (a split-transfer leg, a cross-owner pair) has no tabs. */}
+      {!isConversionLocked && (
         <div className="flex space-x-2 pb-2 border-b dark:border-gray-700">
           <button
             type="button"
@@ -1650,31 +1786,33 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
           >
             {t('form.modeSplit')}
           </button>
-          {!transaction && (
-            <button
-              type="button"
-              onClick={() => handleModeChange('transfer')}
-              className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
-                mode === 'transfer'
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-            >
-              {t('form.modeTransfer')}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => handleModeChange('transfer')}
+            className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
+              mode === 'transfer'
+                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            {t('form.modeTransfer')}
+          </button>
         </div>
       )}
 
-      {/* Transfer mode indicator for editing existing transfers */}
-      {transaction?.isTransfer && (
-        <div className="flex items-center space-x-2 pb-2 border-b dark:border-gray-700">
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
-            {t('form.transferBadge')}
-          </span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
-            {t('form.isLinkedTransfer')}
-          </span>
+      {/* A transfer leg the form can only keep a transfer: say so instead of
+          offering tabs whose save the server would refuse. */}
+      {isConversionLocked && (
+        <div className="pb-2 border-b dark:border-gray-700 space-y-1">
+          <div className="flex items-center space-x-2">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
+              {t('form.transferBadge')}
+            </span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {t('form.isLinkedTransfer')}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t('form.conversionLockedNote')}</p>
         </div>
       )}
 
@@ -1755,6 +1893,8 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
           setTransferToAccountId={setTransferToAccountId}
           transferTargetAmount={transferTargetAmount}
           setTransferTargetAmount={setTransferTargetAmount}
+          onTransferAmountChange={transferFx.handleAmountChange}
+          onTransferTargetAmountChange={transferFx.handleTargetAmountChange}
           transferPayeeId={transferPayeeId}
           transferPayeeName={transferPayeeName}
           setTransferPayeeId={setTransferPayeeId}
@@ -1775,7 +1915,9 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
       {isSplitMode && (
         <div className="border-t dark:border-gray-700 pt-4">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">{t('form.splitSection.title')}</h3>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+              {t('form.splitSection.title')}
+            </h3>
             <button
               type="button"
               onClick={() => handleSplitModeToggle(false)}
@@ -1808,7 +1950,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         </div>
       )}
 
-      {/* Tags (per-user, so hidden on a joint account's owner-owned rows) */}
+      {/* Tag Creation Modal */}
       {!selectedIsJoint && (
         <MultiSelect
           label={t('form.fields.tags')}
@@ -1821,7 +1963,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         />
       )}
 
-      {/* Tag Creation Modal */}
+      {/* Description - only shown when not in split mode (split mode has it inline with Reference Number) */}
       <Modal isOpen={showTagForm} onClose={() => setShowTagForm(false)} maxWidth="lg" allowOverflow pushHistory className="p-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
           {t('form.newTagTitle')}
@@ -1832,7 +1974,7 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         />
       </Modal>
 
-      {/* Description - only shown when not in split mode (split mode has it inline with Reference Number) */}
+      {/* Status selector */}
       {!isSplitMode && (
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1846,12 +1988,17 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
           />
           <NoteLinks text={watchedDescription ?? ''} />
           {errors.description && (
-            <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.description.message}</p>
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+              {errors.description.message}
+            </p>
           )}
         </div>
       )}
 
-      {/* Status selector */}
+      {/* Attachments. When editing, they are managed directly against the
+          saved transaction; when creating, files are staged client-side and
+          uploaded once the transaction has been created. Attachments are
+          per-user, so they are not offered on a joint account's rows. */}
       <Select
         label={t('form.fields.status')}
         options={[
@@ -1863,10 +2010,10 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         {...register('status')}
       />
 
-      {/* Attachments. When editing, they are managed directly against the
-          saved transaction; when creating, files are staged client-side and
-          uploaded once the transaction has been created. Attachments are
-          per-user, so they are not offered on a joint account's rows. */}
+      {/* Warranties linked to this purchase, and Add warranty: shown where
+          there is one to list or the host can Add, never as a dead end. Not on
+          a joint account's row (a warranty is the reader's own, as
+          attachments are), and not for an acting delegate. */}
       {selectedIsJoint ? null : transaction ? (
         <AttachmentsSection transactionId={transaction.id} />
       ) : (
@@ -1876,10 +2023,8 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         />
       )}
 
-      {/* Warranties linked to this purchase, and Add warranty: shown where
-          there is one to list or the host can Add, never as a dead end. Not on
-          a joint account's row (a warranty is the reader's own, as
-          attachments are), and not for an acting delegate. */}
+      {/* Actions. anchorProps, not a wrapper, so a guided tour rings the
+          Cancel/Save pair rather than the full-width row around it. */}
       {showWarrantiesLine && (
         <TransactionWarrantiesLine
           transaction={transaction}
@@ -1889,21 +2034,26 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         />
       )}
 
-      {/* Actions. anchorProps, not a wrapper, so a guided tour rings the
-          Cancel/Save pair rather than the full-width row around it. */}
+      {/* What the lookup found for the payee just created -- an offer, saved
+          only for the fields the user ticks. */}
       <FormActions
         anchorProps={tourAnchor(TOUR_ANCHORS.transactionFormActions)}
         onCancel={onCancel}
-        submitLabel={t(transaction ? 'form.submitUpdate' : 'form.submitCreate', { mode: modeLabel })}
+        submitLabel={t(
+          isConversion ? 'form.submitConvert' : transaction ? 'form.submitUpdate' : 'form.submitCreate',
+          { mode: modeLabel },
+        )}
         isSubmitting={isLoading}
-        submitOptions={canCreateAnother ? submitOptions : undefined}
-        selectedSubmitOptionId={submitMode}
-        onSubmitOptionChange={(id) => setSubmitMode(id === 'new' ? 'new' : 'close')}
+        submitOptions={canCreateAnother || canCreateShared ? submitOptions : undefined}
+        selectedSubmitOptionId={canCreateShared && shareAfterCreate ? 'shared' : submitMode}
+        onSubmitOptionChange={(id) => {
+          setShareAfterCreate(id === 'shared');
+          if (id !== 'shared') setSubmitMode(id === 'new' ? 'new' : 'close');
+        }}
         submitOptionsLabel={t('form.submitOptions')}
       />
 
-      {/* What the lookup found for the payee just created -- an offer, saved
-          only for the fields the user ticks. */}
+      {/* Warn before saving edits to a reconciled transaction */}
       {contactLookup.target && (
         <ContactLookupDialog
           isOpen
@@ -1915,13 +2065,25 @@ function TransactionFormFields({ transaction, duplicateFrom, defaultAccountId, d
         />
       )}
 
-      {/* Reactivate Payee Dialog */}
+      {/* Warn before saving edits to a reconciled transaction */}
       <ReactivatePayeeDialog
         isOpen={showReactivateDialog}
         payee={inactivePayeeMatch}
         onReactivate={handleReactivatePayee}
         onCancel={handleCancelReactivation}
         isReactivating={isReactivating}
+      />
+
+      {/* Warn before converting a transfer whose other leg was cleared or reconciled */}
+      <ConfirmDialog
+        isOpen={counterpartConfirmData !== null}
+        title={t('form.counterpartConfirm.title')}
+        message={t('form.counterpartConfirm.message')}
+        confirmLabel={t('form.counterpartConfirm.confirm')}
+        variant="warning"
+        pushHistory
+        onConfirm={handleCounterpartConfirm}
+        onCancel={() => setCounterpartConfirmData(null)}
       />
 
       {/* Warn before saving edits to a reconciled transaction */}

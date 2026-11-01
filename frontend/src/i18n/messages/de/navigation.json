@@ -13,6 +13,7 @@
   "rules": "Regeln",
   "warranties": "Garantien",
   "emailReceipts": "E-Mail-Belege",
+  "taxes": "Steuern",
   "securities": "Wertpapiere",
   "currencies": "Währungen",
   "import": "Buchungen importieren",
@@ -37,5 +38,6 @@
     "open": "Suche öffnen",
     "submit": "Suchen"
   },
-  "backups": "Sicherungen"
+  "backups": "Sicherungen",
+  "sharedExpenses": "Gemeinsame Ausgaben"
 }

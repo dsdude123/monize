@@ -4,6 +4,7 @@
     "subtitle": "Керуйте валютами, що використовуються у ваших рахунках та цінних паперах",
     "refreshRates": "Оновити курси",
     "refreshing": "Оновлення...",
+    "statusFilterLabel": "Статус",
     "newCurrency": "+ Нова валюта",
     "searchPlaceholder": "Пошук за кодом або назвою...",
     "statusAll": "Усі ({count})",
@@ -70,9 +71,9 @@
       "activate": "Активувати",
       "deleteCurrency": "Видалити валюту"
     },
-    "usageTooltip": "{accounts} рахунок(-ків), {securities} цінний(-них) папір(-ів)",
-    "usageAccounts": "{count, plural, one {# рах.} other {# рах.}}",
-    "usageSecurities": "{count, plural, one {# цін. пап.} other {# цін. пап.}}",
+    "usageAccounts": "{count, plural, other {# рах.}}",
+    "usageSecurities": "{count, plural, other {# цін. пап.}}",
+    "rateHelp": "Скільки коштує одна одиниця кожної валюти в {currency}.",
     "empty": {
       "title": "Немає валют",
       "subtitle": "Почніть із додавання валюти."

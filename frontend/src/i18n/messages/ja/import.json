@@ -47,9 +47,9 @@
     "processing": "処理中...",
     "acceptedFormats": "QIF/QMTF、OFX、QFX、CSV、または Microsoft Money (.mny)",
     "mnyFailedHeading": "この Microsoft Money ファイルを開けませんでした",
-    "wikiNotice": {
+    "docsNotice": {
       "title": "インポートする前に",
-      "body": "何かをインポートする前に、Wiki の <money>Importing from Microsoft Money</money> または <quicken>Importing from Quicken</quicken> のセクションをお読みください。"
+      "body": "何かをインポートする前に、ドキュメントの <money>Importing from Microsoft Money</money> または <quicken>Importing from Quicken</quicken> のセクションをお読みください。"
     }
   },
   "selectAccount": {
@@ -81,23 +81,23 @@
     "heading": "CSV 列マッピング",
     "description": "CSV の列を取引フィールドにマッピングしてください。以下でデータをプレビューし、マッピングを設定します。",
     "firstRowIsHeader": "最初の行をヘッダーとして使用",
-    "delimiterLabel": "区切り文字:",
-    "dateFormatLabel": "日付形式:",
+    "delimiterLabel": "区切り文字",
+    "dateFormatLabel": "日付形式",
     "customOption": "カスタム...",
     "customPlaceholder": "例: DD.MM.YYYY",
     "dataPreview": "データプレビュー",
     "columnMappingTitle": "列マッピング",
-    "dateField": "日付 *",
+    "dateField": "日付",
     "amountTypeField": "金額の種類",
     "singleAmountOption": "単一の金額列",
     "splitAmountOption": "出金/入金を分割",
-    "amountField": "金額 *",
+    "amountField": "金額",
     "signField": "符号",
     "signNormal": "そのまま（正の値 = 入金）",
     "signReverse": "反転（正の値 = 出金）",
     "signTypeColumn": "取引種類列を使用",
-    "debitField": "出金 *",
-    "creditField": "入金 *",
+    "debitField": "出金",
+    "creditField": "入金",
     "typeColumnTitle": "取引種類列",
     "typeColumnDescription": "各行の収入、支出、または振替を示す列を選択してください。",
     "valuesFound": "見つかった値: {values}",
@@ -140,8 +140,8 @@
     "kindBanking": "銀行取引",
     "kindInvestment": "投資取引",
     "investmentModeHint": "各行はアクション列によって分類されます。一致しないアクションの値は、連携している現金勘定科目への現金の入金または出金としてインポートされます。",
-    "actionField": "アクション *",
-    "securityField": "有価証券（シンボルまたは名称） *",
+    "actionField": "アクション",
+    "securityField": "有価証券（シンボルまたは名称）",
     "quantityField": "数量",
     "priceField": "価格",
     "commissionField": "手数料",
@@ -349,7 +349,10 @@
     "securitiesNotice": "このファイルにはインポート前にマッピングが必要な {count} 件の有価証券{plural}が含まれています。",
     "nextMapSecurities": "次へ: 有価証券のマッピング",
     "importAll": "すべてインポート",
-    "transactionCount": "{count} 件の取引{plural}"
+    "transactionCount": "{count} 件の取引{plural}",
+    "chooseAccountType": "種類を選択",
+    "accountTypeFor": "{name} の口座の種類",
+    "accountTypesNeeded": "ファイルに {count, plural, other {# 件の口座}}の種類が記載されていません。インポートする前にそれぞれの種類を選択してください。"
   },
   "navigation": {
     "back": "戻る",
@@ -366,6 +369,7 @@
     "heading": "Microsoft Money ファイルの内容を確認",
     "fileSummary": "{filename} -- {era}、基準通貨 {currency}。以下の残高はファイル自体から計算しているため、インポート前に Money と照合できます。",
     "era": {
+      "money99": "Money 97-99 形式",
       "money2001": "Money 2001 形式",
       "money2002": "Money 2002 形式",
       "moneyPlus": "Money Plus / Sunset 形式",
@@ -447,7 +451,7 @@
     }
   },
   "mnyWipe": {
-    "heading": "既存のデータを先に削除しますか？",
+    "heading": "既存のデータを削除",
     "body": "インポート開始前に、設定 -> 危険ゾーンと同じ「データを削除」操作を実行します。削除される対象:",
     "removes": {
       "transactions": "すべての取引と分割",
@@ -457,8 +461,8 @@
       "budgets": "すべての予算、カスタムレポート、タグ、インポートマッピング"
     },
     "irreversible": "この操作は取り消せません。その後インポートが失敗しても、削除されたデータは戻りません。",
-    "typeToConfirm": "確認のため {word} と入力してください:",
-    "passwordLabel": "パスワードを入力してください:",
+    "typeToConfirm": "確認のため {word} と入力してください",
+    "passwordLabel": "パスワード",
     "oidcNote": "ID プロバイダーがこのセッションを既に確認済みのため、パスワードは不要です。",
     "confirm": "データを削除してインポート"
   },
@@ -538,6 +542,7 @@
     "duplicateSecuritySymbol": "{count, plural, other {# 件の証券}} が他の証券とシンボルを共有していました。別々のまま保つため、後のものは名前を変更しました。",
     "generatedSecuritySymbol": "{count, plural, other {# 件の証券}} には Money 上でシンボルがないため、仮のシンボルを生成し、価格更新はオフのままにしました。",
     "unknownInvestmentAction": "{count, plural, other {# 件の投資取引}} に Monize が認識できないアクションが使われていたため、スキップしました。",
+    "stockOptionNotImported": "{count, plural, other {# 件の従業員ストックオプションのイベント}}（付与、権利確定、失効）は現金も株式も動かさないため、インポートしませんでした。",
     "unconfirmedInvestmentAction": "{count, plural, other {# 件の投資取引}} に、意味が文書化されておらず推定にとどまる Money のアクションが使われています。Money と照合して確認してください。",
     "missingInvestmentDetail": "{count, plural, other {# 件の投資取引}} にはファイル内に株数の明細がなかったため、現金額のみで取り込みました。",
     "investmentAccountMismatch": "{count, plural, other {# 件の投資取引}} が投資口座ではない口座にあったため、スキップしました。",
@@ -548,7 +553,8 @@
     "billFrequencyApproximated": "{count, plural, other {# 件の予定された支払い}} は Monize が正確に表現できない繰り返し間隔を使用しているため、最も近い短い間隔を使用しました。",
     "loanInterestCategoryUnclear": "{count, plural, other {# 件のローン返済}}に元本以外の複数のカテゴリが含まれていたため、ローンの利息カテゴリは未設定のままになりました。支払いにエスクロー（escrow）が含まれるか確認し、インポート後に利息カテゴリを設定してください。",
     "transferAmountMismatch": "{count, plural, other {# 件の投資口座への振替}}で、投資側に銀行側と異なる金額が記録されていました。投資側は記録どおりにインポートされました。",
-    "crossCurrencyTradeUnconverted": "{count, plural, other {# 件の他通貨建て証券の取引}}は、ファイルに取引日付近のその通貨ペアの為替レートがないため、口座の通貨で保存されました。為替レートを追加してから、各取引の価格を修正してください。",
+    "crossCurrencyTradeUnconverted": "{count, plural, other {# 件の他通貨建て証券の取引}}は、ファイルにも為替レート提供元にも取引日付近のその通貨ペアの為替レートがないため、口座の通貨で保存されました。為替レートを追加してから、各取引の価格を修正してください。",
+    "crossCurrencyTradeMarketRate": "{count, plural, other {# 件の他通貨建て証券の取引}}は、ファイルに取引日付近の為替レートがないため、取引日の市場為替レートで換算されました。各取引の価格を記録と照らし合わせて確認してください。",
     "showTransactions": "{count, plural, other {# 件の取引}}を表示",
     "hideTransactions": "取引を隠す",
     "reviewInMoney": "Microsoft Money でこれらを開いて確認または修正し、あらためてエクスポートしてインポートしてください。",
@@ -572,7 +578,7 @@
     "mnyStagedFileMissing": "アップロードした Money ファイルは既に利用できません。もう一度アップロードしてください。",
     "mnyFileTruncated": "この Money ファイルは不完全なようです。アップロードが中断された可能性があります。",
     "mnyNotAMoneyFile": "このファイルは Microsoft Money (.mny) ファイルではありません。",
-    "mnyUnsupportedVersion": "このファイルは Money 97 または 98 で作成されています。無償の Money Plus Sunset エディションで一度開いて保存し、その結果をインポートしてください。",
+    "mnyUnsupportedVersion": "このファイルは Monize で読み取れないバージョンの Microsoft Money で作成されています。無償の Money Plus Sunset エディションで一度開いて保存し、その結果をインポートしてください。",
     "mnyPasswordRequired": "この Money ファイルはパスワードで保護されています。",
     "mnyPasswordIncorrect": "そのパスワードでは Money ファイルを開けません。",
     "mnyUnreadableDatabase": "この Money ファイルは復号できましたが、内容を読み取れませんでした。破損している可能性があります。"

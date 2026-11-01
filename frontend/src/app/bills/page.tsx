@@ -5,7 +5,8 @@ import { useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import toast from 'react-hot-toast';
-import { format, addMonths, subMonths } from 'date-fns';
+import { addMonths, subMonths } from 'date-fns';
+import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { Button } from '@/components/ui/Button';
 import { ScheduledTransactionForm } from '@/components/scheduled-transactions/ScheduledTransactionForm';
 import { CashFlowForecastChart } from '@/components/bills/CashFlowForecastChart';
@@ -16,6 +17,10 @@ import { OverrideEditorDialog } from '@/components/scheduled-transactions/Overri
 import { OccurrenceDatePicker } from '@/components/scheduled-transactions/OccurrenceDatePicker';
 import { PostTransactionDialog } from '@/components/scheduled-transactions/PostTransactionDialog';
 import { DensityToggle } from '@/components/ui/DensityToggle';
+import { ViewModeToggle } from '@/components/ui/ViewModeToggle';
+import { SEGMENTED_GROUP_CLASS, segmentClass } from '@/components/ui/segmented-control';
+import { useViewMode } from '@/store/viewModeStore';
+import { useChartDateFormat } from '@/hooks/useChartDateFormat';
 import { PageLayout } from '@/components/layout/PageLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -37,9 +42,9 @@ import {
 import { parseLocalDate } from '@/lib/utils';
 import { buildScheduledCalendarDays } from '@/lib/scheduled-calendar';
 import { occurrenceKind } from '@/lib/scheduled-kind';
-import { scheduleEffectiveAmount } from '@/lib/scheduled-effective-amount';
+import { scheduleEffectiveAmount, nextOccurrenceDueDate } from '@/lib/scheduled-effective-amount';
 import { monthlyEquivalent } from '@/lib/frequency';
-import type { FutureTransaction } from '@/lib/forecast';
+import { projectPayrollOccurrence, type FutureTransaction } from '@/lib/forecast';
 import { loadFutureTransactions } from '@/lib/future-transactions';
 import { useNumberFormat } from '@/hooks/useNumberFormat';
 import { useExchangeRates } from '@/hooks/useExchangeRates';
@@ -50,10 +55,12 @@ import { useFormModal } from '@/hooks/useFormModal';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { createLogger } from '@/lib/logger';
+import { TOUR_ANCHORS, tourAnchor } from '@/lib/tours/anchors';
 import { getErrorMessage } from '@/lib/errors';
 import { useOnUndoRedo } from '@/hooks/useOnUndoRedo';
 import { useOnAiAction } from '@/hooks/useOnAiAction';
 import { useHighlightParam } from '@/hooks/useHighlightTarget';
+import { docsUrl } from '@/lib/docs-links';
 
 const logger = createLogger('Bills');
 
@@ -67,6 +74,9 @@ interface OverrideEditorState {
   // A loan bill's occurrence as the server priced it at its own due date: the
   // editor opens on its amount and lines rather than the template's.
   loanOccurrence: SelectedLoanOccurrence | null;
+  // A payroll bill's occurrence as the yearly room leaves its deduction lines,
+  // by category id: the editor opens on those lines rather than the template's.
+  payrollDeductions: Record<string, number> | null;
 }
 
 /**
@@ -110,6 +120,7 @@ function BillsContent() {
   // scroll to the row without opening the post flow that ?postBillId triggers.
   const highlightId = useHighlightParam();
   const { formatCurrency } = useNumberFormat();
+  const formatChartDate = useChartDateFormat();
   // The reader's reporting currency and the converter into it. The monthly net
   // spans one currency or none (issue #1247).
   const { convertToDefault, defaultCurrency, ratesUnavailable } =
@@ -121,7 +132,15 @@ function BillsContent() {
   const [isLoading, setIsLoading] = useState(true);
   const { showForm, editingItem: editingTransaction, openCreate, openEdit, close, isEditing, modalProps, setFormDirty, unsavedChangesDialog, formSubmitRef } = useFormModal<ScheduledTransaction>();
   const [filterType, setFilterType] = useLocalStorage<'all' | 'bills' | 'deposits'>('monize-bills-filter-type', 'all');
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  // The list ("table") or the month calendar: remembered per screen in the
+  // shared view-mode store, as Transactions and Investments remember theirs.
+  const { view: viewMode, setView: setViewMode } = useViewMode('bills');
+  // A ?highlight= link (a calendar chip on Transactions, the assistant) points
+  // at a row, and only the list draws rows: arriving with one opens the list
+  // even when the calendar was the remembered view.
+  useEffect(() => {
+    if (highlightId) setViewMode('table');
+  }, [highlightId, setViewMode]);
   const filters = useBillsFilters();
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [overrideEditor, setOverrideEditor] = useState<OverrideEditorState>({
@@ -131,6 +150,7 @@ function BillsContent() {
     existingOverride: null,
     prefillAmount: null,
     loanOccurrence: null,
+    payrollDeductions: null,
   });
   // Prefill state for a new transfer schedule created from the reconcile flow.
   const [createPrefill, setCreatePrefill] = useState<{
@@ -316,6 +336,7 @@ function BillsContent() {
       existingOverride,
       prefillAmount: prefillAmount ?? null,
       loanOccurrence: null,
+    payrollDeductions: null,
     });
   };
 
@@ -372,6 +393,7 @@ function BillsContent() {
         existingOverride,
         prefillAmount: null,
         loanOccurrence: loanOccurrence ?? null,
+        payrollDeductions: projectPayrollOccurrence(scheduledTransactions, transaction.id, date),
       });
     } catch (error) {
       logger.error('Failed to check for existing override:', error);
@@ -383,6 +405,7 @@ function BillsContent() {
         existingOverride: null,
         prefillAmount: null,
         loanOccurrence: loanOccurrence ?? null,
+        payrollDeductions: projectPayrollOccurrence(scheduledTransactions, transaction.id, date),
       });
     }
   };
@@ -422,6 +445,7 @@ function BillsContent() {
       existingOverride: null,
       prefillAmount: null,
       loanOccurrence: null,
+    payrollDeductions: null,
     });
     if (wasReconcileDeepLink) {
       clearReconcileParams();
@@ -510,6 +534,17 @@ function BillsContent() {
     });
   }, [scheduledTransactions, filterType, filters.filterState]);
 
+  // How many schedules each type segment would show, for its label. The same
+  // `billKind` the filter above uses, so a count never disagrees with its list.
+  const typeCounts = useMemo(
+    () => ({
+      all: scheduledTransactions.length,
+      bills: scheduledTransactions.filter((st) => billKind(st) === 'bill').length,
+      deposits: scheduledTransactions.filter((st) => billKind(st) === 'deposit').length,
+    }),
+    [scheduledTransactions],
+  );
+
   const categoryColorMap = useMemo(() => buildCategoryColorMap(categories), [categories]);
 
   // Calculate summary stats in a single pass (exclude transfers from bills/deposits)
@@ -574,7 +609,7 @@ function BillsContent() {
 
       if (t.isActive && t.nextDueDate) {
         try {
-          const dueDate = parseLocalDate(t.nextDueDate);
+          const dueDate = parseLocalDate(nextOccurrenceDueDate(t));
           if (dueDate && !isNaN(dueDate.getTime()) && dueDate <= today) {
             dueCount++;
           }
@@ -661,8 +696,12 @@ function BillsContent() {
         <PageHeader
           title={t('page.title')}
           subtitle={t('page.subtitle')}
-          helpUrl="https://github.com/kenlasko/monize/wiki/Bills-and-Deposits"
-          actions={<Button onClick={handleCreateNew}>{t('page.newButton')}</Button>}
+          helpUrl={docsUrl('bills')}
+          actions={
+            <Button onClick={handleCreateNew} {...tourAnchor(TOUR_ANCHORS.billsNewButton)}>
+              {t('page.newButton')}
+            </Button>
+          }
         />
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-6">
@@ -696,24 +735,30 @@ function BillsContent() {
         </div>
 
         {/* Cash Flow Forecast Chart */}
-        <ErrorBoundary fallback={
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-6 mb-6">
-            <p className="text-gray-500 dark:text-gray-400">{t('page.chartUnavailable')}</p>
-          </div>
-        }>
-          <CashFlowForecastChart
-            scheduledTransactions={scheduledTransactions}
-            accounts={accounts}
-            futureTransactions={futureTransactions}
-            isLoading={isLoading}
-          />
-        </ErrorBoundary>
+        <div {...tourAnchor(TOUR_ANCHORS.billsCashFlowForecast)}>
+          <ErrorBoundary fallback={
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-gray-700/50 p-6 mb-6">
+              <p className="text-gray-500 dark:text-gray-400">{t('page.chartUnavailable')}</p>
+            </div>
+          }>
+            <CashFlowForecastChart
+              scheduledTransactions={scheduledTransactions}
+              accounts={accounts}
+              futureTransactions={futureTransactions}
+              isLoading={isLoading}
+            />
+          </ErrorBoundary>
+        </div>
 
         {/* Form Modal */}
-        <Modal isOpen={showForm} onClose={handleFormClose} {...modalProps} maxWidth="6xl" className="p-6 !max-w-[69rem]">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-            {isEditing ? t('form.titleEdit') : t('form.titleNew')}
-          </h2>
+        <Modal
+          isOpen={showForm}
+          onClose={handleFormClose}
+          {...modalProps}
+          maxWidth="6xl"
+          className="p-6 !max-w-[69rem]"
+          title={isEditing ? t('form.titleEdit') : t('form.titleNew')}
+        >
           <ScheduledTransactionForm
             key={editingTransaction?.id || (createPrefill ? 'new-prefill' : 'new')}
             scheduledTransaction={editingTransaction}
@@ -728,7 +773,7 @@ function BillsContent() {
         </Modal>
         <UnsavedChangesDialog {...unsavedChangesDialog} />
 
-        {viewMode === 'list' && (
+        {viewMode === 'table' && (
           <div className="mb-6">
             <BillsFilterPanel
               filtersExpanded={filters.filtersExpanded}
@@ -750,82 +795,58 @@ function BillsContent() {
           </div>
         )}
 
-        {/* View Toggle + Filter Tabs */}
+        {/* Toolbar. In the list: the type filter (a segmented control with
+            counts, visible at every width and wrapping on a phone) and the
+            row density. In the calendar: the month navigation. The Table /
+            Calendar switch is `ViewModeToggle` at the right-hand end in both,
+            as on Transactions and Investments. */}
         <div className="bg-white dark:bg-gray-800 shadow dark:shadow-gray-700/50 rounded-lg mb-6">
-          <div className="border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between">
-            <nav className="-mb-px flex">
-              <button
-                onClick={() => setViewMode('list')}
-                className={`py-4 px-6 text-sm font-medium border-b-2 ${
-                  viewMode === 'list'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+            {viewMode === 'table' ? (
+              <div
+                role="group"
+                aria-label={t('viewTabs.filterLabel')}
+                className={`${SEGMENTED_GROUP_CLASS} flex-wrap`}
               >
-                {t('viewTabs.list')}
-              </button>
-              <button
-                onClick={() => setViewMode('calendar')}
-                className={`py-4 px-6 text-sm font-medium border-b-2 ${
-                  viewMode === 'calendar'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-              >
-                {t('viewTabs.calendar')}
-              </button>
-            </nav>
-            {viewMode === 'list' && (
-              <div className="flex items-center pr-4 gap-2">
-                <div className="hidden sm:flex gap-2">
-                  {(['all', 'bills', 'deposits'] as const).map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setFilterType(type)}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                        filterType === type
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {type === 'all' ? t('viewTabs.filterAll', { count: scheduledTransactions.length }) :
-                       type === 'bills' ? t('viewTabs.filterBills', { count: scheduledTransactions.filter((st) => billKind(st) === 'bill').length }) :
-                       t('viewTabs.filterDeposits', { count: scheduledTransactions.filter((st) => billKind(st) === 'deposit').length })}
-                    </button>
-                  ))}
-                </div>
-                {/* Density belongs to the list, so it sits with the list's own
-                    controls and is absent from the calendar. `sm` -- the plain
-                    borderless button every other table's toggle is, rather than
-                    a filled chip: it is not a fourth filter beside All/Bills/
-                    Deposits and must not read as one. It stays visible below
-                    `sm`, where the type chips do not: the rows are still there
-                    to tighten. */}
-                <DensityToggle view="bills" />
+                {(['all', 'bills', 'deposits'] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setFilterType(type)}
+                    aria-pressed={filterType === type}
+                    className={segmentClass(filterType === type)}
+                  >
+                    {type === 'all'
+                      ? t('viewTabs.filterAll', { count: typeCounts.all })
+                      : type === 'bills'
+                        ? t('viewTabs.filterBills', { count: typeCounts.bills })
+                        : t('viewTabs.filterDeposits', { count: typeCounts.deposits })}
+                  </button>
+                ))}
               </div>
-            )}
-            {viewMode === 'calendar' && (
-              <div className="flex items-center gap-2 px-4 py-2 sm:py-0 sm:pr-4 sm:pl-0 w-full sm:w-auto justify-center sm:justify-end">
+            ) : (
+              <div className="flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => setCalendarMonth(subMonths(calendarMonth, 1))}
+                  aria-label={t('viewTabs.previousMonth')}
                   className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
-                  <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
+                  <ChevronLeftIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
                 </button>
                 <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 min-w-[130px] text-center">
-                  {format(calendarMonth, 'MMMM yyyy')}
+                  {formatChartDate(calendarMonth, 'MMMM yyyy')}
                 </span>
                 <button
+                  type="button"
                   onClick={() => setCalendarMonth(addMonths(calendarMonth, 1))}
+                  aria-label={t('viewTabs.nextMonth')}
                   className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
-                  <svg className="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <ChevronRightIcon className="h-5 w-5 text-gray-600 dark:text-gray-400" aria-hidden="true" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => setCalendarMonth(new Date())}
                   className="ml-1 px-3 py-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md"
                 >
@@ -833,10 +854,18 @@ function BillsContent() {
                 </button>
               </div>
             )}
+            {/* Density belongs to the list, so it is absent from the calendar.
+                `sm` -- the plain borderless button every other table's toggle
+                is, not a filled segment: it is not a fourth filter beside
+                All/Bills/Deposits and must not read as one. */}
+            <div className="flex items-center gap-2 sm:ml-auto">
+              {viewMode === 'table' && <DensityToggle view="bills" />}
+              <ViewModeToggle value={viewMode} onChange={setViewMode} />
+            </div>
           </div>
         </div>
 
-        {viewMode === 'list' ? (
+        {viewMode === 'table' ? (
           /* Scheduled Transactions List */
           <div className="bg-white dark:bg-gray-800 shadow dark:shadow-gray-700/50 rounded-lg overflow-hidden">
             {isLoading ? (
@@ -883,6 +912,7 @@ function BillsContent() {
           existingOverride={overrideEditor.existingOverride}
           prefillAmount={overrideEditor.prefillAmount}
           loanOccurrence={overrideEditor.loanOccurrence}
+          payrollDeductions={overrideEditor.payrollDeductions}
           onClose={handleOverrideEditorClose}
           onSave={handleOverrideEditorSave}
           onCreateCategory={createCategoryFromTypedName}
@@ -905,12 +935,17 @@ function BillsContent() {
       )}
 
       {/* Override Confirmation Dialog */}
-      <Modal isOpen={overrideConfirm.isOpen} onClose={handleOverrideConfirmCancel} maxWidth="lg" className="px-6 py-5">
+      {/* Three answers (Cancel, keep, delete), so not a two-button
+          ConfirmDialog; titled through Modal so the dialog is named. */}
+      <Modal
+        isOpen={overrideConfirm.isOpen}
+        onClose={handleOverrideConfirmCancel}
+        maxWidth="lg"
+        className="p-6"
+        title={t('overrideConfirm.title')}
+      >
         <div className="mb-4">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-            {t('overrideConfirm.title')}
-          </h3>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             {t('overrideConfirm.message', { count: overrideConfirm.overrideCount })}
           </p>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
@@ -924,7 +959,7 @@ function BillsContent() {
           <Button variant="outline" onClick={handleOverrideConfirmKeep}>
             {t('overrideConfirm.keepButton')}
           </Button>
-          <Button onClick={handleOverrideConfirmDelete} className="bg-red-600 hover:bg-red-700">
+          <Button variant="danger" onClick={handleOverrideConfirmDelete}>
             {t('overrideConfirm.deleteButton')}
           </Button>
         </div>

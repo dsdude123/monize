@@ -4,6 +4,7 @@
     "subtitle": "深入了解您的财务健康状况",
     "searchPlaceholder": "按名称或描述搜索报告...",
     "allReports": "所有报告",
+    "categoryWithCount": "{label}（{count}）",
     "removeFavourite": "从收藏中移除",
     "addFavourite": "添加到收藏",
     "tableReport": "报告",
@@ -38,6 +39,7 @@
       "account-balances": "账户余额",
       "cash-flow": "现金流量表",
       "tax-summary": "税务摘要",
+      "payroll-deductions": "工资扣款",
       "year-over-year": "同比对比",
       "debt-payoff-timeline": "债务偿还时间表",
       "loan-amortization": "贷款摊销计划",
@@ -87,6 +89,7 @@
       "account-balances": "查看任意所选日期每个账户的余额，并按您的需要分组和排序。",
       "cash-flow": "查看所有账户的详细资金流入和流出情况。",
       "tax-summary": "可扣税支出和应税收入的年度摘要。",
+      "payroll-deductions": "按类别的工资扣款：当年与各项上限的对比、逐张工资单明细，以及每个有记录的年份。",
       "year-over-year": "将本年度与往年对比，追踪财务进展。",
       "debt-payoff-timeline": "通过偿还预测，可视化您的债务减少进度。",
       "loan-amortization": "抵押贷款和贷款的详细还款计划，含本金与利息明细。",
@@ -135,7 +138,8 @@
   },
   "reportPage": {
     "notFound": "未找到报告",
-    "notFoundDesc": "所请求的报告不存在。"
+    "notFoundDesc": "所请求的报告不存在。",
+    "viewLabel": "视图"
   },
   "error": {
     "defaultMessage": "加载报告数据失败。请重试。",
@@ -459,6 +463,7 @@
     "generating": "正在生成报告...",
     "noData": "所选条件无数据",
     "transactionCount": "{count, plural, one {# 笔交易} other {# 笔交易}}",
+    "truncatedNotice": "此报表已达到行数上限，仅显示最早的行，因此数值不完整。请缩小时间范围或筛选条件以查看全部。",
     "toasts": {
       "loadFailed": "加载报告失败",
       "executeFailed": "执行报告失败"
@@ -512,8 +517,6 @@
     "viewMonthly": "月度",
     "viewDaily": "日度",
     "viewBySecurity": "按证券",
-    "displayChart": "图表",
-    "displayTable": "表格",
     "showLabel": "显示：",
     "seriesDividends": "股息",
     "seriesInterest": "利息",
@@ -1249,7 +1252,6 @@
     "incompleteTooltip": "此时间段内有些天缺少价格、汇率或现金余额，因此依赖每一天数据的数字不会显示。",
     "measuredFromClose": "自 {date} 收盘起",
     "notAvailable": "不适用",
-    "intradayUnavailable": "详细日内定价不可用",
     "intradayUnavailableTitle": "此账户组合不支持日内视图",
     "intradayUnavailableDesc": "一个或多个持仓使用的行情提供商（MSN Money）不提供日内数据{skipped}。请切换到较长时间范围以查看每日快照。",
     "intradayUnavailableSkipped": "：{symbols}",
@@ -1300,8 +1302,6 @@
     "costBasis": "成本基础",
     "realizedGainLoss": "已实现盈亏",
     "securitiesSold": "已卖出证券",
-    "viewChart": "图表",
-    "viewTable": "表格",
     "noTransactions": "此期间未找到卖出交易。",
     "noGainsLosses": "无盈亏可显示。",
     "bySecurityTitle": "按证券已实现收益",
@@ -1337,7 +1337,7 @@
     "sixMonthTotal": "6 个月合计",
     "monthlyEstimate": "月度估算",
     "identifiedPayees": "个已识别收款人",
-    "minOccurrencesLabel": "最少发生次数：",
+    "minOccurrencesLabel": "最少发生次数",
     "inLast6Months": "（过去 6 个月内）",
     "noRecurring": "过去 6 个月内未找到 {count}+ 次发生的定期支出。",
     "failedToLoad": "加载定期支出数据失败。",
@@ -1475,6 +1475,8 @@
     "totalReturn": "总回报率",
     "annualizedReturn": "年化回报率",
     "needs1YearNote": "需要 1 年以上数据",
+    "annualizedNeedsSingleBuyNote": "仅在只有一次买入且之后没有其他活动时显示",
+    "missingPrice": "{symbol} 没有价格",
     "priceHistory": "价格历史 - {symbol}",
     "buyTransaction": "买入交易",
     "sellTransaction": "卖出交易",
@@ -1624,6 +1626,48 @@
     "pdfIncomeExpensesDeductions": "收入：{income} | 支出：{expenses} | 扣除项：{deductions}",
     "pdfTotalsLabel": "总收入 / 支出 / 扣除项"
   },
+  "payrollDeductions": {
+    "year": "年份",
+    "yearHelp": "类别的年份是指在所选年份中从其规则的重置日期开始的周期。若在 1 月 1 日重置，即为日历年。",
+    "emptyTitle": "尚无工资扣款规则",
+    "emptyDescription": "在“工具 > 税务 > 工资扣款”中为工资单的扣款行设置年度上限，这些类别就会显示在这里。",
+    "emptyAction": "打开工资扣款",
+    "summaryTitle": "{year} 年概览",
+    "summaryHelp": "每个扣款类别在其周期内收取的金额，涵盖所有账户，以账单币种计。规则只保存当前使用的上限，因此上限和剩余额度仅对尚未结束的周期显示，以前年份的上限没有记录。",
+    "colCategory": "类别",
+    "colBills": "账单",
+    "colPeriod": "周期",
+    "colPaid": "已付",
+    "colMaximum": "上限",
+    "colRemaining": "剩余",
+    "colPercent": "占上限",
+    "colPaycheques": "工资单",
+    "colAverage": "每张工资单平均",
+    "colReached": "达到上限",
+    "colDate": "日期",
+    "colPayee": "收款方",
+    "colTotal": "合计",
+    "colYear": "年份",
+    "periodRange": "{start} 至 {end}",
+    "toDate": "截至目前",
+    "notRecorded": "无记录",
+    "notReached": "未达到",
+    "outsidePeriod": "不在其周期内",
+    "otherCurrency": "其他货币",
+    "noPaycheque": "无",
+    "noPayee": "无收款方",
+    "foreignRows": "其他货币的 {count, plural, other {# 行}}未计入",
+    "paychequesTitle": "逐张工资单，{year} 年",
+    "paychequesHelp": "在所选年份的周期内向报告类别扣款的每笔交易，按从旧到新排列。每列之和等于概览中该类别的已付金额。",
+    "paychequesEmpty": "{year} 年没有向这些类别扣款。",
+    "totalRow": "合计",
+    "mixedCurrencies": "未相加：这些类别使用不止一种货币。",
+    "historyTitle": "{category}（按年）",
+    "historyTitleCurrency": "{category}（{currency}）（按年）",
+    "historyHelp": "该类别在每个有记录的周期内收取的金额，按从新到旧排列，涵盖所有账户，以账单币种计。",
+    "csvSummary": "概览",
+    "csvPaycheques": "工资单"
+  },
   "uncategorizedTransactions": {
     "totalUncategorized": "总未分类数",
     "uncategorizedExpenses": "未分类支出",
@@ -1655,8 +1699,6 @@
     "activeBills": "活跃账单",
     "overdue": "已逾期",
     "thisMonth": "本月",
-    "autoPostsTitle": "到期自动过账",
-    "manualPostTitle": "需要手动过账",
     "autoLabel": "自动",
     "manualLabel": "手动",
     "overdueLabel": "逾期",
@@ -1790,6 +1832,7 @@
     "removeAriaLabel": "从对比中移除{title}",
     "removeTitle": "从对比中移除",
     "runFailed": "运行失败",
+    "never": "从未",
     "errors": {
       "loadScenarioFailed": "加载情景失败。",
       "simulationFailed": "模拟失败。"
@@ -1803,7 +1846,6 @@
     "backToReports": "返回报告",
     "deleteButton": "删除报告",
     "deleteConfirmMessage": "确定要删除\"{name}\"吗？此操作无法撤销。",
-    "deleting": "删除中...",
     "toasts": {
       "loadFailed": "加载报告失败",
       "updated": "报告已更新",
@@ -1898,7 +1940,11 @@
     "noticeExcluded": "部分数字不完整：{count, plural, other {# 笔金额}}无法计算，已被排除。",
     "pdfNote": "不完整的总额：{currencies} 没有汇率",
     "pdfNoteExcluded": "不完整的总额：已排除 {count, plural, other {# 笔金额}}",
-    "pdfSuffix": "（不完整）"
+    "pdfSuffix": "（不完整）",
+    "knownValue": "已知价值",
+    "weightingIntro": "百分比仅涵盖能够估值的持仓。",
+    "weightingNoPrice": "{symbols} 没有价格：请在证券页面刷新或添加价格。",
+    "weightingNoRate": "{pairs} 没有汇率：请在“货币”页面添加。"
   },
   "sankey": {
     "help": "流入的资金经过中间，流向其被花费的去处、被储蓄或投资的部分以及用于偿还债务的部分。默认情况下，报告涵盖您未关闭的支票、储蓄、现金、信用卡和信用额度账户，这些账户之间的转账不会显示。将某个储蓄账户从账户筛选中移除，即可看到您转入其中的金额。信用卡还款从不算作债务还款：它结清的消费已计为支出。",
@@ -1944,7 +1990,9 @@
       "uncategorizedExpense": "未分类支出",
       "residualUnspent": "未花费",
       "residualDeficit": "动用余额",
-      "unlinkedAccount": "（未关联账户）"
+      "unlinkedAccount": "（未关联账户）",
+      "classSharedSettlements": "共同费用的结算",
+      "inflowSharedSettlements": "来自共同结算"
     }
   },
   "pdfExport": {

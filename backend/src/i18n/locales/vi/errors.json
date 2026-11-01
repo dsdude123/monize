@@ -42,6 +42,7 @@
     "institutionNotFound": "Không tìm thấy tổ chức",
     "updateClosed": "Không thể cập nhật tài khoản đã đóng",
     "changeCurrencyWithTransactions": "Không thể thay đổi tiền tệ của tài khoản đã có giao tác.",
+    "changeCurrencyWithBalanceOrSchedules": "Không thể đổi tiền tệ của tài khoản có số dư đầu kỳ hoặc giao dịch định kỳ.",
     "alreadyClosed": "Tài khoản đã được đóng",
     "closeNonZeroBalance": "Không thể đóng tài khoản có số dư khác không. Số dư hiện tại: {{ currentBalance }}",
     "closeWithFutureTransactions": "Không thể đóng tài khoản có giao dịch mang ngày trong tương lai. Tài khoản có {{ count }} giao dịch mang ngày sau hôm nay; hãy xóa hoặc hủy bỏ chúng trước.",
@@ -100,7 +101,8 @@
     "unsupportedInvestmentAction": "Hành động đầu tư không được hỗ trợ: {{ action }}",
     "unsupportedBulkAction": "Hành động hàng loạt không được hỗ trợ: {{ action }}",
     "unsupportedSimpleAction": "Hành động không được hỗ trợ: {{ action }}",
-    "unsupportedTableForReinsert": "Bảng không được hỗ trợ để chèn lại: {{ tableName }}"
+    "unsupportedTableForReinsert": "Bảng không được hỗ trợ để chèn lại: {{ tableName }}",
+    "undoConversion": "Thay đổi này đã chuyển đổi một giao dịch thành chuyển khoản hoặc ngược lại, nên không thể hoàn tác tự động. Hãy chuyển đổi lại."
   },
   "admin": {
     "passwordOrInviteNotBoth": "Chỉ cung cấp mật khẩu hoặc lời mời qua email, không cả hai.",
@@ -114,6 +116,11 @@
     "deleteLastAdmin": "Không thể xóa tài khoản quản trị viên cuối cùng.",
     "cannotResetOwnPassword": "Bạn không thể đặt lại mật khẩu của chính mình qua bảng quản trị",
     "noLocalPassword": "Không thể đặt lại mật khẩu cho tài khoản không có mật khẩu cục bộ",
+    "cannotUnlinkOwnSso": "Bạn không thể hủy liên kết tài khoản SSO của chính mình qua bảng quản trị",
+    "notSsoAccount": "Tài khoản này không phải là tài khoản SSO",
+    "unlinkSsoNeedsEmail": "Tài khoản này không có địa chỉ email nên không thể đăng nhập bằng mật khẩu",
+    "localAuthDisabled": "Đăng nhập bằng mật khẩu đã bị tắt trên máy chủ này",
+    "ssoPasswordLoginDisabled": "Đăng nhập bằng mật khẩu đã bị tắt đối với tài khoản SSO. Hãy dùng Hủy liên kết SSO.",
     "cannotResetOwnTwoFactor": "Bạn không thể đặt lại xác thực hai yếu tố của chính mình qua bảng quản trị",
     "twoFactorNotEnabled": "Người dùng này chưa thiết lập xác thực hai yếu tố."
   },
@@ -308,6 +315,11 @@
     "noOpenPeriod": "Không có kỳ mở để đóng",
     "categoryIdsNotOwned": "Không tìm thấy ID danh mục hoặc không thuộc sở hữu của người dùng: {{ ids }}"
   },
+  "payrollDeductions": {
+    "notFound": "Không tìm thấy quy tắc khấu trừ lương {{ id }}",
+    "duplicate": "Hóa đơn này đã có quy tắc cho danh mục đó",
+    "expectedRequired": "Hóa đơn không có dòng cho danh mục này; hãy nhập số tiền dự kiến mỗi kỳ lương"
+  },
   "categories": {
     "notFound": "Không tìm thấy danh mục với ID {{ id }}",
     "cannotModifySystem": "Không thể sửa đổi danh mục hệ thống",
@@ -469,6 +481,7 @@
   },
   "import": {
     "noAccountBlocks": "Không tìm thấy khối tài khoản trong tệp QIF. Tệp này có thể không phải là xuất khẩu nhiều tài khoản.",
+    "accountTypeRequired": "Chọn loại tài khoản cho các tài khoản này trước khi nhập: {{ accounts }}",
     "importFailed": "Nhập khẩu thất bại sau {{ imported }} giao tác: {{ message }}",
     "investmentFileNeedsBrokerageAccount": "Tệp này chứa giao tác đầu tư nhưng tài khoản đã chọn không phải là tài khoản môi giới đầu tư. Vui lòng chọn tài khoản môi giới cho lần nhập khẩu này.",
     "regularFileNeedsCashAccount": "Tệp này chứa giao tác ngân hàng thông thường nhưng tài khoản đã chọn là tài khoản môi giới đầu tư. Vui lòng chọn tài khoản tiền mặt (bao gồm tài khoản tiền mặt đầu tư) cho lần nhập khẩu này.",
@@ -481,7 +494,7 @@
     "mnyNoFile": "Chưa tải lên tệp Money nào",
     "mnyFileTruncated": "Tệp Money này có vẻ chưa hoàn chỉnh. Quá trình tải lên có thể đã bị ngắt -- hãy thử lại.",
     "mnyNotAMoneyFile": "Tệp đó không phải là tệp Microsoft Money (.mny)",
-    "mnyUnsupportedVersion": "Tệp đó được tạo bởi Money 97 hoặc 98, mà Monize không thể đọc. Hãy mở và lưu tệp một lần trong bản Money Plus Sunset miễn phí, rồi nhập kết quả.",
+    "mnyUnsupportedVersion": "Tệp đó được tạo bởi một phiên bản Microsoft Money mà Monize không thể đọc. Hãy mở và lưu tệp một lần trong bản Money Plus Sunset miễn phí, rồi nhập kết quả.",
     "mnyPasswordRequired": "Tệp Money đó được bảo vệ bằng mật khẩu. Hãy nhập mật khẩu để tiếp tục.",
     "mnyPasswordIncorrect": "Mật khẩu đó không mở được tệp Money. Hãy kiểm tra lại và thử lần nữa.",
     "mnyUnreadableDatabase": "Tệp Money đó đã được giải mã nhưng không thể đọc nội dung. Tệp có thể đã bị hỏng.",
@@ -489,9 +502,12 @@
     "mnyStagedFileInUse": "Tệp Money này đang được nhập. Hãy đợi quá trình nhập hoàn tất trước khi loại bỏ tệp.",
     "mnyImportAlreadyRunning": "Đã có một lần nhập đang chạy. Hãy đợi hoàn tất trước khi bắt đầu lần khác.",
     "mnyAlreadyImported": "Tệp này đã được nhập vào ngày {{ date }} (lần nhập {{ jobId }}) và các bản ghi vẫn còn trong tài khoản của bạn. Nhập lại sẽ tạo bản trùng. Để thay thế chúng, hãy bắt đầu lại và chọn thay thế dữ liệu hiện có.",
+    "mnyExistingAccountClosed": "Tài khoản hiện có \"{{ name }}\" đã đóng nên không thể gộp tệp Money vào đó. Hãy mở lại hoặc đổi tên tài khoản rồi nhập lại.",
+    "mnyExistingAccountCurrency": "Tài khoản hiện có \"{{ name }}\" dùng {{ existing }}, nhưng tài khoản trong tệp Money dùng {{ file }}. Hãy đổi tên một trong hai rồi nhập lại.",
     "mnyJobNotFound": "Không tìm thấy tác vụ nhập",
     "mnyFileTooLarge": "Tệp Money đó lớn hơn giới hạn nhập {{ limit }} MB.",
-    "noRateForSplitTransfer": "Không có tỷ giá cho {{ pair }} vào ngày {{ date }}: một dòng chia tách chuyển sang tài khoản bằng loại tiền khác. Hãy thêm tỷ giá cho cặp tiền và ngày đó, rồi nhập lại."
+    "noRateForSplitTransfer": "Không có tỷ giá cho {{ pair }} vào ngày {{ date }}: một dòng chia tách chuyển sang tài khoản bằng loại tiền khác. Hãy thêm tỷ giá cho cặp tiền và ngày đó, rồi nhập lại.",
+    "accountClosed": "Tài khoản đã đóng. Hãy mở lại hoặc chọn tài khoản khác."
   },
   "monteCarlo": {
     "scenarioNotFound": "Không tìm thấy kịch bản {{ id }}",
@@ -767,6 +783,7 @@
     "notATransfer": "Giao tác không phải là chuyển tiền",
     "splitTransferLegAccountLocked": "Chuyển khoản này là một phần của giao tác chia nhỏ. Hãy thay đổi tài khoản bằng cách chỉnh sửa phần chia trên giao tác nguồn.",
     "splitTransferLegStatusLocked": "Giao dịch chuyển tiền này là một phần của giao dịch được chia nhỏ. Hãy hủy hoặc phục hồi nó bằng cách chỉnh sửa giao dịch được chia nhỏ mà nó thuộc về, để cả hai bên thay đổi cùng nhau.",
+    "investmentCashLegLocked": "Giao dịch này là phần tiền mặt của một giao dịch đầu tư. Hãy sửa hoặc xóa giao dịch đầu tư để cả hai phần cùng thay đổi.",
     "investmentCashLegStatusLocked": "Giao dịch này là phần tiền mặt của một giao dịch đầu tư. Hãy hủy hoặc phục hồi nó bằng cách thay đổi trạng thái của giao dịch đầu tư, để cả hai bên thay đổi cùng nhau.",
     "notFoundById": "Không tìm thấy giao tác với ID {{ id }}",
     "bulkUpdateNoFields": "Phải cung cấp ít nhất một trường cập nhật",
@@ -786,7 +803,11 @@
     "transferRateUnavailable": "Không thể xác định tỷ giá cho {{ from }} -> {{ to }}. Hãy cung cấp exchangeRate hoặc số tiền đích để giao dịch chuyển khoản được ghi nhận chính xác.",
     "transferAmountsMustAgreeOnZero": "Giao dịch chuyển tiền phải di chuyển một số tiền khác không ở cả hai bên, hoặc bằng không ở cả hai bên",
     "transferImpliedRateInvalid": "Số tiền đích ngụ ý một tỷ giá không thể sử dụng so với số tiền nguồn",
-    "externalIdNotThisTransfer": "externalId này đã được dùng trong tài khoản nguồn bởi một giao dịch không phải là chuyển khoản đến tài khoản đích này"
+    "externalIdNotThisTransfer": "externalId này đã được dùng trong tài khoản nguồn bởi một giao dịch không phải là chuyển khoản đến tài khoản đích này",
+    "alreadyATransfer": "Giao dịch này đã là một giao dịch chuyển khoản. Hãy chỉnh sửa chính giao dịch chuyển khoản đó.",
+    "convertTransferCrossOwner": "Không thể chuyển đổi giao dịch chuyển khoản có tài khoản của chủ sở hữu khác. Hãy xóa và tạo mục bạn muốn.",
+    "splitTransferLegConvertLocked": "Giao dịch chuyển khoản này là một phần của giao dịch tách. Hãy xóa bằng cách chỉnh sửa phần tách trên giao dịch nguồn.",
+    "transferCounterpartChanged": "Phía bên kia của giao dịch chuyển khoản này đã thay đổi trong khi bạn chỉnh sửa. Hãy tải lại và thử lại."
   },
   "users": {
     "userNotFound": "Không tìm thấy người dùng",

@@ -13,6 +13,7 @@
   "rules": "規則",
   "warranties": "保固",
   "emailReceipts": "郵件收據",
+  "taxes": "稅務",
   "securities": "證券",
   "currencies": "貨幣",
   "import": "匯入交易",
@@ -37,5 +38,6 @@
     "open": "開啟搜尋",
     "submit": "搜尋"
   },
-  "backups": "備份"
+  "backups": "備份",
+  "sharedExpenses": "共同支出"
 }
